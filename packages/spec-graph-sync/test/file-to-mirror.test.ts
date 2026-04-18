@@ -4,10 +4,20 @@ import {
   createProjectFixture,
   seedGraph,
   truncateAll,
+  writeGraphFile,
   type ProjectFixture
 } from "./helpers.js";
-import { SpecEventRepo, createDatabase, type Database } from "@atlas/spec-graph-data";
-import { ingestNewEventLines, type FileToMirrorState } from "../src/file-to-mirror.js";
+import {
+  SpecEventRepo,
+  SpecGraphRepo,
+  createDatabase,
+  type Database
+} from "@atlas/spec-graph-data";
+import {
+  ingestNewEventLines,
+  syncGraphFileToMirror,
+  type FileToMirrorState
+} from "../src/file-to-mirror.js";
 
 describe("ingestNewEventLines", () => {
   let db: Database;
@@ -136,5 +146,90 @@ describe("ingestNewEventLines", () => {
       eventRepo
     });
     expect(r2.appended).toBe(1);
+  });
+});
+
+describe("syncGraphFileToMirror", () => {
+  let db: Database;
+  let fx: ProjectFixture;
+  let graphRepo: SpecGraphRepo;
+  let eventRepo: SpecEventRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    graphRepo = new SpecGraphRepo(db.pool);
+    eventRepo = new SpecEventRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAll(db);
+    fx = createProjectFixture();
+    await seedGraph(db, fx.projectId, { nodes: [], edges: [] });
+  });
+
+  afterAll(async () => {
+    fx.cleanup();
+    await db.pool.end();
+  });
+
+  it("reads the file, appends a 'graph.file_edited' event, and updates the mirror graph", async () => {
+    const newGraph = { nodes: [{ id: "n1" }], edges: [] };
+    writeGraphFile(fx.graphPath, newGraph);
+
+    const result = await syncGraphFileToMirror({
+      projectId: fx.projectId,
+      graphPath: fx.graphPath,
+      graphRepo,
+      eventRepo
+    });
+
+    expect(result.updated).toBe(true);
+    const mirror = await graphRepo.findByProjectId(fx.projectId);
+    expect(mirror?.graphData).toEqual(newGraph);
+    const events = await eventRepo.listSince(fx.projectId, 0n);
+    expect(events.map((e) => e.eventType)).toEqual(["graph.file_edited"]);
+  });
+
+  it("is a no-op when the file content already equals mirror state", async () => {
+    writeGraphFile(fx.graphPath, { nodes: [], edges: [] }); // same as seed
+    const result = await syncGraphFileToMirror({
+      projectId: fx.projectId,
+      graphPath: fx.graphPath,
+      graphRepo,
+      eventRepo
+    });
+    expect(result.updated).toBe(false);
+    const events = await eventRepo.listSince(fx.projectId, 0n);
+    expect(events).toHaveLength(0);
+  });
+
+  it("stamps the new event id as current_event_seq on the mirror row", async () => {
+    writeGraphFile(fx.graphPath, { nodes: [{ id: "n1" }], edges: [] });
+    await syncGraphFileToMirror({
+      projectId: fx.projectId,
+      graphPath: fx.graphPath,
+      graphRepo,
+      eventRepo
+    });
+    const mirror = await graphRepo.findByProjectId(fx.projectId);
+    const latest = await eventRepo.getLatest(fx.projectId);
+    expect(mirror?.currentEventSeq).toBe(latest?.id);
+  });
+
+  it("throws a reconciliation-needed error if the project has no mirror row", async () => {
+    const ghost = createProjectFixture();
+    try {
+      writeGraphFile(ghost.graphPath, { nodes: [], edges: [] });
+      await expect(
+        syncGraphFileToMirror({
+          projectId: ghost.projectId,
+          graphPath: ghost.graphPath,
+          graphRepo,
+          eventRepo
+        })
+      ).rejects.toThrow(/reconciliation-needed/i);
+    } finally {
+      ghost.cleanup();
+    }
   });
 });

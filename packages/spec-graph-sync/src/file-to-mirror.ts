@@ -1,5 +1,6 @@
-import { open } from "node:fs/promises";
-import type { SpecEventRepo } from "@atlas/spec-graph-data";
+import { createHash } from "node:crypto";
+import { open, readFile } from "node:fs/promises";
+import type { SpecEventRepo, SpecGraphRepo } from "@atlas/spec-graph-data";
 
 export interface FileToMirrorState {
   /** Byte offset into events.jsonl up to which we've already ingested. */
@@ -90,4 +91,75 @@ export async function ingestNewEventLines(
   } finally {
     await fh.close();
   }
+}
+
+export interface SyncGraphFileArgs {
+  projectId: string;
+  graphPath: string;
+  graphRepo: SpecGraphRepo;
+  eventRepo: SpecEventRepo;
+}
+
+export interface SyncGraphFileResult {
+  updated: boolean;
+}
+
+export function sha256(data: string | Buffer): string {
+  return createHash("sha256").update(data).digest("hex");
+}
+
+/**
+ * Stable JSON stringify with sorted keys. Postgres JSONB does not preserve
+ * key insertion order (it stores values canonically), so a raw
+ * `JSON.stringify` round-trip through the mirror can reshuffle key order
+ * and spuriously report drift. Canonicalise before hashing.
+ */
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0
+  );
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+}
+
+/**
+ * Reads spec.graph.json, compares against the mirror's graph_data. If they
+ * differ, appends a `graph.file_edited` event and overwrites mirror state
+ * with the file contents (mirror then stamps current_event_seq with the
+ * new event's id). No-op when file and mirror already match.
+ *
+ * Throws a `reconciliation-needed: ...` error if the project has no mirror
+ * row; the daemon handler surfaces this as a reconciliation counter bump.
+ */
+export async function syncGraphFileToMirror(args: SyncGraphFileArgs): Promise<SyncGraphFileResult> {
+  const { projectId, graphPath, graphRepo, eventRepo } = args;
+  const raw = await readFile(graphPath, "utf8");
+  const fileGraph = JSON.parse(raw) as unknown;
+  const fileHash = sha256(canonicalJson(fileGraph));
+
+  const mirror = await graphRepo.findByProjectId(projectId);
+  if (!mirror) {
+    throw new Error(
+      `reconciliation-needed: project ${projectId} has a spec.graph.json on disk but no mirror row. ` +
+        `Create the project via SpecGraphRepo.create before starting the sync daemon.`
+    );
+  }
+
+  const mirrorHash = sha256(canonicalJson(mirror.graphData));
+  if (mirrorHash === fileHash) {
+    return { updated: false };
+  }
+
+  const event = await eventRepo.append(projectId, {
+    eventType: "graph.file_edited",
+    payload: { fileHash, mirrorHashBefore: mirrorHash },
+    actor: "sync-daemon"
+  });
+  await graphRepo.updateGraphData(projectId, fileGraph, event.id);
+  return { updated: true };
 }
