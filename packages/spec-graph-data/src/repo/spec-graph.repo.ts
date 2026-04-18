@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import { eq, sql } from "drizzle-orm";
 import { specGraphs, type SpecGraphRow } from "../schema/index.js";
 import { withProjectContext } from "../tenant.js";
+import { withSpan } from "../observability.js";
 
 // Postgres SQLSTATE for unique_violation
 const PG_UNIQUE_VIOLATION = "23505";
@@ -23,36 +24,40 @@ export class SpecGraphRepo {
   constructor(private readonly pool: Pool) {}
 
   async create(projectId: string, graphData: unknown): Promise<SpecGraphRow> {
-    try {
-      return await withProjectContext(this.pool, projectId, async (client) => {
-        const db = drizzle(client, { schema: { specGraphs } });
-        const [row] = await db
-          .insert(specGraphs)
-          .values({ projectId, graphData: graphData as never })
-          .returning();
-        if (!row) {
-          throw new Error("SpecGraphRepo.create: insert returned no row");
+    return withSpan("SpecGraphRepo.create", { "atlas.project_id": projectId }, async () => {
+      try {
+        return await withProjectContext(this.pool, projectId, async (client) => {
+          const db = drizzle(client, { schema: { specGraphs } });
+          const [row] = await db
+            .insert(specGraphs)
+            .values({ projectId, graphData: graphData as never })
+            .returning();
+          if (!row) {
+            throw new Error("SpecGraphRepo.create: insert returned no row");
+          }
+          return row;
+        });
+      } catch (err) {
+        const cause = unwrapDriverError(err);
+        if (isPgError(cause) && cause.code === PG_UNIQUE_VIOLATION) {
+          throw new Error(
+            `SpecGraphRepo.create: duplicate project_id ${projectId} (unique constraint violated)`,
+            { cause: cause as Error }
+          );
         }
-        return row;
-      });
-    } catch (err) {
-      const cause = unwrapDriverError(err);
-      if (isPgError(cause) && cause.code === PG_UNIQUE_VIOLATION) {
-        throw new Error(
-          `SpecGraphRepo.create: duplicate project_id ${projectId} (unique constraint violated)`,
-          { cause: cause as Error }
-        );
+        throw err;
       }
-      throw err;
-    }
+    });
   }
 
   async findByProjectId(projectId: string): Promise<SpecGraphRow | null> {
-    return withProjectContext(this.pool, projectId, async (client) => {
-      const db = drizzle(client, { schema: { specGraphs } });
-      const rows = await db.select().from(specGraphs).where(eq(specGraphs.projectId, projectId)).limit(1);
-      return rows[0] ?? null;
-    });
+    return withSpan("SpecGraphRepo.findByProjectId", { "atlas.project_id": projectId }, async () =>
+      withProjectContext(this.pool, projectId, async (client) => {
+        const db = drizzle(client, { schema: { specGraphs } });
+        const rows = await db.select().from(specGraphs).where(eq(specGraphs.projectId, projectId)).limit(1);
+        return rows[0] ?? null;
+      })
+    );
   }
 
   async updateGraphData(
@@ -60,21 +65,23 @@ export class SpecGraphRepo {
     graphData: unknown,
     currentEventSeq: bigint
   ): Promise<SpecGraphRow> {
-    return withProjectContext(this.pool, projectId, async (client) => {
-      const db = drizzle(client, { schema: { specGraphs } });
-      const [row] = await db
-        .update(specGraphs)
-        .set({
-          graphData: graphData as never,
-          currentEventSeq,
-          updatedAt: sql`now()`
-        })
-        .where(eq(specGraphs.projectId, projectId))
-        .returning();
-      if (!row) {
-        throw new Error(`SpecGraphRepo.updateGraphData: spec graph not found for project ${projectId}`);
-      }
-      return row;
-    });
+    return withSpan("SpecGraphRepo.updateGraphData", { "atlas.project_id": projectId }, async () =>
+      withProjectContext(this.pool, projectId, async (client) => {
+        const db = drizzle(client, { schema: { specGraphs } });
+        const [row] = await db
+          .update(specGraphs)
+          .set({
+            graphData: graphData as never,
+            currentEventSeq,
+            updatedAt: sql`now()`
+          })
+          .where(eq(specGraphs.projectId, projectId))
+          .returning();
+        if (!row) {
+          throw new Error(`SpecGraphRepo.updateGraphData: spec graph not found for project ${projectId}`);
+        }
+        return row;
+      })
+    );
   }
 }
