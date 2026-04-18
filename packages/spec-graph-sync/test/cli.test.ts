@@ -59,13 +59,16 @@ describe("atlas-sync CLI", () => {
     await waitFor(async () => (await eventRepo.listSince(fx.projectId, 0n)).length > 0, { timeoutMs: 5_000 });
 
     child.kill("SIGINT");
-    // On Windows, kill("SIGINT") terminates the process immediately via TerminateProcess(),
-    // so the process cannot handle the signal and call process.exit(0).
-    // We accept either a clean exit (0) or a signal-terminated result on Windows.
+    // On Windows, kill("SIGINT") calls TerminateProcess() — the child cannot handle
+    // the signal and call process.exit(0). On POSIX the handler runs normally.
     const result = await child.catch((e: any) => e);
-    const isCleanExit = result.exitCode === 0;
-    const isSignalKilled = result.isTerminated === true && result.signal === "SIGINT";
-    expect(isCleanExit || isSignalKilled).toBe(true);
+    if (process.platform === "win32") {
+      const isCleanExit = result.exitCode === 0;
+      const isSignalKilled = result.isTerminated === true && result.signal === "SIGINT";
+      expect(isCleanExit || isSignalKilled).toBe(true);
+    } else {
+      expect(result.exitCode).toBe(0);
+    }
   });
 
   it("rejects an invalid project-id (not a UUID)", async () => {
