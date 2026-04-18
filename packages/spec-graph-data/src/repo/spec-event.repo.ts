@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 import { specEvents, type NewSpecEventRow, type SpecEventRow } from "../schema/index.js";
@@ -44,6 +44,19 @@ export class SpecEventRepo {
         .where(and(eq(specEvents.projectId, projectId), gt(specEvents.id, cursor)))
         .orderBy(asc(specEvents.id))
         .limit(limit);
+    });
+  }
+
+  async getLatest(projectId: string): Promise<SpecEventRow | null> {
+    return withProjectContext(this.pool, projectId, async (client) => {
+      const db = drizzle(client, { schema: { specEvents } });
+      const rows = await db
+        .select()
+        .from(specEvents)
+        .where(eq(specEvents.projectId, projectId))
+        .orderBy(desc(specEvents.id))
+        .limit(1);
+      return rows[0] ?? null;
     });
   }
 }

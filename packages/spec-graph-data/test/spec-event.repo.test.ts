@@ -105,3 +105,33 @@ describe("SpecEventRepo.listSince", () => {
     expect(rows).toHaveLength(2);
   });
 });
+
+describe("SpecEventRepo.getLatest", () => {
+  let db: Database;
+  let repo: SpecEventRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    repo = new SpecEventRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAllTables(db);
+  });
+
+  afterAll(async () => {
+    await db.pool.end();
+  });
+
+  it("returns the highest-id event for the project", async () => {
+    const projectId = uniqueProjectId();
+    await repo.append(projectId, { eventType: "a", payload: {}, actor: null });
+    const b = await repo.append(projectId, { eventType: "b", payload: {}, actor: null });
+    const latest = await repo.getLatest(projectId);
+    expect(latest?.id).toBe(b.id);
+  });
+
+  it("returns null when the project has no events", async () => {
+    expect(await repo.getLatest(uniqueProjectId())).toBeNull();
+  });
+});
