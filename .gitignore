@@ -87,6 +87,9 @@ $RECYCLE.BIN/
 *.sublime-project
 *.sublime-workspace
 
+# --- Claude Code local session state (permission decisions, tool allowlists) ---
+.claude/settings.local.json
+
 # --- Lockfile handling (keep the primary; ignore dupes) ---
 # pnpm-lock.yaml is the canonical lockfile for Atlas
 yarn.lock
