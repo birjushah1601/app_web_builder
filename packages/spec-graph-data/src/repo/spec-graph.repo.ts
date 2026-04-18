@@ -46,4 +46,12 @@ export class SpecGraphRepo {
       throw err;
     }
   }
+
+  async findByProjectId(projectId: string): Promise<SpecGraphRow | null> {
+    return withProjectContext(this.pool, projectId, async (client) => {
+      const db = drizzle(client, { schema: { specGraphs } });
+      const rows = await db.select().from(specGraphs).where(eq(specGraphs.projectId, projectId)).limit(1);
+      return rows[0] ?? null;
+    });
+  }
 }
