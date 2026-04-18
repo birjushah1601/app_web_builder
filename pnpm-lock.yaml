@@ -106,9 +106,15 @@ importers:
       '@types/node':
         specifier: 22.9.0
         version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
       '@types/tar':
         specifier: 6.1.13
         version: 6.1.13
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
       typescript:
         specifier: 5.6.3
         version: 5.6.3

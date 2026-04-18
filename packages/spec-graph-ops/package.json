@@ -39,7 +39,9 @@
   "devDependencies": {
     "@aws-sdk/client-s3": "3.670.0",
     "@types/node": "22.9.0",
+    "@types/pg": "8.11.10",
     "@types/tar": "6.1.13",
+    "pg": "8.13.1",
     "typescript": "5.6.3",
     "vitest": "2.1.8"
   }
