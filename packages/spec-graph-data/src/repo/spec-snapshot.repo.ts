@@ -29,4 +29,17 @@ export class SpecSnapshotRepo {
       return row;
     });
   }
+
+  async findLatest(projectId: string): Promise<SpecSnapshotRow | null> {
+    return withProjectContext(this.pool, projectId, async (client) => {
+      const db = drizzle(client, { schema: { specSnapshots } });
+      const rows = await db
+        .select()
+        .from(specSnapshots)
+        .where(eq(specSnapshots.projectId, projectId))
+        .orderBy(desc(specSnapshots.createdAt))
+        .limit(1);
+      return rows[0] ?? null;
+    });
+  }
 }
