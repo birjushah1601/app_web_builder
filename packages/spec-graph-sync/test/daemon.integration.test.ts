@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, appendFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { SpecEventRepo, SpecGraphRepo, createDatabase, type Database } from "@atlas/spec-graph-data";
+import { SpecEventRepo, SpecGraphRepo, createDatabase, metricsRegistry, type Database } from "@atlas/spec-graph-data";
 import { SyncDaemon } from "../src/daemon.js";
 import { appendEventLine, createProjectFixture, seedGraph, truncateAll, waitFor, writeGraphFile, type ProjectFixture } from "./helpers.js";
 
@@ -267,5 +267,54 @@ describe("SyncDaemon — feedback-loop prevention", () => {
     const rows = await eventRepo.listSince(fx.projectId, 0n);
     // Exactly one event total — no duplicate appended from our own reconcile write
     expect(rows.filter((r) => r.eventType === "node.created")).toHaveLength(1);
+  });
+});
+
+describe("SyncDaemon — invalid line handling", () => {
+  let db: Database;
+  let fx: ProjectFixture;
+  let eventRepo: SpecEventRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    eventRepo = new SpecEventRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAll(db);
+    fx = createProjectFixture();
+    await seedGraph(db, fx.projectId);
+    metricsRegistry.resetMetrics();
+  });
+
+  afterAll(async () => {
+    fx.cleanup();
+    await db.pool.end();
+  });
+
+  it("skips a malformed events.jsonl line, increments the counter, continues ingesting valid lines", async () => {
+    const daemon = new SyncDaemon({
+      projectId: fx.projectId,
+      projectDir: fx.projectDir,
+      pool: db.pool,
+      debounceMs: 50,
+      writeTokenTtlMs: 5_000
+    });
+    await daemon.start();
+    try {
+      appendFileSync(fx.eventsPath, `${JSON.stringify({ eventType: "valid", payload: {}, actor: null })}\n`);
+      appendFileSync(fx.eventsPath, "not-json\n");
+      appendFileSync(fx.eventsPath, `${JSON.stringify({ eventType: "also-valid", payload: {}, actor: null })}\n`);
+
+      await waitFor(async () => (await eventRepo.listSince(fx.projectId, 0n)).length >= 2, { timeoutMs: 5_000 });
+    } finally {
+      await daemon.stop();
+    }
+
+    const rows = await eventRepo.listSince(fx.projectId, 0n);
+    expect(rows.map((r) => r.eventType)).toEqual(["valid", "also-valid"]);
+
+    const metrics = await metricsRegistry.metrics();
+    expect(metrics).toMatch(/atlas_sync_invalid_lines_total 1/);
   });
 });
