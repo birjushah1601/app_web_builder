@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   SpecEventRepo,
   SpecGraphRepo,
+  withProjectContext,
   type Database
 } from "@atlas/spec-graph-data";
 import { compactProject } from "../src/compaction/compactor.js";
@@ -59,12 +60,15 @@ describe("compactProject: snapshot + tail + archive", () => {
     const tail = await events.listSince(projectId, 0n, total);
     expect(tail).toHaveLength(tailLength);
 
-    const { rows } = await db.pool.query<{ reason: string; up_to_event_id: string }>(
-      "SELECT reason, up_to_event_id FROM spec_snapshots WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1",
-      [projectId]
-    );
-    expect(rows[0]?.reason).toBe("compaction");
-    expect(BigInt(rows[0]!.up_to_event_id)).toBe(BigInt(total - tailLength));
+    const snapshotRow = await withProjectContext(db.pool, projectId, async (client) => {
+      const { rows } = await client.query<{ reason: string; up_to_event_id: string }>(
+        "SELECT reason, up_to_event_id FROM spec_snapshots WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1",
+        [projectId]
+      );
+      return rows[0];
+    });
+    expect(snapshotRow?.reason).toBe("compaction");
+    expect(BigInt(snapshotRow!.up_to_event_id)).toBe(BigInt(total - tailLength));
 
     const roundtrip = await storage.getArchive(result.archiveKey);
     const lines = roundtrip.trim().split("\n");
