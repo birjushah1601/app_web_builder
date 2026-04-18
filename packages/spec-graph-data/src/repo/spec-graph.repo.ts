@@ -54,4 +54,27 @@ export class SpecGraphRepo {
       return rows[0] ?? null;
     });
   }
+
+  async updateGraphData(
+    projectId: string,
+    graphData: unknown,
+    currentEventSeq: bigint
+  ): Promise<SpecGraphRow> {
+    return withProjectContext(this.pool, projectId, async (client) => {
+      const db = drizzle(client, { schema: { specGraphs } });
+      const [row] = await db
+        .update(specGraphs)
+        .set({
+          graphData: graphData as never,
+          currentEventSeq,
+          updatedAt: sql`now()`
+        })
+        .where(eq(specGraphs.projectId, projectId))
+        .returning();
+      if (!row) {
+        throw new Error(`SpecGraphRepo.updateGraphData: spec graph not found for project ${projectId}`);
+      }
+      return row;
+    });
+  }
 }

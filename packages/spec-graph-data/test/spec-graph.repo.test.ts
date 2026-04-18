@@ -74,3 +74,38 @@ describe("SpecGraphRepo.findByProjectId", () => {
     expect(seenByB).toBeNull();
   });
 });
+
+describe("SpecGraphRepo.updateGraphData", () => {
+  let db: Database;
+  let repo: SpecGraphRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    repo = new SpecGraphRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAllTables(db);
+  });
+
+  afterAll(async () => {
+    await db.pool.end();
+  });
+
+  it("replaces graph_data and current_event_seq atomically", async () => {
+    const projectId = uniqueProjectId();
+    await repo.create(projectId, { v: 1 });
+    const originalRow = await repo.findByProjectId(projectId);
+    const originalUpdatedAt = originalRow!.updatedAt;
+    await new Promise((r) => setTimeout(r, 10));
+
+    const updated = await repo.updateGraphData(projectId, { v: 2 }, 42n);
+    expect(updated.graphData).toEqual({ v: 2 });
+    expect(updated.currentEventSeq).toBe(42n);
+    expect(updated.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
+  });
+
+  it("throws when the project has no existing graph", async () => {
+    await expect(repo.updateGraphData(uniqueProjectId(), {}, 1n)).rejects.toThrow(/not found/i);
+  });
+});
