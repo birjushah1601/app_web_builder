@@ -126,3 +126,76 @@ describe("SyncDaemon — integration", () => {
     expect(rows.map((r) => r.eventType)).toEqual(["a", "b"]);
   });
 });
+
+describe("SyncDaemon — full round-trip", () => {
+  let db: Database;
+  let fx: ProjectFixture;
+  let graphRepo: SpecGraphRepo;
+  let eventRepo: SpecEventRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    graphRepo = new SpecGraphRepo(db.pool);
+    eventRepo = new SpecEventRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAll(db);
+    fx = createProjectFixture();
+    await seedGraph(db, fx.projectId, { nodes: [], edges: [] });
+  });
+
+  afterAll(async () => {
+    fx.cleanup();
+    await db.pool.end();
+  });
+
+  it("events -> mirror -> graph.json rewrite -> restart preserves state", async () => {
+    const d1 = new SyncDaemon({
+      projectId: fx.projectId,
+      projectDir: fx.projectDir,
+      pool: db.pool,
+      debounceMs: 50,
+      writeTokenTtlMs: 5_000
+    });
+    await d1.start();
+
+    // Step 1: append an event via the file
+    appendEventLine(fx.eventsPath, { eventType: "node.created", payload: { id: "n1" }, actor: "architect" });
+    await waitFor(async () => (await eventRepo.listSince(fx.projectId, 0n)).length >= 1, { timeoutMs: 5_000 });
+
+    // Step 2: update the graph file
+    writeGraphFile(fx.graphPath, { nodes: [{ id: "n1" }], edges: [] });
+    await waitFor(async () => {
+      const g = await graphRepo.findByProjectId(fx.projectId);
+      return (g?.graphData as { nodes?: unknown[] })?.nodes?.length === 1;
+    }, { timeoutMs: 5_000 });
+
+    await d1.stop();
+
+    // Step 3: tamper with the graph file while the daemon is down
+    writeGraphFile(fx.graphPath, { nodes: [], edges: [] });
+
+    // Step 4: restart with regenerateOnStartup — disk should match mirror again
+    const d2 = new SyncDaemon({
+      projectId: fx.projectId,
+      projectDir: fx.projectDir,
+      pool: db.pool,
+      debounceMs: 50,
+      writeTokenTtlMs: 5_000
+    });
+    await d2.start({ regenerateOnStartup: true });
+    try {
+      await waitFor(() => {
+        const onDisk = JSON.parse(readFileSync(fx.graphPath, "utf8")) as { nodes?: Array<{ id: string }> };
+        return onDisk.nodes?.[0]?.id === "n1";
+      }, { timeoutMs: 5_000 });
+    } finally {
+      await d2.stop();
+    }
+
+    // Step 5: no duplicate events in the mirror
+    const rows = await eventRepo.listSince(fx.projectId, 0n);
+    expect(rows.filter((r) => r.eventType === "node.created")).toHaveLength(1);
+  });
+});
