@@ -199,3 +199,73 @@ describe("SyncDaemon — full round-trip", () => {
     expect(rows.filter((r) => r.eventType === "node.created")).toHaveLength(1);
   });
 });
+
+describe("SyncDaemon — feedback-loop prevention", () => {
+  let db: Database;
+  let fx: ProjectFixture;
+  let graphRepo: SpecGraphRepo;
+  let eventRepo: SpecEventRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    graphRepo = new SpecGraphRepo(db.pool);
+    eventRepo = new SpecEventRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAll(db);
+    fx = createProjectFixture();
+  });
+
+  afterAll(async () => {
+    fx.cleanup();
+    await db.pool.end();
+  });
+
+  it("regenerating spec.graph.json from mirror does not re-trigger file->mirror ingest", async () => {
+    await seedGraph(db, fx.projectId, { nodes: [{ id: "seed" }], edges: [] });
+    writeGraphFile(fx.graphPath, { nodes: [], edges: [] }); // drift
+
+    const daemon = new SyncDaemon({
+      projectId: fx.projectId,
+      projectDir: fx.projectDir,
+      pool: db.pool,
+      debounceMs: 50,
+      writeTokenTtlMs: 5_000
+    });
+    await daemon.start({ regenerateOnStartup: true });
+    try {
+      // Give the daemon time to process any feedback events
+      await new Promise((r) => setTimeout(r, 400));
+    } finally {
+      await daemon.stop();
+    }
+
+    // The daemon should NOT have appended a 'graph.file_edited' event for its own write
+    const events = await eventRepo.listSince(fx.projectId, 0n);
+    expect(events.filter((e) => e.eventType === "graph.file_edited")).toHaveLength(0);
+  });
+
+  it("reconcileEventsJsonl write does not re-ingest the lines we just backfilled", async () => {
+    await seedGraph(db, fx.projectId);
+    await eventRepo.append(fx.projectId, { eventType: "node.created", payload: { id: "n1" }, actor: "architect" });
+
+    const daemon = new SyncDaemon({
+      projectId: fx.projectId,
+      projectDir: fx.projectDir,
+      pool: db.pool,
+      debounceMs: 50,
+      writeTokenTtlMs: 5_000
+    });
+    await daemon.start(); // reconciles events.jsonl with the single mirror event
+    try {
+      await new Promise((r) => setTimeout(r, 400));
+    } finally {
+      await daemon.stop();
+    }
+
+    const rows = await eventRepo.listSince(fx.projectId, 0n);
+    // Exactly one event total — no duplicate appended from our own reconcile write
+    expect(rows.filter((r) => r.eventType === "node.created")).toHaveLength(1);
+  });
+});
