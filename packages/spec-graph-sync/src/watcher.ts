@@ -79,8 +79,8 @@ export class FileWatcher extends EventEmitter {
   }
 
   override on(event: "event", listener: Listener): this;
-  override on(event: string, listener: (...args: unknown[]) => void): this;
-  override on(event: string, listener: (...args: unknown[]) => void): this {
+  override on(event: string | symbol, listener: (...args: any[]) => void): this;
+  override on(event: string | symbol, listener: (...args: any[]) => void): this {
     return super.on(event, listener);
   }
 
