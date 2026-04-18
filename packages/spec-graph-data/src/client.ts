@@ -1,7 +1,8 @@
 import pg, { type Pool, type PoolConfig } from "pg";
-const { Pool: PgPool } = pg;
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema/index.js";
+
+const { Pool: PgPool } = pg;
 
 export type Schema = typeof schema;
 export type DrizzleDb = NodePgDatabase<Schema>;

@@ -1,7 +1,8 @@
 import { parseArgs } from "node:util";
 import pg from "pg";
-const { Pool } = pg;
 import { SyncDaemon } from "./daemon.js";
+
+const { Pool } = pg;
 
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -52,22 +53,17 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     process.exit(2);
   }
 
-  const pool = new Pool({ connectionString: args.databaseUrl });
-  const daemon = new SyncDaemon({
-    projectId: args.projectId,
-    projectDir: args.projectDir,
-    pool,
-    debounceMs: args.debounceMs
-  });
-
+  let daemon: SyncDaemon | null = null;
+  let pool: InstanceType<typeof Pool> | null = null;
   let shuttingDown = false;
+
   const shutdown = async (signal: NodeJS.Signals) => {
     if (shuttingDown) return;
     shuttingDown = true;
     process.stdout.write(`[atlas-sync] received ${signal}, stopping...\n`);
     try {
-      await daemon.stop();
-      await pool.end();
+      if (daemon) await daemon.stop();
+      if (pool) await pool.end();
       process.exit(0);
     } catch (err) {
       process.stderr.write(`[atlas-sync] shutdown error: ${(err as Error).message}\n`);
@@ -76,6 +72,14 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   };
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+  pool = new Pool({ connectionString: args.databaseUrl });
+  daemon = new SyncDaemon({
+    projectId: args.projectId,
+    projectDir: args.projectDir,
+    pool,
+    debounceMs: args.debounceMs
+  });
 
   try {
     await daemon.start({ regenerateOnStartup: args.regenerateOnStartup });

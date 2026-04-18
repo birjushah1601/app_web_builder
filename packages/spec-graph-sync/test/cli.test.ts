@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { execa } from "execa";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { createDatabase, SpecEventRepo, SpecGraphRepo, type Database } from "@atlas/spec-graph-data";
+import { createDatabase, SpecEventRepo, type Database } from "@atlas/spec-graph-data";
 import { appendEventLine, createProjectFixture, seedGraph, truncateAll, waitFor, type ProjectFixture } from "./helpers.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -11,12 +11,10 @@ const CLI_ENTRY = resolve(__dirname, "..", "bin", "atlas-sync.js");
 describe("atlas-sync CLI", () => {
   let db: Database;
   let fx: ProjectFixture;
-  let graphRepo: SpecGraphRepo;
   let eventRepo: SpecEventRepo;
 
   beforeAll(() => {
     db = createDatabase(process.env.DATABASE_URL_TEST!);
-    graphRepo = new SpecGraphRepo(db.pool);
     eventRepo = new SpecEventRepo(db.pool);
   });
 
@@ -27,8 +25,11 @@ describe("atlas-sync CLI", () => {
   });
 
   afterAll(async () => {
-    fx.cleanup();
-    await db.pool.end();
+    try {
+      fx.cleanup();
+    } finally {
+      await db.pool.end();
+    }
   });
 
   it("exits non-zero when required args are missing", async () => {
