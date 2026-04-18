@@ -81,3 +81,107 @@ describe("writeGraphFromMirror", () => {
     ).rejects.toThrow(/no mirror row/i);
   });
 });
+
+import { SpecEventRepo } from "@atlas/spec-graph-data";
+import { reconcileEventsJsonl } from "../src/mirror-to-file.js";
+import { appendFileSync } from "node:fs";
+
+describe("reconcileEventsJsonl", () => {
+  let db: Database;
+  let fx: ProjectFixture;
+  let graphRepo: SpecGraphRepo;
+  let eventRepo: SpecEventRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    graphRepo = new SpecGraphRepo(db.pool);
+    eventRepo = new SpecEventRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAll(db);
+    fx = createProjectFixture();
+    await seedGraph(db, fx.projectId);
+  });
+
+  afterAll(async () => {
+    fx.cleanup();
+    await db.pool.end();
+  });
+
+  it("appends mirror events that are not yet represented in events.jsonl", async () => {
+    await eventRepo.append(fx.projectId, {
+      eventType: "node.created",
+      payload: { id: "n1" },
+      actor: "architect"
+    });
+    await eventRepo.append(fx.projectId, {
+      eventType: "edge.created",
+      payload: { from: "n1", to: "n2" },
+      actor: "architect"
+    });
+
+    const tokens = new WriteTokenRegistry({ ttlMs: 5_000 });
+    const result = await reconcileEventsJsonl({
+      projectId: fx.projectId,
+      eventsPath: fx.eventsPath,
+      eventRepo,
+      tokens
+    });
+
+    expect(result.appended).toBe(2);
+    const content = readFileSync(fx.eventsPath, "utf8");
+    const lines = content.trim().split("\n");
+    expect(lines).toHaveLength(2);
+    expect(JSON.parse(lines[0]!).eventType).toBe("node.created");
+  });
+
+  it("does not re-append events already present on disk (by id)", async () => {
+    const first = await eventRepo.append(fx.projectId, {
+      eventType: "node.created",
+      payload: { id: "n1" },
+      actor: "architect"
+    });
+    appendFileSync(
+      fx.eventsPath,
+      `${JSON.stringify({
+        id: first.id.toString(),
+        eventType: "node.created",
+        payload: { id: "n1" },
+        actor: "architect"
+      })}\n`
+    );
+    await eventRepo.append(fx.projectId, {
+      eventType: "edge.created",
+      payload: {},
+      actor: "architect"
+    });
+
+    const tokens = new WriteTokenRegistry({ ttlMs: 5_000 });
+    const result = await reconcileEventsJsonl({
+      projectId: fx.projectId,
+      eventsPath: fx.eventsPath,
+      eventRepo,
+      tokens
+    });
+
+    expect(result.appended).toBe(1);
+    const lines = readFileSync(fx.eventsPath, "utf8").trim().split("\n");
+    expect(lines).toHaveLength(2);
+  });
+
+  it("registers write tokens so the resulting file event is ignored", async () => {
+    await eventRepo.append(fx.projectId, { eventType: "x", payload: {}, actor: null });
+    const tokens = new WriteTokenRegistry({ ttlMs: 5_000 });
+    await reconcileEventsJsonl({
+      projectId: fx.projectId,
+      eventsPath: fx.eventsPath,
+      eventRepo,
+      tokens
+    });
+    const content = readFileSync(fx.eventsPath, "utf8");
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(content).digest("hex");
+    expect(tokens.wasWrittenByUs(fx.eventsPath, hash)).toBe(true);
+  });
+});
