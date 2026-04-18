@@ -7,7 +7,14 @@
       "Bash(git --version)",
       "Bash(git config *)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git check-ignore *)",
+      "Bash(npm --version)",
+      "Bash(node tools/smoke-test.mjs)",
+      "Bash(node tools/council.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const env=Object.fromEntries\\(fs.readFileSync\\('.env.local','utf8'\\).split\\('\\\\n'\\).filter\\(l=>l.trim\\(\\)&&!l.startsWith\\('#'\\)\\).map\\(l=>{const i=l.indexOf\\('='\\);return[l.slice\\(0,i\\).trim\\(\\),l.slice\\(i+1\\).trim\\(\\)];}\\)\\);console.log\\('Key length:',env.OPENROUTER_API_KEY?.length\\);console.log\\('Starts sk-or-v1-:',env.OPENROUTER_API_KEY?.startsWith\\('sk-or-v1-'\\)\\);\")"
     ]
   }
 }
