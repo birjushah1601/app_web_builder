@@ -15,6 +15,13 @@
       "when": 1776520063800,
       "tag": "0001_thankful_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776520090155,
+      "tag": "0002_tan_excalibur",
+      "breakpoints": true
     }
   ]
 }
