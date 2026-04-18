@@ -2,7 +2,7 @@ import { SpanKind } from "@opentelemetry/api";
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { type Database, createDatabase } from "../src/client.js";
-import { traceApi } from "../src/observability.js";
+import { registry, traceApi } from "../src/observability.js";
 import { SpecGraphRepo } from "../src/repo/spec-graph.repo.js";
 import { truncateAllTables, uniqueProjectId } from "./helpers.js";
 
@@ -42,5 +42,46 @@ describe("observability: repo methods emit spans", () => {
     expect(createSpan!.kind).toBe(SpanKind.INTERNAL);
     expect(createSpan!.attributes["atlas.project_id"]).toBe(projectId);
     expect(createSpan!.status.code).toBe(0); // UNSET on success
+  });
+});
+
+describe("observability: prometheus metrics", () => {
+  let db: Database;
+  let repo: SpecGraphRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    repo = new SpecGraphRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAllTables(db);
+    registry.resetMetrics();
+  });
+
+  afterAll(async () => {
+    await db.pool.end();
+  });
+
+  it("increments the ops counter on every successful call", async () => {
+    const projectId = uniqueProjectId();
+    await repo.create(projectId, {});
+    const metrics = await registry.metrics();
+    expect(metrics).toMatch(/atlas_spec_graph_repo_ops_total\{operation="SpecGraphRepo\.create",status="ok"\} 1/);
+  });
+
+  it("records a duration observation", async () => {
+    const projectId = uniqueProjectId();
+    await repo.create(projectId, {});
+    const metrics = await registry.metrics();
+    expect(metrics).toMatch(/atlas_spec_graph_repo_op_duration_seconds_count\{operation="SpecGraphRepo\.create"\} 1/);
+  });
+
+  it("tracks error status on failure", async () => {
+    const projectId = uniqueProjectId();
+    await repo.create(projectId, {});
+    await expect(repo.create(projectId, {})).rejects.toThrow();
+    const metrics = await registry.metrics();
+    expect(metrics).toMatch(/atlas_spec_graph_repo_ops_total\{operation="SpecGraphRepo\.create",status="error"\} 1/);
   });
 });
