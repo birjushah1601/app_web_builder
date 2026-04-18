@@ -85,3 +85,84 @@ export function mergeSpecGraphJsonFallback(base: string, ours: string, theirs: s
 
   return JSON.stringify(merged, null, 2) + "\n";
 }
+
+import { SpecGraphRepo, createDatabase } from "@atlas/spec-graph-data";
+import { mirrorUnreachable } from "../observability.js";
+import { createLogger } from "../logger.js";
+
+const MIRROR_TIMEOUT_MS = 2_000;
+
+function extractProjectId(...contents: string[]): string | undefined {
+  for (const content of contents) {
+    if (content.trim() === "") continue;
+    try {
+      const parsed = JSON.parse(content) as GraphDoc;
+      const pid = parsed?.metadata?.["projectId"];
+      if (typeof pid === "string" && pid.length > 0) return pid;
+    } catch {
+      // ignore; next candidate
+    }
+  }
+  return undefined;
+}
+
+async function withDeadline<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export interface MirrorFirstOptions {
+  databaseUrl: string | undefined;
+}
+
+export async function mergeSpecGraphJsonMirrorFirst(
+  base: string,
+  ours: string,
+  theirs: string,
+  opts: MirrorFirstOptions
+): Promise<string> {
+  const log = createLogger();
+  const { databaseUrl } = opts;
+  if (!databaseUrl) {
+    log.info("mirror-first: ATLAS_DATABASE_URL unset; using fallback merger");
+    mirrorUnreachable.inc();
+    return mergeSpecGraphJsonFallback(base, ours, theirs);
+  }
+
+  const projectId = extractProjectId(base, ours, theirs);
+  if (!projectId) {
+    log.warn("mirror-first: no projectId in metadata of any file; using fallback merger");
+    return mergeSpecGraphJsonFallback(base, ours, theirs);
+  }
+
+  let db: ReturnType<typeof createDatabase> | null = null;
+  try {
+    db = createDatabase(databaseUrl, { connectionTimeoutMillis: MIRROR_TIMEOUT_MS });
+    const repo = new SpecGraphRepo(db.pool);
+    const row = await withDeadline(repo.findByProjectId(projectId), MIRROR_TIMEOUT_MS, "mirror lookup");
+    if (!row) {
+      log.warn("mirror-first: no row in mirror for projectId; using fallback merger", { projectId });
+      return mergeSpecGraphJsonFallback(base, ours, theirs);
+    }
+    return JSON.stringify(row.graphData, null, 2) + "\n";
+  } catch (error) {
+    log.warn("mirror-first: mirror unreachable; using fallback merger", {
+      err: (error as Error).message
+    });
+    mirrorUnreachable.inc();
+    return mergeSpecGraphJsonFallback(base, ours, theirs);
+  } finally {
+    await db?.pool.end().catch(() => {
+      /* swallow */
+    });
+  }
+}
