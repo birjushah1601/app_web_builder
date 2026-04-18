@@ -4,15 +4,21 @@ services:
     container_name: atlas-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: atlas
-      POSTGRES_PASSWORD: atlas
-      POSTGRES_DB: atlas_dev
+      # Bootstrap as `postgres` (keeps SUPERUSER). The init script creates
+      # the `atlas` app role as NOSUPERUSER NOBYPASSRLS plus both
+      # databases — required for FORCE ROW LEVEL SECURITY to be
+      # enforceable against atlas (RLS is bypassed by SUPERUSER and by
+      # BYPASSRLS, so the app role must have neither).
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
     ports:
       # Host 5433 -> container 5432. Host 5432 is commonly occupied by other
       # Postgres instances on dev machines; 5433 avoids that collision.
       - "5433:5432"
     volumes:
       - atlas-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/00-atlas-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U atlas -d atlas_dev"]
       interval: 2s
