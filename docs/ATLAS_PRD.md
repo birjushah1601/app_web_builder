@@ -436,7 +436,7 @@ Seven independently-buildable units. Units A → B → (C ∥ D) → E → F →
 ### Unit A — Spec Graph Persistence & Ops Foundation  *(the next work; see §18)*
 **Scope:** Postgres schema for the mirror; `spec_graphs` table with `id`, `project_id`, `event_log: jsonb`, `version`, `synced_at`; file ↔ mirror sync contract; snapshot + tail compaction policy; custom Git merge driver for `.atlas/*`; connection pooling for hosted Postgres.
 **Dependencies:** none (foundational).
-**Effort:** L (2–3 weeks).
+**Effort:** M (2–3 weeks).
 **Strategic value:** nothing else can start. Unblocks all downstream units.
 
 ### Unit B — Core Schema & Validation
@@ -475,7 +475,8 @@ Seven independently-buildable units. Units A → B → (C ∥ D) → E → F →
 **Effort:** M (2–3 weeks).
 **Strategic value:** unblocks user iteration experience; foundational quality signal.
 
-**Phase A ship target: ~8 weeks from Unit A start → Unit F close.** Units C and D run in parallel (weeks 3–5). Unit G runs post-Unit-E as iteration optimization but is a Phase A deliverable.
+**Phase A ship target: 10–12 weeks from Unit A start to Unit F close, assuming aggressive parallelism.**
+Indicative schedule: Unit A weeks 1–3 · Units B, C, D in parallel weeks 3–7 · Unit E weeks 7–9 · Unit F weeks 9–10 · Unit G weeks 10–12 (overlapping with post-Unit-F polish). Unit G is iteration optimization but is a Phase A deliverable, not Phase B. Slippage on Unit A compresses every downstream window — protect that path.
 
 ## 18. Next Work Milestone — Unit A
 
