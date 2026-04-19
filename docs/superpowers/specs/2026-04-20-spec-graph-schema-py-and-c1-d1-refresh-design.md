@@ -49,20 +49,21 @@ packages/
       generate-json-schema.mjs             # +8 lines: also emit invariant-codes.json
 
   spec-graph-schema-py/                    # NEW
-    pyproject.toml                         # PEP-621; requires-python >=3.11
+    pyproject.toml                         # PEP-621; requires-python >=3.11; hatchling build
     uv.lock                                # uv-managed lockfile (committed)
     README.md                              # usage, generator policy, drift-check contract
-    schema/
-      spec-graph.v1.schema.json            # synced from TS dist/ by sync-schema-artifact.mjs
-      invariant-codes.json                 # synced from TS dist/ by sync-schema-artifact.mjs
     src/
       spec_graph_schema/
         __init__.py                        # public API: re-exports
         models.py                          # GENERATED — codegen banner on line 1
         invariants.py                      # hand-authored: InvariantCode Enum + INVARIANT_CODES
         validate_structural.py             # jsonschema.Draft202012Validator wrapper
-        _schema_artifact.py                # loads bundled JSON Schema as importlib.resources
+        _schema_artifact.py                # loads bundled JSON Schema via importlib.resources
         py.typed                           # PEP-561 marker
+        schema/
+          __init__.py                      # empty; makes schema/ an importable resource package
+          spec-graph.v1.schema.json        # synced from TS dist/ by sync-schema-artifact.mjs
+          invariant-codes.json             # synced from TS dist/ by sync-schema-artifact.mjs
     tests/
       __init__.py
       test_models_roundtrip.py             # reads TS fixtures, parses via Pydantic
