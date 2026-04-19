@@ -109,18 +109,20 @@ src/invariants/  /    generate-json-
 
 ## 6. Testing strategy
 
-**Single source of fixtures.** The TS fixture corpus at `packages/spec-graph-schema/test/fixtures/` is the only fixture set. Python tests read it via relative path (`../../spec-graph-schema/test/fixtures/`) — no duplication.
+**Single source of fixtures.** The TS fixture corpus at `packages/spec-graph-schema/test/fixtures/` is the only committed JSON fixture set. In B.1 this corpus is one file: `valid-forgot-password.json` (the §5.5 example from the spec-graph v1 design). B.1's invariant tests build violation cases inline in vitest via a `baseGraph(extras)` helper rather than committing per-invariant JSON files; B.2 follows the same convention (inline Python literals for structurally-malformed cases).
+
+Python tests read the valid fixture via relative path (`../../spec-graph-schema/test/fixtures/valid-forgot-password.json`) — no duplication.
 
 Four pytest files, data-driven:
 
 | File | Asserts |
 |---|---|
-| `test_models_roundtrip.py` | Every `valid-*.json` and every `invariant-violations/*.json` parses via `SpecGraph.model_validate()` (structurally — invariant-violation fixtures are structurally valid; that's the point of separating L1-shape from L1-invariants). `.model_dump(mode="json", exclude_none=True)` is data-equal to input modulo key ordering. |
-| `test_invariant_codes.py` | `set(InvariantCode) == set(json.load(open('schema/invariant-codes.json')))`. |
-| `test_validate_structural.py` | `validate_structural(fixture)` returns `ok=True` for valid fixtures, returns `ok=True` for invariant-violation fixtures (they're structurally valid), and returns `ok=False` with a populated `issues` list for a synthetic malformed fixture inlined in the test (missing required field, wrong type, etc.). |
-| `test_generated_banner.py` | `models.py` line 1 contains the exact banner string `# AUTO-GENERATED from spec-graph.v1.schema.json — DO NOT EDIT`. |
+| `test_models_roundtrip.py` | `valid-forgot-password.json` parses via `SpecGraph.model_validate()`. `.model_dump(mode="json", by_alias=True, exclude_none=True)` is data-equal to the input modulo key ordering (`json.dumps(sort_keys=True)` equivalence). |
+| `test_invariant_codes.py` | `{code.value for code in InvariantCode} == set(json.load(open('schema/invariant-codes.json')))`. Expected cardinality: 17 codes (14 invariants, three of which emit two codes each: I04, I07, I08). |
+| `test_validate_structural.py` | `validate_structural(valid_fixture)` returns `ok=True`. `validate_structural(malformed)` — where `malformed` is an inline dict with a missing required field — returns `ok=False` with a populated `issues` list. |
+| `test_generated_banner.py` | `models.py` line 1 equals the exact banner string `# AUTO-GENERATED from spec-graph.v1.schema.json — DO NOT EDIT`. |
 
-No Python-side invariant tests. No duplicated valid/invalid corpus.
+No Python-side invariant tests. No duplicated valid corpus.
 
 ## 7. Public API
 
