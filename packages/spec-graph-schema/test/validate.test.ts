@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { validate, ALL_INVARIANTS } from "../src/validate.js";
 
@@ -43,5 +46,16 @@ describe("validate()", () => {
     const result = validate(bad);
     expect(result.ok).toBe(false);
     expect(result.issues[0]?.code).toMatch(/^STRUCTURAL_/);
+  });
+});
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+describe("validate() on §5.5 forgot-password example", () => {
+  it("accepts the realistic forgot-password graph", () => {
+    const fx = JSON.parse(readFileSync(join(here, "fixtures", "valid-forgot-password.json"), "utf8"));
+    const result = validate(fx);
+    if (!result.ok) console.error(JSON.stringify(result.issues, null, 2));
+    expect(result.ok).toBe(true);
   });
 });
