@@ -3,6 +3,9 @@ import { RendersEdgeSchema } from "../../src/edges/renders.js";
 import { FetchesEdgeSchema } from "../../src/edges/fetches.js";
 import { ReadsEdgeSchema } from "../../src/edges/reads.js";
 import { MutatesEdgeSchema } from "../../src/edges/mutates.js";
+import { RequiresEdgeSchema } from "../../src/edges/requires.js";
+import { CoversEdgeSchema } from "../../src/edges/covers.js";
+import { DependsOnEdgeSchema } from "../../src/edges/depends-on.js";
 
 const each = [
   ["renders", RendersEdgeSchema],
@@ -21,6 +24,18 @@ describe("composition + data edges", () => {
     });
     it(`${type}: rejects malformed NodeId`, () => {
       expect(() => schema.parse({ type, from: "no-colon", to: "component:Button" })).toThrow();
+    });
+  }
+});
+
+describe("protection/coverage/deps edges", () => {
+  for (const [type, schema] of [
+    ["requires", RequiresEdgeSchema],
+    ["covers", CoversEdgeSchema],
+    ["dependsOn", DependsOnEdgeSchema]
+  ] as const) {
+    it(`${type}: accepts valid edge`, () => {
+      expect(() => schema.parse({ type, from: "page:home", to: "authboundary:admin" })).not.toThrow();
     });
   }
 });
