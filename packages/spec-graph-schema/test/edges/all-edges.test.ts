@@ -9,6 +9,9 @@ import { DependsOnEdgeSchema } from "../../src/edges/depends-on.js";
 import { StyledByEdgeSchema } from "../../src/edges/styled-by.js";
 import { SubjectToEdgeSchema } from "../../src/edges/subject-to.js";
 import { SupersedesEdgeSchema } from "../../src/edges/supersedes.js";
+import { PowersEdgeSchema } from "../../src/edges/powers.js";
+import { DisplaysEdgeSchema } from "../../src/edges/displays.js";
+import { ManagesEdgeSchema } from "../../src/edges/manages.js";
 
 const each = [
   ["renders", RendersEdgeSchema],
@@ -51,6 +54,18 @@ describe("design/compliance/lineage edges", () => {
   ] as const) {
     it(`${type}: accepts valid edge`, () => {
       expect(() => schema.parse({ type, from: "component:Button", to: "designtoken:color-primary-500" })).not.toThrow();
+    });
+  }
+});
+
+describe("AI/media/state edges", () => {
+  for (const [type, schema] of [
+    ["powers", PowersEdgeSchema],
+    ["displays", DisplaysEdgeSchema],
+    ["manages", ManagesEdgeSchema]
+  ] as const) {
+    it(`${type}: accepts valid edge`, () => {
+      expect(() => schema.parse({ type, from: "aifeature:summarize", to: "endpoint:createUser" })).not.toThrow();
     });
   }
 });
