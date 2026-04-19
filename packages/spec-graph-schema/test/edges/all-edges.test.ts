@@ -6,6 +6,9 @@ import { MutatesEdgeSchema } from "../../src/edges/mutates.js";
 import { RequiresEdgeSchema } from "../../src/edges/requires.js";
 import { CoversEdgeSchema } from "../../src/edges/covers.js";
 import { DependsOnEdgeSchema } from "../../src/edges/depends-on.js";
+import { StyledByEdgeSchema } from "../../src/edges/styled-by.js";
+import { SubjectToEdgeSchema } from "../../src/edges/subject-to.js";
+import { SupersedesEdgeSchema } from "../../src/edges/supersedes.js";
 
 const each = [
   ["renders", RendersEdgeSchema],
@@ -36,6 +39,18 @@ describe("protection/coverage/deps edges", () => {
   ] as const) {
     it(`${type}: accepts valid edge`, () => {
       expect(() => schema.parse({ type, from: "page:home", to: "authboundary:admin" })).not.toThrow();
+    });
+  }
+});
+
+describe("design/compliance/lineage edges", () => {
+  for (const [type, schema] of [
+    ["styledBy", StyledByEdgeSchema],
+    ["subjectTo", SubjectToEdgeSchema],
+    ["supersedes", SupersedesEdgeSchema]
+  ] as const) {
+    it(`${type}: accepts valid edge`, () => {
+      expect(() => schema.parse({ type, from: "component:Button", to: "designtoken:color-primary-500" })).not.toThrow();
     });
   }
 });
