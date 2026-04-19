@@ -5,7 +5,8 @@ export type { Database, DrizzleDb, Schema } from "./client.js";
 
 export { withProjectContext } from "./tenant.js";
 
-export { SpecGraphRepo } from "./repo/spec-graph.repo.js";
+export { SpecGraphRepo, GraphValidationError } from "./repo/spec-graph.repo.js";
+export type { SpecGraphRepoOptions } from "./repo/spec-graph.repo.js";
 export { SpecEventRepo } from "./repo/spec-event.repo.js";
 export type { AppendEventInput } from "./repo/spec-event.repo.js";
 export { SpecSnapshotRepo } from "./repo/spec-snapshot.repo.js";
