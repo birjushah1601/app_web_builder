@@ -10,6 +10,9 @@ importers:
 
   packages/spec-graph-data:
     dependencies:
+      '@atlas/spec-graph-schema':
+        specifier: workspace:*
+        version: link:../spec-graph-schema
       '@opentelemetry/api':
         specifier: 1.9.0
         version: 1.9.0
