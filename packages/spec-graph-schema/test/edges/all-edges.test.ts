@@ -12,6 +12,7 @@ import { SupersedesEdgeSchema } from "../../src/edges/supersedes.js";
 import { PowersEdgeSchema } from "../../src/edges/powers.js";
 import { DisplaysEdgeSchema } from "../../src/edges/displays.js";
 import { ManagesEdgeSchema } from "../../src/edges/manages.js";
+import { EdgeSchema, edgeRegistry, EDGE_TYPES } from "../../src/edges/index.js";
 
 const each = [
   ["renders", RendersEdgeSchema],
@@ -68,4 +69,14 @@ describe("AI/media/state edges", () => {
       expect(() => schema.parse({ type, from: "aifeature:summarize", to: "endpoint:createUser" })).not.toThrow();
     });
   }
+});
+
+describe("edge index", () => {
+  it("discriminated union accepts a renders edge", () => {
+    const parsed = EdgeSchema.parse({ type: "renders", from: "page:home", to: "component:Button" });
+    if (parsed.type === "renders") expect(parsed.from).toBe("page:home");
+  });
+  it("registry contains all 13 types", () => {
+    expect(Object.keys(edgeRegistry).sort()).toEqual([...EDGE_TYPES].sort());
+  });
 });
