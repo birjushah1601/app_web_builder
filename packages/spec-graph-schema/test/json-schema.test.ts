@@ -24,3 +24,36 @@ describe("generated JSON Schema artifact", () => {
     expect(text).toMatch(/SpecGraph/);
   });
 });
+
+describe("invariant-codes.json artifact", () => {
+  const CODES_ARTIFACT = join(here, "..", "dist", "schema", "invariant-codes.json");
+
+  it("exists after build", () => {
+    if (!existsSync(CODES_ARTIFACT)) return; // soft-skip: build must run first
+    expect(existsSync(CODES_ARTIFACT)).toBe(true);
+  });
+
+  it("contains the 17 canonical invariant codes, sorted", () => {
+    if (!existsSync(CODES_ARTIFACT)) return;
+    const codes = JSON.parse(readFileSync(CODES_ARTIFACT, "utf8")) as string[];
+    expect(Array.isArray(codes)).toBe(true);
+    expect(codes).toHaveLength(17);
+    expect(codes).toContain("I01_PAGE_MISSING_ROUTEREF");
+    expect(codes).toContain("I04_PII_ENDPOINT_MISSING_AUTH");
+    expect(codes).toContain("I04_PII_ENDPOINT_MISSING_COMPLIANCE");
+    expect(codes).toContain("I07_RENDERS_DANGLING_REF");
+    expect(codes).toContain("I07_RENDERS_WRONG_KIND");
+    expect(codes).toContain("I08_BASELINE_COMPLIANCE_MISSING");
+    expect(codes).toContain("I08_BASELINE_COMPLIANCE_DUPLICATED");
+    expect(codes).toContain("I14_MEDIAASSET_KIND_PHASE_B");
+    expect(codes).toEqual([...codes].sort());
+  });
+
+  it("every code matches the I\\d{2}_ prefix pattern", () => {
+    if (!existsSync(CODES_ARTIFACT)) return;
+    const codes = JSON.parse(readFileSync(CODES_ARTIFACT, "utf8")) as string[];
+    for (const code of codes) {
+      expect(code).toMatch(/^I\d{2}_[A-Z0-9_]+$/);
+    }
+  });
+});
