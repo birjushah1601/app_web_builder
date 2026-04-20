@@ -1,6 +1,6 @@
 # @atlas/skill-library
 
-Atlas's starter skill library — ~39 OSS skills (Apache 2.0) authored by the Atlas team.
+Atlas's starter skill library — 40 OSS skills (Apache 2.0) authored by the Atlas team.
 
 Skills are markdown files with YAML frontmatter, loaded at runtime by `@atlas/skill-runtime`. They describe **how** a role should handle a task, not implementation details. Skills auto-activate based on user intent (no slash commands for non-power users), compose cleanly, and are user-extensible.
 
