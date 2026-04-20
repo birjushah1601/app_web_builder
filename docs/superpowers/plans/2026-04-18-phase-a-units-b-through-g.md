@@ -163,13 +163,19 @@ Critical path: A → B → D → E → F. C (skill framework) and D (agents) are
 - **Plan D.4 — Security Role + L4 merge gate wiring** (≈15 tasks). Includes the human-authored baseline assertion invocation path (Council blind-spot #3).
 - **Plan D.5 — Accessibility Role + L5 merge gate wiring** (≈15 tasks).
 
-**Open questions:**
+**Resolved (post-B.1):**
 
-1. **Agent-Teams abstraction vs directly in the codebase.** Claude Code's Agent-Teams primitives are useful for dev tooling but not cleanly exportable as a library. Does the Conductor use them directly (tight coupling to Claude Code) or reimplement the shared-task-list / peer-messaging pattern as an internal library? Recommendation: internal lib — avoids runtime lock-in.
-2. **Prompt-cache prefix shape.** Developer role is the biggest LLM consumer. Cache hit rate target is >80% (NFR-13). Prefix needs to be: base skill prompt + graph context (slow-changing) before the user turn (fast-changing). Ensure graph-context slot is stable across turns for the same project.
-3. **Role recovery on failure.** If a role crashes mid-execution, does Conductor retry? Resume from last checkpoint? Discard work? Recommendation: checkpoint after every emitted event; retry with exponential backoff up to 3 attempts; on third failure, escalate to user per edit-class policy (PRD §9.5).
+1. **Agent-Teams abstraction vs internal lib → internal lib.** Rationale: Claude Code's Agent Teams primitives are a developer-ergonomics convenience, not a runtime contract. Keeping the Conductor free of that import surface avoids runtime lock-in when Atlas ships as Helm chart (Phase D-5).
+
+5. **Browser Verification (L3 gate) role → confirmed deferred to Phase B-8.** Rationale: B.1 shipped on time without it; L3 is advisory per PRD §11.4 for Phase A, merge-gating in Phase B. No change to D.1 scope; v1 = 4 roles.
+
+**Open questions (for D.1 plan-authoring time):**
+
+2. **Prompt-cache prefix shape.** Developer role is the biggest LLM consumer. Cache hit rate target is >80% (NFR-13). Three-tier structure: (a) skill system prompt (stable), (b) graph context slice (slow-changing, keyed by graph version), (c) user turn. Plan D.1 must spell out: how is slice (b) generated from `@atlas/spec-graph-data`? Deterministic ordering of nodes + edges? Content-hash of the slice as cache key?
+3. **Role recovery on failure.** If a role crashes mid-execution, does Conductor retry? Resume from last checkpoint? Discard work? Recommendation: checkpoint after every emitted event; retry with exponential backoff up to 3 attempts; on third failure, escalate to user per edit-class policy (PRD §9.5). Apply B.1's opt-in pattern — retry policy is conductor-injected per dispatch, not hard-coded in the role.
 4. **Parallel Developer runs.** Sonnet + Gemini Flash in parallel requires a voting or merge strategy. Who judges which output wins? Recommendation: a lightweight Reviewer role (Sonnet) votes. Flag for refinement in D.3.
-5. **Browser Verification (L3 gate) role.** Not in Unit D's v1 role set; it's in the backlog but deferred. Sequence: Unit D v1 has 4 roles; add Browser Verification as D.6 in Phase B. Confirm this cut is acceptable at plan-authoring time.
+
+6. **Retry / circuit-breaker location (new).** Library-level (every LLM call wrapped) or conductor-level (retries per role invocation)? Recommendation: library-level default with per-role override, matching the `@atlas/spec-graph-data` observability pattern.
 
 ---
 
