@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { CircuitBreaker } from "./circuit-breaker.js";
 import { InvalidRequestError, NetworkError, ProviderError, RateLimitError } from "./errors.js";
 import { instrumentCall, type ProviderMetrics } from "./observability.js";
-import type { LLMCallOptions, LLMCompletion, LLMMessage, LLMProvider, LLMStreamChunk } from "./provider.js";
+import type { LLMCallOptions, LLMCompletion, LLMMessage, LLMProvider, LLMStreamChunk, ToolUseOptions, ToolUseResult } from "./provider.js";
 import { resolvePolicy, retry } from "./retry.js";
 
 export interface AnthropicProviderOptions {
@@ -30,6 +30,47 @@ export class AnthropicProvider implements LLMProvider {
       { provider: this.name, model: options.model, metrics: this.metrics },
       () => breaker.run(() => retry(() => this.callComplete(messages, options), policy))
     );
+  }
+
+  async completeWithToolUse(messages: LLMMessage[], options: ToolUseOptions): Promise<ToolUseResult> {
+    const breaker = this.getBreaker(options.model);
+    const policy = resolvePolicy(options.retry);
+    return instrumentCall(
+      { provider: this.name, model: options.model, metrics: this.metrics },
+      () => breaker.run(() => retry(() => this.callWithToolUse(messages, options), policy))
+    );
+  }
+
+  private async callWithToolUse(messages: LLMMessage[], options: ToolUseOptions): Promise<ToolUseResult> {
+    try {
+      const { system, body } = this.assembleRequest(messages, options);
+      const req = {
+        system,
+        ...body,
+        tools: options.tools,
+        tool_choice: options.toolChoice
+      };
+      const resp = await this.sdk.messages.create(req as never) as unknown as AnthropicRawResponse;
+      const toolUse = resp.content.find((c) => c.type === "tool_use");
+      if (!toolUse || !toolUse.name || toolUse.input === undefined) {
+        throw new InvalidRequestError(
+          `expected tool_use response, got stop_reason=${resp.stop_reason}; content has no tool_use block`
+        );
+      }
+      return {
+        toolName: toolUse.name,
+        input: toolUse.input,
+        stopReason: resp.stop_reason,
+        usage: {
+          inputTokens: resp.usage.input_tokens,
+          outputTokens: resp.usage.output_tokens,
+          cacheCreationInputTokens: resp.usage.cache_creation_input_tokens,
+          cacheReadInputTokens: resp.usage.cache_read_input_tokens
+        }
+      };
+    } catch (err) {
+      throw this.translateError(err);
+    }
   }
 
   async *stream(messages: LLMMessage[], options: LLMCallOptions): AsyncIterable<LLMStreamChunk> {
@@ -119,7 +160,7 @@ export class AnthropicProvider implements LLMProvider {
 }
 
 interface AnthropicRawResponse {
-  content: Array<{ type: string; text?: string }>;
+  content: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>;
   model: string;
   stop_reason: LLMCompletion["stopReason"];
   usage: {

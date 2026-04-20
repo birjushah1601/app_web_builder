@@ -1,4 +1,4 @@
-import type { LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import { AmbiguityReportSchema, type AmbiguityReport } from "./types.js";
 import { TriageFailedError } from "./errors.js";
 
@@ -49,66 +49,35 @@ const AMBIGUITY_TOOL_SCHEMA = {
 
 export async function triage(input: TriageInput): Promise<AmbiguityReport> {
   const model = input.triageModel ?? ARCHITECT_TRIAGE_MODEL;
-
-  // D.2 pragmatic cast: AnthropicProvider wraps the Anthropic SDK, but its public
-  // complete() method only returns flattened text blocks. Tool-use responses carry
-  // content blocks of type "tool_use" which parseResponse() silently discards.
-  // T6 will add completeWithToolUse() to LLMProvider. Until then we reach through
-  // to the SDK's messages.create via a structural cast on the provider's private sdk.
-  const rawProvider = input.llm as unknown as {
-    sdk: {
-      messages: {
-        create: (body: Record<string, unknown>) => Promise<{
-          content: Array<{ type: string; name?: string; input?: unknown }>;
-          model: string;
-          stop_reason: string;
-          usage: { input_tokens: number; output_tokens: number };
-        }>;
-      };
-    };
-  };
-
-  const system = [
-    {
-      type: "text" as const,
-      text: TRIAGE_SYSTEM_PROMPT,
-      cache_control: { type: "ephemeral" as const }
-    },
-    {
-      type: "text" as const,
-      text: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>`
-    }
+  const messages: LLMMessage[] = [
+    { role: "system", content: TRIAGE_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+    { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },
+    { role: "user", content: input.userTurn }
   ];
 
-  const resp = await rawProvider.sdk.messages.create({
-    model,
-    max_tokens: 4096,
-    system,
-    messages: [{ role: "user", content: input.userTurn }],
-    tools: [
-      {
-        name: "emit_ambiguity_report",
-        description: "Emit the triage result with scope + questions",
-        input_schema: AMBIGUITY_TOOL_SCHEMA
-      }
-    ],
-    tool_choice: { type: "tool", name: "emit_ambiguity_report" }
-  });
-
-  const toolUse = resp.content.find(
-    (c) => c.type === "tool_use" && c.name === "emit_ambiguity_report"
-  );
-  if (!toolUse || toolUse.input === undefined) {
-    throw new TriageFailedError(
-      "triage response did not include an emit_ambiguity_report tool_use block"
-    );
+  let result;
+  try {
+    result = await (input.llm as unknown as {
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+    }).completeWithToolUse(messages, {
+      model,
+      maxTokens: 4096,
+      tools: [
+        {
+          name: "emit_ambiguity_report",
+          description: "Emit the triage result with scope + questions",
+          input_schema: AMBIGUITY_TOOL_SCHEMA
+        }
+      ],
+      toolChoice: { type: "tool", name: "emit_ambiguity_report" }
+    });
+  } catch (err) {
+    throw new TriageFailedError("triage LLM call failed", { cause: err });
   }
 
-  const parse = AmbiguityReportSchema.safeParse(toolUse.input);
+  const parse = AmbiguityReportSchema.safeParse(result.input);
   if (!parse.success) {
-    throw new TriageFailedError("triage tool_use payload failed AmbiguityReportSchema", {
-      cause: parse.error
-    });
+    throw new TriageFailedError("triage tool_use payload failed AmbiguityReportSchema", { cause: parse.error });
   }
   return parse.data;
 }

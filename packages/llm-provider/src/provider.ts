@@ -47,3 +47,21 @@ export interface LLMProvider {
   complete(messages: LLMMessage[], options: LLMCallOptions): Promise<LLMCompletion>;
   stream(messages: LLMMessage[], options: LLMCallOptions): AsyncIterable<LLMStreamChunk>;
 }
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+}
+
+export interface ToolUseResult {
+  toolName: string;
+  input: unknown;
+  stopReason: LLMCompletion["stopReason"];
+  usage: LLMCompletion["usage"];
+}
+
+export interface ToolUseOptions extends LLMCallOptions {
+  tools: ToolDefinition[];
+  toolChoice: { type: "tool"; name: string } | { type: "any" } | { type: "auto" };
+}
