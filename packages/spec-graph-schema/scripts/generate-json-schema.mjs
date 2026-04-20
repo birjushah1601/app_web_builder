@@ -20,20 +20,24 @@ if (!jsonSchema.$schema) {
   jsonSchema.$schema = "https://json-schema.org/draft/2020-12/schema";
 }
 
-// zod-to-json-schema emits Draft4-style `exclusiveMinimum: true, minimum: N`
-// even when targeting Draft 2020-12.  In 2020-12, `exclusiveMinimum` must be a
-// number (the exclusive bound itself), not a boolean flag.  Walk the schema and
-// rewrite any `{ exclusiveMinimum: true, minimum: N }` → `{ exclusiveMinimum: N }`.
-function fixExclusiveMinimum(node) {
+// zod-to-json-schema emits Draft4-style `exclusive{Minimum,Maximum}: true` paired
+// with `{minimum,maximum}: N` even when targeting Draft 2020-12. In 2020-12,
+// `exclusive{Minimum,Maximum}` must be the numeric bound itself, not a boolean
+// flag. Walk the schema and rewrite both variants.
+function fixDraft4ExclusiveBounds(node) {
   if (node === null || typeof node !== "object") return;
-  if (Array.isArray(node)) { node.forEach(fixExclusiveMinimum); return; }
+  if (Array.isArray(node)) { node.forEach(fixDraft4ExclusiveBounds); return; }
   if (node.exclusiveMinimum === true && typeof node.minimum === "number") {
     node.exclusiveMinimum = node.minimum;
     delete node.minimum;
   }
-  for (const v of Object.values(node)) fixExclusiveMinimum(v);
+  if (node.exclusiveMaximum === true && typeof node.maximum === "number") {
+    node.exclusiveMaximum = node.maximum;
+    delete node.maximum;
+  }
+  for (const v of Object.values(node)) fixDraft4ExclusiveBounds(v);
 }
-fixExclusiveMinimum(jsonSchema);
+fixDraft4ExclusiveBounds(jsonSchema);
 
 writeFileSync(schemaFile, JSON.stringify(jsonSchema, null, 2) + "\n", "utf8");
 process.stdout.write(`wrote ${schemaFile}\n`);
