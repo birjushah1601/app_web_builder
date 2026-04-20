@@ -1888,3 +1888,468 @@ git commit -m "test(role-architect): run() throws DeepPlanFailedError on invalid
 
 ---
 
+### Task 13: Observability — spans + metrics fire on both passes
+
+**Files:**
+- Create: `packages/role-architect/test/observability.test.ts`
+
+The `AnthropicProvider` from D.1 already emits spans and metrics on every call. This task verifies that both Pass 1 (Haiku) and Pass 2 (Opus) produce labelled metric increments with the correct `{provider, model, status}` labels.
+
+- [ ] **Step 1: Write test**
+
+`packages/role-architect/test/observability.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from "vitest";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Registry } from "prom-client";
+import { AnthropicProvider, createProviderMetrics } from "@atlas/llm-provider";
+import { createRegistryWithOverrides, loadSkillsFromDir } from "@atlas/skill-runtime";
+import { ArchitectRole } from "../src/role.js";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const fixtureDir = join(here, "fixtures", "skills");
+
+describe("ArchitectRole observability", () => {
+  it("emits one LLM-request metric per pass with correct model labels", async () => {
+    const sdkCreate = vi.fn()
+      .mockResolvedValueOnce({
+        content: [{ type: "tool_use", id: "t1", name: "emit_ambiguity_report",
+          input: { passed: true, scope: "new-feature", questions: [] } }],
+        model: "claude-haiku-4-5-20251001",
+        stop_reason: "tool_use",
+        usage: { input_tokens: 5, output_tokens: 3 }
+      })
+      .mockResolvedValueOnce({
+        content: [{ type: "tool_use", id: "t2", name: "emit_architect_output",
+          input: { scope: "new-feature", diffPlan: { summary: "x", tasks: [] }, graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) } } }],
+        model: "claude-opus-4-7",
+        stop_reason: "tool_use",
+        usage: { input_tokens: 50, output_tokens: 20 }
+      });
+    const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
+    const registry = new Registry();
+    const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(registry) });
+    const skills = createRegistryWithOverrides(loadSkillsFromDir(fixtureDir), []);
+
+    const role = new ArchitectRole({ llm: provider, skills });
+    await role.run({
+      ritualId: "r-obs",
+      intent: "architect",
+      graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) },
+      userTurn: "add x"
+    });
+
+    const snapshots = await registry.getMetricsAsJSON();
+    const reqMetric = snapshots.find((m) => m.name === "atlas_llm_provider_requests_total");
+    expect(reqMetric).toBeDefined();
+    const values = (reqMetric as unknown as { values: Array<{ labels: Record<string, string>; value: number }> }).values;
+    const haikuSuccess = values.find(
+      (v) => v.labels.model === "claude-haiku-4-5-20251001" && v.labels.status === "success"
+    );
+    const opusSuccess = values.find(
+      (v) => v.labels.model === "claude-opus-4-7" && v.labels.status === "success"
+    );
+    expect(haikuSuccess?.value).toBe(1);
+    expect(opusSuccess?.value).toBe(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run — expect pass** (provider-side instrumentation already shipped in D.1).
+
+```bash
+pnpm -F @atlas/role-architect test observability
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/role-architect/test/observability.test.ts
+git commit -m "test(role-architect): both passes emit labelled Prometheus metrics via llm-provider"
+```
+
+---
+
+### Task 14: Integration — role called through a real skill-runtime + mocked SDK
+
+**Files:**
+- Create: `packages/role-architect/test/integration.test.ts`
+
+This exercises the full role pipeline with a real `SkillRegistry` constructed from fixture skills. Mocks only the Anthropic SDK. Validates prompt-cache shape reaches the SDK and all 4 events fire.
+
+- [ ] **Step 1: Write test**
+
+`packages/role-architect/test/integration.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from "vitest";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Registry } from "prom-client";
+import { AnthropicProvider, createProviderMetrics } from "@atlas/llm-provider";
+import { createRegistryWithOverrides, loadSkillsFromDir } from "@atlas/skill-runtime";
+import { ArchitectRole } from "../src/role.js";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const fixtureDir = join(here, "fixtures", "skills");
+
+describe("ArchitectRole end-to-end integration", () => {
+  it("routes Pass 2 prompt-cache to the SDK with system array containing the 3 skill bodies", async () => {
+    const sdkCreate = vi.fn()
+      .mockResolvedValueOnce({
+        content: [{ type: "tool_use", id: "t1", name: "emit_ambiguity_report",
+          input: { passed: true, scope: "bug-fix", questions: [] } }],
+        model: "claude-haiku-4-5-20251001",
+        stop_reason: "tool_use",
+        usage: { input_tokens: 10, output_tokens: 5 }
+      })
+      .mockResolvedValueOnce({
+        content: [{ type: "tool_use", id: "t2", name: "emit_architect_output",
+          input: {
+            scope: "bug-fix",
+            bugReport: {
+              phase1_reproduce: "steps",
+              phase2_isolate: "min case",
+              phase3_hypothesize: "h",
+              phase4_verify: "v",
+              rootCause: "race"
+            },
+            graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) }
+          } }],
+        model: "claude-opus-4-7",
+        stop_reason: "tool_use",
+        usage: { input_tokens: 500, output_tokens: 200 }
+      });
+    const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
+    const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
+    const skills = createRegistryWithOverrides(loadSkillsFromDir(fixtureDir), []);
+
+    const role = new ArchitectRole({ llm: provider, skills });
+    const out = await role.run({
+      ritualId: "r-int",
+      intent: "architect",
+      graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) },
+      userTurn: "login returns 500 on Safari"
+    });
+
+    // Validate 4 events + scope-matched artifact
+    const typeSet = new Set(out.events.map((e) => e.eventType));
+    expect(typeSet.has("architect.pass1.started")).toBe(true);
+    expect(typeSet.has("architect.pass1.completed")).toBe(true);
+    expect(typeSet.has("architect.pass2.started")).toBe(true);
+    expect(typeSet.has("architect.pass2.completed")).toBe(true);
+
+    const completed = out.events.find((e) => e.eventType === "architect.pass2.completed");
+    const artifact = completed?.payload.artifact as { scope: string };
+    expect(artifact.scope).toBe("bug-fix");
+
+    // Validate Pass 2 request shape
+    const pass2Body = sdkCreate.mock.calls[1][0] as Record<string, unknown>;
+    const system = pass2Body.system as Array<{ text: string }>;
+    const joined = system.map((s) => s.text).join("\n");
+    expect(joined).toContain("Skill: brainstorm");
+    expect(joined).toContain("Skill: spec-graph");
+    expect(joined).toContain("Skill: runnable-plan");
+    expect(joined).toContain("Scope: bug-fix"); // from the user-turn block
+  });
+});
+```
+
+- [ ] **Step 2: Run — expect pass**
+
+```bash
+pnpm -F @atlas/role-architect test integration
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/role-architect/test/integration.test.ts
+git commit -m "test(role-architect): end-to-end with real skill-runtime; Pass 2 system array has all 3 skill bodies"
+```
+
+---
+
+### Task 15: Conductor-dispatch contract test
+
+**Files:**
+- Create: `packages/role-architect/test/conductor-fit.test.ts`
+
+`ArchitectRole` must satisfy the `Role` interface from `@atlas/conductor` such that `Conductor.dispatch()` can invoke it without any shim. This test constructs a `Conductor` with the `ArchitectRole` in its `roles` map and dispatches a ritual end-to-end.
+
+- [ ] **Step 1: Write test**
+
+`packages/role-architect/test/conductor-fit.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from "vitest";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Registry } from "prom-client";
+import { AnthropicProvider, createProviderMetrics } from "@atlas/llm-provider";
+import { createRegistryWithOverrides, loadSkillsFromDir } from "@atlas/skill-runtime";
+import { Conductor } from "@atlas/conductor";
+import { ArchitectRole } from "../src/role.js";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const fixtureDir = join(here, "fixtures", "skills");
+
+describe("ArchitectRole satisfies @atlas/conductor's Role interface", () => {
+  it("Conductor.dispatch with classifier→architect→role flow returns architect artifact", async () => {
+    const sdkCreate = vi.fn()
+      .mockResolvedValueOnce({
+        content: [{ type: "tool_use", id: "t1", name: "emit_ambiguity_report",
+          input: { passed: true, scope: "new-feature", questions: [] } }],
+        model: "claude-haiku-4-5-20251001",
+        stop_reason: "tool_use",
+        usage: { input_tokens: 10, output_tokens: 5 }
+      })
+      .mockResolvedValueOnce({
+        content: [{ type: "tool_use", id: "t2", name: "emit_architect_output",
+          input: {
+            scope: "new-feature",
+            diffPlan: { summary: "forgot-password", tasks: [] },
+            graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) }
+          } }],
+        model: "claude-opus-4-7",
+        stop_reason: "tool_use",
+        usage: { input_tokens: 100, output_tokens: 50 }
+      });
+    const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
+    const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
+    const skills = createRegistryWithOverrides(loadSkillsFromDir(fixtureDir), []);
+    const role = new ArchitectRole({ llm: provider, skills });
+
+    const checkpoints: Array<{ eventType: string }> = [];
+    const conductor = new Conductor({
+      classifier: { classify: async () => ({ roleId: "architect", confidence: 0.95 }) },
+      roles: new Map([["architect", role]]),
+      checkpointSink: { emit: async (e) => { checkpoints.push(e); } },
+      sliceBuilder: () => ({ bytes: "{}", hash: "sha256:" + "0".repeat(64) })
+    });
+
+    const result = await conductor.dispatch({
+      ritualId: "r-fit" as never,
+      graphVersion: 1,
+      userTurn: "add forgot-password",
+      projectId: "11111111-1111-4111-8111-111111111111"
+    });
+
+    expect(result.roleId).toBe("architect");
+    expect(result.attempts).toBe(1);
+    const types = checkpoints.map((c) => c.eventType);
+    expect(types).toContain("dispatch.classified");
+    expect(types).toContain("architect.pass1.completed");
+    expect(types).toContain("architect.pass2.completed");
+    expect(types).toContain("dispatch.completed");
+  });
+});
+```
+
+- [ ] **Step 2: Run — expect pass**
+
+```bash
+pnpm -F @atlas/role-architect test conductor-fit
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add packages/role-architect/test/conductor-fit.test.ts
+git commit -m "test(role-architect): ArchitectRole works under @atlas/conductor.dispatch"
+```
+
+---
+
+### Task 16: Build + full-suite smoke
+
+**Files:** none created — verification task.
+
+- [ ] **Step 1: Run the package's own build + tests**
+
+```bash
+pnpm -F @atlas/role-architect build
+pnpm -F @atlas/role-architect typecheck
+pnpm -F @atlas/role-architect test
+```
+
+Expected: `build` exits 0; `typecheck` exits 0; test summary shows 11 test files, ~22-24 tests (exact count depends on parametrized variants), all green.
+
+- [ ] **Step 2: Run the full workspace test suite to confirm no regression**
+
+```bash
+pnpm -r test
+```
+
+Expected: every workspace package previously-green remains green. Pre-existing Postgres flakiness in `spec-graph-sync` / `spec-graph-merge-driver` is acceptable and unrelated.
+
+- [ ] **Step 3: If `@atlas/llm-provider` tests show regression**, trace to Task 6's `completeWithToolUse` extension. The retry + circuit-breaker paths must still pass for the plain `complete` path.
+
+- [ ] **Step 4: Commit** (smoke-only; no source changes)
+
+```bash
+git commit --allow-empty -m "chore(role-architect): full-suite smoke — all workspace tests green post D.2"
+```
+
+Use `--allow-empty` so the plan records the smoke checkpoint as a distinct commit.
+
+---
+
+### Task 17: Package README
+
+**Files:**
+- Create: `packages/role-architect/README.md`
+
+- [ ] **Step 1: Write the README**
+
+````markdown
+# @atlas/role-architect
+
+The first Role implementation for `@atlas/conductor` — the Architect performs two-pass ritual-authoring:
+
+1. **Pass 1 — Ambiguity triage (Haiku 4.5).** Classifies the user's intent into one of 7 scopes (new-app, new-feature, bug-fix, dep-upgrade, refactor, ship, migrate) and flags blocker-severity questions that must be answered before the deep plan runs.
+2. **Pass 2 — Deep plan (Opus 4.7).** Composes `brainstorm` + `spec-graph` + `runnable-plan` skills from `@atlas/skill-runtime` via a 3-tier prompt-cache (role prompt + graph slice + user turn) and produces the scope-specific Visualize artifact per PRD §8.
+
+## Install
+
+Workspace package. Deps: `@atlas/conductor`, `@atlas/llm-provider`, `@atlas/skill-runtime`, `@atlas/spec-graph-schema`.
+
+## Usage
+
+```ts
+import { ArchitectRole } from "@atlas/role-architect";
+import { AnthropicProvider, createProviderMetrics } from "@atlas/llm-provider";
+import { createRegistryFromBundledLibrary } from "@atlas/skill-runtime";
+import { Conductor } from "@atlas/conductor";
+
+const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(registry) });
+const skills = createRegistryFromBundledLibrary();
+const architect = new ArchitectRole({ llm: provider, skills });
+
+const conductor = new Conductor({
+  classifier: skillRuntimeClassifier,
+  roles: new Map([["architect", architect]]),
+  checkpointSink,
+  sliceBuilder
+});
+
+await conductor.dispatch(dispatchContext);
+```
+
+## Scope outputs
+
+Each Architect run emits one `ArchitectOutput` variant matching the classified scope:
+
+| Scope | Artifact |
+|---|---|
+| `new-app` | SpecGraph + runnable plan |
+| `new-feature` | impact-analysis diff plan |
+| `bug-fix` | four-phase debug report |
+| `dep-upgrade` | breaking-change matrix + rollback plan |
+| `refactor` | before/after graph + behavior-preservation contract + regression tests |
+| `ship` | rerunnable steps + rollback trigger |
+| `migrate` | staged plan + compliance evidence |
+
+## Events emitted
+
+- `architect.pass1.started` / `architect.pass1.completed` / `architect.pass1.failed`
+- `architect.triage.needs_input` — one per blocker question
+- `architect.pass2.started` / `architect.pass2.completed` / `architect.pass2.failed`
+
+## Observability
+
+Inherited from `@atlas/llm-provider`: every LLM call emits an OpenTelemetry span (`llm.anthropic.call`) and increments `atlas_llm_provider_requests_total{provider,model,status}` + records latency in `atlas_llm_provider_latency_seconds`.
+
+## What does NOT ship in D.2
+
+- Real skill markdown files — those come from `@atlas/skill-library` (Plan C.2). This package uses fixture skills in its test tree and bundled skills in production.
+- Parallel Developer runs — that's Plan D.3.
+- The Agree UI surface — that's Unit E.
+````
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add packages/role-architect/README.md
+git commit -m "docs(role-architect): README — two-pass flow, scope variants, events, observability"
+```
+
+---
+
+### Task 18: Update plan index + handoff
+
+**Files:**
+- Modify: `docs/superpowers/plans/README.md`
+
+- [ ] **Step 1: Add row + diagram entry**
+
+Insert a new row in the Plan index table after the D.1 row (row 9 post-C.2). The new row reads (renumber subsequent directional-doc rows):
+
+```
+| 10 | `2026-04-20-role-architect.md` | **D.2 — Architect role** | Two-pass ritual-authoring: Haiku triage (ambiguity report) → Opus deep plan (scope-variant output); implements `Role` from `@atlas/conductor`; LLM-provider `completeWithToolUse` extension | 18 tasks, TDD | Shipped (pending merge — TODO: update SHA post-merge) |
+```
+
+In the execution-order ASCII diagram, expand the D.1 subtree so D.2 is visible:
+
+```
+            └─ D.1 (Plans[9], shipped) — Conductor + LLM Provider
+                 ├─ D.2 (Plans[10], shipped) — Architect role
+                 ├─ Unit C continues — C.2 + C.3 (from Plans[11] Unit C)
+                 └─ Unit D continues — D.3..D.5 role plans (from Plans[11] Unit D)
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/superpowers/plans/README.md
+git commit -m "docs(plans): add D.2 architect role to plan index + refresh execution order"
+```
+
+---
+
+## Completion Checklist
+
+After all 18 tasks:
+
+- [ ] `pnpm -F @atlas/role-architect test` — all tests green (~22-24 tests)
+- [ ] `pnpm -F @atlas/llm-provider test` — still green; `completeWithToolUse` tests added
+- [ ] `pnpm -F @atlas/conductor test` — no regression
+- [ ] `pnpm -F @atlas/skill-runtime test` — no regression
+- [ ] `pnpm -r test` — no cross-package regressions
+- [ ] `pnpm -F @atlas/role-architect build` — exits 0; `dist/index.js` + declarations emitted
+- [ ] `ArchitectRole` is constructable; `run()` happy-path emits 4 events + artifact
+- [ ] Triage returning a blocker yields `architect.triage.needs_input` events + no Pass 2 call
+- [ ] Deep-plan failure throws `DeepPlanFailedError` (re-thrown so the Conductor can retry per its policy)
+- [ ] `Conductor.dispatch` with `ArchitectRole` in the `roles` map succeeds end-to-end under mocked SDK
+- [ ] Observability: Haiku + Opus each produce labelled metric increments
+- [ ] Plan index row 10 marks D.2 as shipped; execution-order diagram shows D.2 under D.1
+
+## Handoff to D.3 / D.4 / D.5
+
+D.2 establishes the canonical shape every subsequent role follows:
+
+1. **Types file** defining the role's inputs + scope-specific output union.
+2. **Two-pass or single-pass orchestration** using `@atlas/llm-provider` (retry + circuit-breaker + observability by default).
+3. **Skill composition** via `assembleArchitectPrompt`-style helper (generalisable as `assembleSkillPrompt(registry, names)` — D.3 should extract this into `@atlas/role-shared` if more than one role uses it).
+4. **`Role` class** implementing `@atlas/conductor.Role`; one event per lifecycle phase + one on failure.
+5. **Test suite** covering: types, errors, each pass in isolation, role happy + failure paths, observability, integration with real skill-runtime, Conductor-dispatch fit.
+
+### D.3 (Developer role) specifics
+
+- Composes `tdd-feature` + `edit-only-what-changed` + `runnable-plan` skills from C.2.
+- **Parallel** — Sonnet 4.6 + Gemini 2.5 Flash. Blocked on D.1 open question OQ4 (who judges wins). Recommended: a lightweight Reviewer role (Sonnet) votes.
+- Extends `@atlas/llm-provider` with a real `GoogleProvider` (today a stub from D.1).
+
+### D.4 (Security role) specifics
+
+- Composes `audit-rls` + `cors-policy` + `secrets-scan` + `cve-check` from C.2.
+- Acts as the L4 merge gate per PRD §11.4. Emits `merge-gate.security.passed` / `merge-gate.security.failed` events.
+
+### D.5 (Accessibility role) specifics
+
+- Composes `wcag-audit` + `rtl-layout` + `keyboard-nav` + `contrast-check` from C.2.
+- Acts as the L5 merge gate; Sonnet 4.6 + axe-core integration.
+
+Each of D.3-D.5 is a ~18-task plan mirroring D.2's shape. Authored T-minus-3-weeks per the Phase A cadence.
