@@ -107,14 +107,22 @@ Critical path: A → B → D → E → F. C (skill framework) and D (agents) are
 - **Plan C.2 — Starter Skill Library & OSS pipeline** (≈15 tasks): author the ~35 skills, CI validation, public repo mirror workflow.
 - **Plan C.3 — Test-Generator Registry + Human Baseline Infrastructure** (≈15 tasks): the baseline-assertion authoring workflow (who writes them, where they live, how they pin to node types), the test-generator invocation path, drift detection.
 
-**Open questions:**
+**Resolved (post-B.1):**
 
-1. **Skill execution isolation.** Do skills run in the main Node process, or each in its own child process / worker thread? Recommendation: main process in v1 (skills are markdown, not executable — they produce LLM prompts, not side effects).
+1. **Skill execution isolation → main-process loader.** Rationale: B.1 confirmed the schemas-as-data pattern scales; skills stay markdown+frontmatter with no side-effect surface, so process isolation is unnecessary machinery.
+
+5. **Pinning granularity → exact pin + dependabot-style upgrade PRs.** Rationale: B.1's exact-version discipline for `zod`, `zod-to-json-schema`, and `vitest` caught a silent `target: "jsonSchema2020-12"` ignore bug that a range pin would have hidden.
+
+**Open questions (for C.1 plan-authoring time):**
+
 2. **Intent-classifier prompt-cache hit rate.** NFR-13 targets >80%. Does a Haiku-4.5 classifier get us there, or do we need a local tiny model (e.g., distilled) for zero-latency triage? Recommendation: start with Haiku, measure, replace if miss rate is >20%.
 3. **Human-baseline authorship.** Who writes the non-LLM baseline assertions at L4/L5? This is the Chairman-flagged Council blind-spot. Options: a named owner (dedicated engineer), external security consultants, staff engineering review committee. Decision needed before C.3 starts.
 4. **OSS release cadence.** Weekly? Monthly? Recommendation: weekly patch releases, monthly minors — matches the community RFC rhythm.
-5. **Pinning granularity.** Pin skills to exact version (reproducible but churny) or minor range (flexible but drift-prone)? Recommendation: exact pin + automated dependabot-style upgrade PRs.
 6. **Calibration dataset.** Unit A's reconciliation classifier needs one; Unit C's drift detector needs one. Same dataset? Different? Recommendation: shared dataset starts in Unit C, grown by both.
+
+7. **Registry wiring (new).** Does the skill framework import `nodeRegistry` + `edgeRegistry` from `@atlas/spec-graph-schema` directly (tight coupling, single source) or re-declare a skill-local projection (looser, decoupled evolution)? Recommendation: direct import; the registry is already a public export and that's what it's for.
+
+8. **Cross-field refinement in skill I/O schemas (new).** B.1 learning: Zod v3 `discriminatedUnion` rejects `ZodEffects`, so `z.discriminatedUnion([...]).refine(...)` fails at parse time. Skill input/output schemas often need cross-field rules. Pattern to document in C.1: split the discriminator, apply `.superRefine` at the outer level, or use `z.union` + runtime discriminator check (B.1 used the split-then-refine pattern for `AuthBoundarySchema`).
 
 ---
 
@@ -155,13 +163,19 @@ Critical path: A → B → D → E → F. C (skill framework) and D (agents) are
 - **Plan D.4 — Security Role + L4 merge gate wiring** (≈15 tasks). Includes the human-authored baseline assertion invocation path (Council blind-spot #3).
 - **Plan D.5 — Accessibility Role + L5 merge gate wiring** (≈15 tasks).
 
-**Open questions:**
+**Resolved (post-B.1):**
 
-1. **Agent-Teams abstraction vs directly in the codebase.** Claude Code's Agent-Teams primitives are useful for dev tooling but not cleanly exportable as a library. Does the Conductor use them directly (tight coupling to Claude Code) or reimplement the shared-task-list / peer-messaging pattern as an internal library? Recommendation: internal lib — avoids runtime lock-in.
-2. **Prompt-cache prefix shape.** Developer role is the biggest LLM consumer. Cache hit rate target is >80% (NFR-13). Prefix needs to be: base skill prompt + graph context (slow-changing) before the user turn (fast-changing). Ensure graph-context slot is stable across turns for the same project.
-3. **Role recovery on failure.** If a role crashes mid-execution, does Conductor retry? Resume from last checkpoint? Discard work? Recommendation: checkpoint after every emitted event; retry with exponential backoff up to 3 attempts; on third failure, escalate to user per edit-class policy (PRD §9.5).
+1. **Agent-Teams abstraction vs internal lib → internal lib.** Rationale: Claude Code's Agent Teams primitives are a developer-ergonomics convenience, not a runtime contract. Keeping the Conductor free of that import surface avoids runtime lock-in when Atlas ships as Helm chart (Phase D-5).
+
+5. **Browser Verification (L3 gate) role → confirmed deferred to Phase B-8.** Rationale: B.1 shipped on time without it; L3 is advisory per PRD §11.4 for Phase A, merge-gating in Phase B. No change to D.1 scope; v1 = 4 roles.
+
+**Open questions (for D.1 plan-authoring time):**
+
+2. **Prompt-cache prefix shape.** Developer role is the biggest LLM consumer. Cache hit rate target is >80% (NFR-13). Three-tier structure: (a) skill system prompt (stable), (b) graph context slice (slow-changing, keyed by graph version), (c) user turn. Plan D.1 must spell out: how is slice (b) generated from `@atlas/spec-graph-data`? Deterministic ordering of nodes + edges? Content-hash of the slice as cache key?
+3. **Role recovery on failure.** If a role crashes mid-execution, does Conductor retry? Resume from last checkpoint? Discard work? Recommendation: checkpoint after every emitted event; retry with exponential backoff up to 3 attempts; on third failure, escalate to user per edit-class policy (PRD §9.5). Apply B.1's opt-in pattern — retry policy is conductor-injected per dispatch, not hard-coded in the role.
 4. **Parallel Developer runs.** Sonnet + Gemini Flash in parallel requires a voting or merge strategy. Who judges which output wins? Recommendation: a lightweight Reviewer role (Sonnet) votes. Flag for refinement in D.3.
-5. **Browser Verification (L3 gate) role.** Not in Unit D's v1 role set; it's in the backlog but deferred. Sequence: Unit D v1 has 4 roles; add Browser Verification as D.6 in Phase B. Confirm this cut is acceptable at plan-authoring time.
+
+6. **Retry / circuit-breaker location (new).** Library-level (every LLM call wrapped) or conductor-level (retries per role invocation)? Recommendation: library-level default with per-role override, matching the `@atlas/spec-graph-data` observability pattern.
 
 ---
 

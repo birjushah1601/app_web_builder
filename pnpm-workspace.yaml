@@ -1,3 +1,4 @@
 packages:
   - "packages/*"
   - "services/*"
+  - "!packages/spec-graph-schema-py"

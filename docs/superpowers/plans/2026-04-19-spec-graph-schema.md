@@ -3269,10 +3269,10 @@ After all 43 tasks:
 
 ## Handoff to Plan B.2
 
-Plan B.2 (Python Pydantic bindings + markdown reference doc generator) consumes:
+Plan B.2 (Python Pydantic bindings; see `docs/superpowers/plans/2026-04-20-spec-graph-schema-py.md`) consumes:
 
 - `dist/schema/spec-graph.v1.schema.json` — the canonical artifact for `datamodel-code-generator` to emit `packages/spec-graph-schema-py/`.
-- `nodeRegistry` and `edgeRegistry` — could drive a generated markdown reference doc with one section per node/edge.
+- `nodeRegistry` and `edgeRegistry` — the registries are public exports and serve as the authoritative node/edge catalogue for downstream consumers.
 - The 14 invariant `code` strings — Python bindings should expose the same enum-shaped `InvariantCode` for cross-language tooling.
 
 Plan B.2 does NOT modify this package's TypeScript surface. Any extension is additive (a new node type, a new invariant) and ships in this same package as an additive minor version.
