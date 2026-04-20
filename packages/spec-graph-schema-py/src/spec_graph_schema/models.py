@@ -696,7 +696,7 @@ class SpecGraph(BaseModel):
     schema_version: Literal['1.0.0'] = Field(..., alias='schemaVersion')
     project_id: UUID = Field(..., alias='projectId')
     name: constr(min_length=1)
-    compliance_classes: list[ComplianceClass] = Field(
+    compliance_classes: list[constr(min_length=1)] = Field(
         ..., alias='complianceClasses', min_length=1
     )
     database_provider: DatabaseProvider = Field(..., alias='databaseProvider')
