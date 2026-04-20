@@ -107,14 +107,22 @@ Critical path: A → B → D → E → F. C (skill framework) and D (agents) are
 - **Plan C.2 — Starter Skill Library & OSS pipeline** (≈15 tasks): author the ~35 skills, CI validation, public repo mirror workflow.
 - **Plan C.3 — Test-Generator Registry + Human Baseline Infrastructure** (≈15 tasks): the baseline-assertion authoring workflow (who writes them, where they live, how they pin to node types), the test-generator invocation path, drift detection.
 
-**Open questions:**
+**Resolved (post-B.1):**
 
-1. **Skill execution isolation.** Do skills run in the main Node process, or each in its own child process / worker thread? Recommendation: main process in v1 (skills are markdown, not executable — they produce LLM prompts, not side effects).
+1. **Skill execution isolation → main-process loader.** Rationale: B.1 confirmed the schemas-as-data pattern scales; skills stay markdown+frontmatter with no side-effect surface, so process isolation is unnecessary machinery.
+
+5. **Pinning granularity → exact pin + dependabot-style upgrade PRs.** Rationale: B.1's exact-version discipline for `zod`, `zod-to-json-schema`, and `vitest` caught a silent `target: "jsonSchema2020-12"` ignore bug that a range pin would have hidden.
+
+**Open questions (for C.1 plan-authoring time):**
+
 2. **Intent-classifier prompt-cache hit rate.** NFR-13 targets >80%. Does a Haiku-4.5 classifier get us there, or do we need a local tiny model (e.g., distilled) for zero-latency triage? Recommendation: start with Haiku, measure, replace if miss rate is >20%.
 3. **Human-baseline authorship.** Who writes the non-LLM baseline assertions at L4/L5? This is the Chairman-flagged Council blind-spot. Options: a named owner (dedicated engineer), external security consultants, staff engineering review committee. Decision needed before C.3 starts.
 4. **OSS release cadence.** Weekly? Monthly? Recommendation: weekly patch releases, monthly minors — matches the community RFC rhythm.
-5. **Pinning granularity.** Pin skills to exact version (reproducible but churny) or minor range (flexible but drift-prone)? Recommendation: exact pin + automated dependabot-style upgrade PRs.
 6. **Calibration dataset.** Unit A's reconciliation classifier needs one; Unit C's drift detector needs one. Same dataset? Different? Recommendation: shared dataset starts in Unit C, grown by both.
+
+7. **Registry wiring (new).** Does the skill framework import `nodeRegistry` + `edgeRegistry` from `@atlas/spec-graph-schema` directly (tight coupling, single source) or re-declare a skill-local projection (looser, decoupled evolution)? Recommendation: direct import; the registry is already a public export and that's what it's for.
+
+8. **Cross-field refinement in skill I/O schemas (new).** B.1 learning: Zod v3 `discriminatedUnion` rejects `ZodEffects`, so `z.discriminatedUnion([...]).refine(...)` fails at parse time. Skill input/output schemas often need cross-field rules. Pattern to document in C.1: split the discriminator, apply `.superRefine` at the outer level, or use `z.union` + runtime discriminator check (B.1 used the split-then-refine pattern for `AuthBoundarySchema`).
 
 ---
 
