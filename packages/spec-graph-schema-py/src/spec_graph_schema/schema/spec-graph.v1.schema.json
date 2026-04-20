@@ -1,0 +1,1410 @@
+{
+  "$ref": "#/definitions/SpecGraph",
+  "definitions": {
+    "SpecGraph": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "complianceClasses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "databaseProvider": {
+          "type": "object",
+          "properties": {
+            "tier": {
+              "type": "string",
+              "enum": [
+                "atlas-run",
+                "byo-cloud",
+                "self-hosted"
+              ]
+            },
+            "provider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "region": {
+              "type": "string",
+              "minLength": 1
+            },
+            "connectionStringRef": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "tier",
+            "provider",
+            "region",
+            "connectionStringRef"
+          ],
+          "additionalProperties": false
+        },
+        "templateDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{6,64}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "page"
+                  },
+                  "id": {
+                    "type": "string",
+                    "pattern": "^(page|route|component|clientstate|model|endpoint|flow|authboundary|test|designtoken|dependency|compliance|aifeature|mediaasset):[A-Za-z0-9._-]+$"
+                  },
+                  "extensions": {
+                    "type": "object",
+                    "additionalProperties": {},
+                    "default": {}
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "layout": {
+                    "type": "string"
+                  },
+                  "renderMode": {
+                    "type": "string",
+                    "enum": [
+                      "ssr",
+                      "ssg",
+                      "csr",
+                      "isr"
+                    ]
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "authRequired": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "routeRef": {
+                    "type": "string"
+                  },
+                  "a11yAnnotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "path",
+                  "title",
+                  "renderMode"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "route"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "HEAD",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "OPTIONS"
+                    ]
+                  },
+                  "handlerType": {
+                    "type": "string",
+                    "enum": [
+                      "page",
+                      "endpoint",
+                      "middleware"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "pattern",
+                  "method",
+                  "handlerType"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "component"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "propsSchema": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "isServerComponent": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "styleApproach": {
+                    "type": "string",
+                    "enum": [
+                      "tailwind",
+                      "css-modules",
+                      "vanilla-extract",
+                      "styled-components",
+                      "emotion",
+                      "inline"
+                    ]
+                  },
+                  "a11yAnnotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "styleApproach"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "clientstate"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "stateKind": {
+                    "type": "string",
+                    "enum": [
+                      "context",
+                      "zustand-store",
+                      "reducer",
+                      "query-cache",
+                      "form-state",
+                      "route-state"
+                    ]
+                  },
+                  "schema": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "persistence": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "sessionStorage",
+                      "localStorage",
+                      "url"
+                    ]
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "page",
+                      "layout",
+                      "app",
+                      "flow"
+                    ]
+                  },
+                  "piiClassification": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "indirect",
+                      "direct",
+                      "sensitive"
+                    ],
+                    "default": "none"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "stateKind",
+                  "persistence",
+                  "scope"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "model"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "fields": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "relations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "to": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "one-to-one",
+                            "one-to-many",
+                            "many-to-one",
+                            "many-to-many"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "to",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  },
+                  "indexes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "on": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "minItems": 1
+                        },
+                        "unique": {
+                          "type": "boolean",
+                          "default": false
+                        }
+                      },
+                      "required": [
+                        "on"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  },
+                  "rlsPolicies": {
+                    "type": "object",
+                    "properties": {
+                      "select": {
+                        "type": "string"
+                      },
+                      "insert": {
+                        "type": "string"
+                      },
+                      "update": {
+                        "type": "string"
+                      },
+                      "delete": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "default": {}
+                  },
+                  "piiClassification": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/3/properties/piiClassification",
+                    "default": "none"
+                  },
+                  "dataRetentionDays": {
+                    "type": "integer",
+                    "exclusiveMinimum": true,
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "fields"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "endpoint"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "routeRef": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "method": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/1/properties/method"
+                  },
+                  "inputSchema": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "outputSchema": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "authRef": {
+                    "type": "string"
+                  },
+                  "rateLimit": {
+                    "type": "object",
+                    "properties": {
+                      "window": {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]*(ms|s|m|h|d)$"
+                      },
+                      "max": {
+                        "type": "integer",
+                        "exclusiveMinimum": true,
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "window",
+                      "max"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "routeRef",
+                  "method"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "flow"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "steps": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "surface": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "label"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
+                  },
+                  "entryPoints": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1
+                  },
+                  "successCriteria": {
+                    "type": "string"
+                  },
+                  "failurePaths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "steps",
+                  "entryPoints"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "authboundary"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "authenticated",
+                      "role",
+                      "permission"
+                    ]
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "default": []
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "default": []
+                  },
+                  "bypassConditions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "test"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "layer": {
+                    "type": "string",
+                    "enum": [
+                      "L1",
+                      "L2",
+                      "L3",
+                      "L4",
+                      "L5"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "generated",
+                      "user",
+                      "baseline"
+                    ]
+                  },
+                  "filepath": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "coversRef": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "layer",
+                  "source",
+                  "filepath",
+                  "coversRef"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "designtoken"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "color",
+                      "spacing",
+                      "typography",
+                      "radius",
+                      "shadow",
+                      "motion"
+                    ]
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": {}
+                      }
+                    ]
+                  },
+                  "scale": {
+                    "type": "string",
+                    "enum": [
+                      "light",
+                      "dark"
+                    ]
+                  },
+                  "contrastGroup": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "category",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "dependency"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "version": {
+                    "type": "string",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z-.]+)?$"
+                  },
+                  "purpose": {
+                    "type": "string"
+                  },
+                  "license": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cveScanStatus": {
+                    "type": "object",
+                    "properties": {
+                      "scannedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "severity": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "low",
+                          "medium",
+                          "high",
+                          "critical"
+                        ]
+                      },
+                      "findings": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "cvss": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 10
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "default": []
+                      }
+                    },
+                    "required": [
+                      "scannedAt",
+                      "severity"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "version",
+                  "license",
+                  "cveScanStatus"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "compliance"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "enum": [
+                      "baseline",
+                      "GDPR",
+                      "HIPAA",
+                      "SOC2-lite"
+                    ]
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "model",
+                      "endpoint",
+                      "feature"
+                    ]
+                  },
+                  "attestation": {
+                    "type": "string",
+                    "enum": [
+                      "self-attested",
+                      "third-party-audited",
+                      "certified"
+                    ]
+                  },
+                  "effectiveDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "scope",
+                  "attestation",
+                  "effectiveDate"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "aifeature"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "summarization",
+                      "extraction",
+                      "classification",
+                      "generation",
+                      "translation",
+                      "qa",
+                      "search",
+                      "transformation",
+                      "agent",
+                      "other"
+                    ]
+                  },
+                  "capabilityContract": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "inputModality": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "image",
+                      "audio",
+                      "video",
+                      "multimodal"
+                    ]
+                  },
+                  "outputModality": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/12/properties/inputModality"
+                  },
+                  "grounding": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "rag",
+                      "tool-use",
+                      "structured-context"
+                    ]
+                  },
+                  "personalization": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "session",
+                      "account",
+                      "cross-account"
+                    ]
+                  },
+                  "privacyMode": {
+                    "type": "string",
+                    "enum": [
+                      "no-retain",
+                      "retain-7d",
+                      "retain-30d",
+                      "retain-indefinite"
+                    ]
+                  },
+                  "safetyContract": {
+                    "type": "object",
+                    "properties": {
+                      "promptInjectionGuard": {
+                        "type": "boolean"
+                      },
+                      "hallucinationGuard": {
+                        "type": "boolean"
+                      },
+                      "piiRedaction": {
+                        "type": "boolean"
+                      },
+                      "contentFilter": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "promptInjectionGuard",
+                      "hallucinationGuard"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "fallbackBehavior": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "costTier": {
+                    "type": "string",
+                    "enum": [
+                      "fast",
+                      "standard",
+                      "premium"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "category",
+                  "capabilityContract",
+                  "inputModality",
+                  "outputModality",
+                  "grounding",
+                  "personalization",
+                  "privacyMode",
+                  "safetyContract",
+                  "fallbackBehavior",
+                  "costTier"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "mediaasset"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "mediaKind": {
+                    "type": "string",
+                    "enum": [
+                      "image",
+                      "icon",
+                      "illustration"
+                    ]
+                  },
+                  "providerCapability": {
+                    "type": "string"
+                  },
+                  "generationPrompt": {
+                    "type": "string"
+                  },
+                  "pathOrUrl": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "altText": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "licenseStatus": {
+                    "type": "string",
+                    "enum": [
+                      "generated",
+                      "user-uploaded",
+                      "licensed-third-party",
+                      "public-domain"
+                    ]
+                  },
+                  "contentHash": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{6,64}$"
+                  },
+                  "personalizationContext": {
+                    "type": "string",
+                    "default": "none"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "mediaKind",
+                  "pathOrUrl",
+                  "altText",
+                  "licenseStatus",
+                  "contentHash"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "renders"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "fetches"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "reads"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "mutates"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "requires"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "covers"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "dependsOn"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "styledBy"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "subjectTo"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "supersedes"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "powers"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "displays"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "manages"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "projectId",
+        "name",
+        "complianceClasses",
+        "databaseProvider",
+        "templateDigest",
+        "createdAt",
+        "updatedAt",
+        "nodes",
+        "edges"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
