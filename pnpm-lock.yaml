@@ -67,6 +67,34 @@ importers:
         specifier: 2.1.8
         version: 2.1.8(@types/node@22.9.0)
 
+  packages/role-architect:
+    dependencies:
+      '@atlas/conductor':
+        specifier: workspace:*
+        version: link:../conductor
+      '@atlas/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      '@atlas/skill-runtime':
+        specifier: workspace:*
+        version: link:../skill-runtime
+      '@atlas/spec-graph-schema':
+        specifier: workspace:*
+        version: link:../spec-graph-schema
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@22.9.0)
+
   packages/skill-library:
     devDependencies:
       '@atlas/skill-runtime':
