@@ -23,7 +23,9 @@ const graph = {
 describe("serializeSlice / hashSlice", () => {
   it("sorts nodes by id", () => {
     const slice = serializeSlice(graph as never, { includeAllNodes: true, includeAllEdges: true });
-    const order = slice.bytes.match(/"kind":"page","id":"(page:[^"]+)"/g) ?? [];
+    // After canonicalization, keys are alphabetical: id < kind, so "id" appears before "kind"
+    const order = slice.bytes.match(/"id":"(page:[^"]+)","kind":"page"/g) ?? [];
+    expect(order).toHaveLength(2);
     expect(order[0]).toContain("page:about"); // lexicographic first
     expect(order[1]).toContain("page:home");
   });

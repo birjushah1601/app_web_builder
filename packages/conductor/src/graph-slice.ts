@@ -22,7 +22,7 @@ export function serializeSlice(graph: SpecGraph, selector: SliceSelector): Seria
   const nodes: Array<Record<string, unknown>> = [];
   for (const id of nodeIds) {
     const n = (graph.nodes as Record<string, Record<string, unknown>>)[id];
-    if (n) nodes.push(n);
+    if (n) nodes.push(canonicalize(n) as Record<string, unknown>);
   }
   const edges = (graph.edges as Array<{ from: string; to: string; type: string } & Record<string, unknown>>)
     .filter((e) => selector.includeAllEdges || (selector.edgeKey ? selector.edgeKey(e) : false))
