@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Skill } from "./skill.js";
 import type { IntentClassifier } from "./classifier.js";
+import { topoSort } from "./topo.js";
 
 export class SkillNotFoundError extends Error {
   constructor(name: string) {
@@ -78,6 +79,35 @@ export class SkillRegistry {
       body: skill.body,
       activatedAt: new Date()
     };
+  }
+
+  /**
+   * Returns all skills in the transitive `composes` closure of `rootName`,
+   * ordered dependency-first (leaves first, root last).
+   * Throws `CyclicDependencyError` if a cycle is detected.
+   * Throws `SkillNotFoundError` if `rootName` is not in the registry.
+   */
+  resolveComposeOrder(rootName: string): string[] {
+    if (!this.byName.has(rootName)) throw new SkillNotFoundError(rootName);
+
+    // Build a sub-graph of just the relevant skills
+    const graph: Record<string, string[]> = {};
+    const toVisit = [rootName];
+    const visited = new Set<string>();
+
+    while (toVisit.length > 0) {
+      const name = toVisit.pop()!;
+      if (visited.has(name)) continue;
+      visited.add(name);
+      const skill = this.byName.get(name);
+      const deps = skill?.frontmatter.composes ?? [];
+      graph[name] = deps;
+      for (const dep of deps) {
+        if (!visited.has(dep)) toVisit.push(dep);
+      }
+    }
+
+    return topoSort(graph);
   }
 
   /**
