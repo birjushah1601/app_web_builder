@@ -1264,3 +1264,823 @@ git commit -m "feat(skill-library): add test-generator skills batch 1 (page, rou
 
 ---
 
+### Task 10: Author Test-Generator skills — batch 2 (5 files)
+
+**Files:** `skills/test-generators/gen-test-endpoint.md`, `gen-test-flow.md`, `gen-test-auth-boundary.md`, `gen-test-design-token.md`, `gen-test-dependency.md`
+
+Each file follows the same shape as Task 9's generators — minimal frontmatter (`name`, `description`, `activate_on: "node:<kind>"`, optional `model_hint`), a "When to use" section, a "Checklist" section, optional "Anti-patterns". Key content per file:
+
+- [ ] **Step 1: Write `skills/test-generators/gen-test-endpoint.md`**
+
+````markdown
+---
+name: gen-test-endpoint
+description: Generate request/response contract tests + auth + rate-limit tests for an Endpoint node
+activate_on: "node:endpoint"
+model_hint: sonnet
+---
+
+# Generate Test — Endpoint
+
+## When to use
+
+Auto-activated when an `Endpoint` node is added or its method/path/inputs/outputs/authBoundary/rateLimit change.
+
+## Checklist
+
+- [ ] Request-body test: valid payload returns 200 + matching outputs shape; invalid payload returns 400.
+- [ ] Auth test: if AuthBoundary present, unauthed call returns 401; wrong-role call returns 403.
+- [ ] Rate-limit test: (rateLimit+1) calls in the window return 429.
+- [ ] PII+compliance test: if the Endpoint mutates a PII Model, confirm invariant I04 passes (endpoint has both AuthBoundary and ComplianceClass requires-edges).
+- [ ] Emit as Test node with `source: "baseline"` and `covers`-edge → Endpoint.
+````
+
+- [ ] **Step 2: Write `skills/test-generators/gen-test-flow.md`**
+
+````markdown
+---
+name: gen-test-flow
+description: Generate end-to-end Playwright tests for a Flow node (sequence of steps)
+activate_on: "node:flow"
+model_hint: sonnet
+---
+
+# Generate Test — Flow
+
+## When to use
+
+Auto-activated when a `Flow` node is added or its steps/failurePaths change.
+
+## Checklist
+
+- [ ] Happy-path test: walk every step in Flow.steps; assert the final state matches Flow.terminalState.
+- [ ] Failure-path tests: for each Flow.failurePaths entry, trigger the failure + assert the recovery path runs.
+- [ ] Coverage: confirm every step is observed at least once across the test set.
+- [ ] Emit as Test node with `covers`-edge → Flow.
+````
+
+- [ ] **Step 3: Write `skills/test-generators/gen-test-auth-boundary.md`**
+
+````markdown
+---
+name: gen-test-auth-boundary
+description: Generate baseline security tests for an AuthBoundary node (required by I13)
+activate_on: "node:authboundary"
+model_hint: opus
+---
+
+# Generate Test — AuthBoundary
+
+## When to use
+
+Auto-activated when an `AuthBoundary` node is added. AuthBoundary test coverage is mandated by invariant I13 (`I13_PROTECTED_TARGET_MISSING_BASELINE_TEST`).
+
+## Checklist
+
+- [ ] Unauthed access returns 401 + correct redirect.
+- [ ] Authed-but-wrong-role access returns 403.
+- [ ] Role elevation after re-auth grants access (if roles support elevation).
+- [ ] Session expiry returns 401 and re-auth flow.
+- [ ] Emit as Test node with `source: "baseline"` (human-authored equivalent — the LLM cannot rewrite this) and `covers`-edge → AuthBoundary.
+
+## Anti-patterns
+
+- Do not emit baseline tests that depend on app-level role names — use the AuthBoundary's declared roles directly.
+````
+
+- [ ] **Step 4: Write `skills/test-generators/gen-test-design-token.md`**
+
+````markdown
+---
+name: gen-test-design-token
+description: Generate contrast + token-usage tests for a DesignToken node
+activate_on: "node:designtoken"
+model_hint: haiku
+---
+
+# Generate Test — DesignToken
+
+## When to use
+
+Auto-activated when a `DesignToken` node is added.
+
+## Checklist
+
+- [ ] Contrast test: if the token is a color pair (fg/bg), assert WCAG 2.2 AA contrast ratios.
+- [ ] Usage test: confirm the token is referenced by at least one Component (else it's dead token).
+- [ ] Theme-switch test: if the token has `lightValue` + `darkValue`, both pass contrast in their respective modes.
+- [ ] Emit as Test node with `covers`-edge → DesignToken.
+````
+
+- [ ] **Step 5: Write `skills/test-generators/gen-test-dependency.md`**
+
+````markdown
+---
+name: gen-test-dependency
+description: Generate CVE + license + upgrade-path tests for a Dependency node
+activate_on: "node:dependency"
+model_hint: haiku
+---
+
+# Generate Test — Dependency
+
+## When to use
+
+Auto-activated when a `Dependency` node is added or its version changes.
+
+## Checklist
+
+- [ ] CVE test: query osv.dev / npm audit; fail on critical severity (I06).
+- [ ] License test: fail on copyleft licenses (GPL, AGPL) unless the app itself is OSS + accepts.
+- [ ] Version-range test: if the Dependency declares `supportedMajorRange`, confirm the current version is within it.
+- [ ] Emit as Test node with `covers`-edge → Dependency.
+````
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/skill-library/skills/test-generators/gen-test-endpoint.md packages/skill-library/skills/test-generators/gen-test-flow.md packages/skill-library/skills/test-generators/gen-test-auth-boundary.md packages/skill-library/skills/test-generators/gen-test-design-token.md packages/skill-library/skills/test-generators/gen-test-dependency.md
+git commit -m "feat(skill-library): add test-generator skills batch 2 (endpoint, flow, auth-boundary, design-token, dependency)"
+```
+
+---
+
+### Task 11: Author Test-Generator skills — batch 3 (4 files)
+
+**Files:** `skills/test-generators/gen-test-compliance-class.md`, `gen-test-ai-feature.md`, `gen-test-media-asset.md`, `gen-test-test.md`
+
+- [ ] **Step 1: Write `skills/test-generators/gen-test-compliance-class.md`**
+
+````markdown
+---
+name: gen-test-compliance-class
+description: Generate baseline compliance-evidence tests for a ComplianceClass node (required by I13 for non-baseline)
+activate_on: "node:compliance"
+model_hint: opus
+---
+
+# Generate Test — ComplianceClass
+
+## When to use
+
+Auto-activated when a `ComplianceClass` node is added. Non-baseline ComplianceClasses require a `source: "baseline"` Test per I13.
+
+## Checklist
+
+- [ ] For each assertion in ComplianceClass.baselineAssertions, emit a concrete test that exercises it.
+- [ ] HIPAA: audit-log presence, PHI field encryption at rest, BAA-traceable provider list.
+- [ ] GDPR: data-subject-access-request endpoint returns user's data in 30 days, deletion endpoint scrubs across Models.
+- [ ] DPDP-India: data-fiduciary consent-capture event for every PII-write.
+- [ ] Emit as Test node with `source: "baseline"` and `covers`-edge → ComplianceClass.
+
+## Anti-patterns
+
+- Do not auto-generate compliance assertions — they must be human-authored to be defensible.
+````
+
+- [ ] **Step 2: Write `skills/test-generators/gen-test-ai-feature.md`**
+
+````markdown
+---
+name: gen-test-ai-feature
+description: Generate personalization + privacy tests for an AIFeature node
+activate_on: "node:aifeature"
+model_hint: sonnet
+---
+
+# Generate Test — AIFeature
+
+## When to use
+
+Auto-activated when an `AIFeature` node is added or its personalization/inputModality/safetyContract changes.
+
+## Checklist
+
+- [ ] Personalization test: if personalized=true, verify ComplianceClass edge exists (I10).
+- [ ] Input-modality test: every declared modality (text/image/audio/video) round-trips through the feature.
+- [ ] Safety-contract test: inputs matching the contract's disallowed patterns are refused with the expected refusal message.
+- [ ] Privacy-mode test: if privacyMode=`"on-device"`, no network call leaves the device during inference.
+- [ ] Emit as Test node with `covers`-edge → AIFeature.
+````
+
+- [ ] **Step 3: Write `skills/test-generators/gen-test-media-asset.md`**
+
+````markdown
+---
+name: gen-test-media-asset
+description: Generate provider + license + size tests for a MediaAsset node
+activate_on: "node:mediaasset"
+model_hint: haiku
+---
+
+# Generate Test — MediaAsset
+
+## When to use
+
+Auto-activated when a `MediaAsset` node is added.
+
+## Checklist
+
+- [ ] Provider test: if MediaAsset.source=`"generated"`, confirm providerCapability is set (I11).
+- [ ] License test: if source=`"stock"`, confirm licenseStatus is in the allowlist.
+- [ ] Size test: image assets under 500KB; video under 10MB for v1 (adjust per Page's performance budget).
+- [ ] Kind test: MediaAsset.kind ∈ `{image, icon, illustration}` in v1 (I14).
+- [ ] Emit as Test node with `covers`-edge → MediaAsset.
+````
+
+- [ ] **Step 4: Write `skills/test-generators/gen-test-test.md`**
+
+````markdown
+---
+name: gen-test-test
+description: Meta — generate a sanity test for a Test node itself (it runs, it reports)
+activate_on: "node:test"
+model_hint: haiku
+---
+
+# Generate Test — Test
+
+## When to use
+
+Auto-activated when a `Test` node is added. This is a meta-generator: the Test node represents a test that exists in the test suite; this generator verifies the Test node itself is wired into CI.
+
+## Checklist
+
+- [ ] Discovery test: the Test node's file path exists in the repo.
+- [ ] Execution test: running the test via `pnpm -F <package> test <path>` exits 0 (for passing tests) or non-zero (for a deliberately-failing baseline).
+- [ ] Source-tag test: if Test.source=`"baseline"`, a matching entry exists in `.atlas/baselines.json` recording the human author + date.
+- [ ] This is NOT emitted as a Test node (that would cause infinite recursion); it's a registry-level assertion.
+
+## Anti-patterns
+
+- Do not emit `covers`-edge — Tests test other nodes, not themselves.
+````
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/skill-library/skills/test-generators/gen-test-compliance-class.md packages/skill-library/skills/test-generators/gen-test-ai-feature.md packages/skill-library/skills/test-generators/gen-test-media-asset.md packages/skill-library/skills/test-generators/gen-test-test.md
+git commit -m "feat(skill-library): add test-generator skills batch 3 (compliance, ai-feature, media-asset, test)"
+```
+
+---
+
+### Task 12: Frontmatter validator script + TDD test
+
+**Files:**
+- Create: `packages/skill-library/scripts/validate-frontmatter.mjs`
+- Create: `packages/skill-library/test/validate-frontmatter.test.mjs`
+
+- [ ] **Step 1: Write the failing test**
+
+`packages/skill-library/test/validate-frontmatter.test.mjs`:
+
+```javascript
+import { test } from "node:test";
+import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const pkgRoot = join(here, "..");
+
+test("validate-frontmatter exits 0 over the real skills/ tree", () => {
+  const result = spawnSync("node", ["scripts/validate-frontmatter.mjs"], {
+    cwd: pkgRoot,
+    encoding: "utf8"
+  });
+  assert.equal(result.status, 0, `validator failed:\n${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout, /validated \d+ skills/);
+});
+
+test("validate-frontmatter exits non-zero when a skill has no frontmatter", async () => {
+  const { mkdtempSync, writeFileSync, rmSync, mkdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const tmp = mkdtempSync(join(tmpdir(), "skill-lib-validator-"));
+  mkdirSync(join(tmp, "skills", "test"), { recursive: true });
+  writeFileSync(join(tmp, "skills", "test", "bad.md"), "# no frontmatter here\n", "utf8");
+  try {
+    const result = spawnSync("node", ["scripts/validate-frontmatter.mjs"], {
+      cwd: pkgRoot,
+      env: { ...process.env, SKILL_LIBRARY_ROOT: tmp },
+      encoding: "utf8"
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr + result.stdout, /bad\.md/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("validate-frontmatter rejects test-generators that omit activate_on", async () => {
+  const { mkdtempSync, writeFileSync, rmSync, mkdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const tmp = mkdtempSync(join(tmpdir(), "skill-lib-validator-"));
+  mkdirSync(join(tmp, "skills", "test-generators"), { recursive: true });
+  writeFileSync(
+    join(tmp, "skills", "test-generators", "gen-test-missing-activate.md"),
+    `---
+name: gen-test-missing-activate
+description: bad — test generators must carry activate_on
+---
+
+# body
+`,
+    "utf8"
+  );
+  try {
+    const result = spawnSync("node", ["scripts/validate-frontmatter.mjs"], {
+      cwd: pkgRoot,
+      env: { ...process.env, SKILL_LIBRARY_ROOT: tmp },
+      encoding: "utf8"
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr + result.stdout, /activate_on/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+```
+
+- [ ] **Step 2: Run test — expect fail**
+
+```bash
+cd packages/skill-library
+pnpm test
+```
+
+Expected: all three tests fail because the script doesn't exist yet.
+
+- [ ] **Step 3: Write the validator**
+
+`packages/skill-library/scripts/validate-frontmatter.mjs`:
+
+```javascript
+#!/usr/bin/env node
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseFrontmatter, validateFrontmatter } from "@atlas/skill-runtime";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const pkgRoot = join(here, "..");
+const rootOverride = process.env.SKILL_LIBRARY_ROOT;
+const libraryRoot = rootOverride ?? pkgRoot;
+const skillsRoot = join(libraryRoot, "skills");
+
+function collectMarkdown(dir) {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  const out = [];
+  for (const e of entries) {
+    const full = join(dir, e.name);
+    if (e.isDirectory()) out.push(...collectMarkdown(full));
+    else if (e.isFile() && e.name.endsWith(".md")) out.push(full);
+  }
+  return out;
+}
+
+const files = collectMarkdown(skillsRoot);
+if (files.length === 0) {
+  process.stderr.write(`no .md files found under ${skillsRoot}\n`);
+  process.exit(1);
+}
+
+const errors = [];
+for (const file of files) {
+  const raw = readFileSync(file, "utf8");
+  let body, fm;
+  try {
+    const parsed = parseFrontmatter(raw);
+    body = parsed.body;
+    fm = validateFrontmatter(parsed.frontmatter);
+  } catch (err) {
+    errors.push({ file, message: (err instanceof Error ? err.message : String(err)) });
+    continue;
+  }
+  const rel = relative(libraryRoot, file);
+  const segments = rel.split(sep);
+  const isTestGenerator = segments.includes("test-generators");
+  if (isTestGenerator && !fm.activate_on) {
+    errors.push({ file, message: "test-generators must declare activate_on" });
+  }
+}
+
+if (errors.length > 0) {
+  for (const e of errors) {
+    process.stderr.write(`FAIL ${e.file}: ${e.message}\n`);
+  }
+  process.exit(1);
+}
+
+process.stdout.write(`validated ${files.length} skills\n`);
+```
+
+- [ ] **Step 4: Run test — expect pass**
+
+```bash
+cd packages/skill-library
+pnpm test
+```
+
+Expected: 3/3 tests pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/skill-library/scripts/ packages/skill-library/test/
+git commit -m "feat(skill-library): frontmatter validator script + TDD tests"
+```
+
+---
+
+### Task 13: Root `pnpm validate:skills` script
+
+**Files:**
+- Modify: `package.json`
+
+- [ ] **Step 1: Add the root script**
+
+Edit the root `package.json` scripts block. Add:
+
+```
+    "validate:skills": "pnpm -F @atlas/skill-library validate"
+```
+
+after the existing `py:test` entry, preserving trailing comma where appropriate.
+
+- [ ] **Step 2: Verify**
+
+```bash
+pnpm run validate:skills
+```
+
+Expected: stdout ends with `validated 39 skills` (or whatever the current count is). Exit 0.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add package.json
+git commit -m "chore(monorepo): add validate:skills root script wiring @atlas/skill-library"
+```
+
+---
+
+### Task 14: `skill-library-ci.yml` — validate frontmatter on every PR
+
+**Files:**
+- Create: `.github/workflows/skill-library-ci.yml`
+
+- [ ] **Step 1: Write the workflow**
+
+`.github/workflows/skill-library-ci.yml`:
+
+```yaml
+name: skill-library-ci
+
+on:
+  pull_request:
+    paths:
+      - "packages/skill-library/**"
+      - "packages/skill-runtime/**"
+      - ".github/workflows/skill-library-ci.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -F @atlas/skill-runtime build
+      - run: pnpm -F @atlas/skill-library validate
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add .github/workflows/skill-library-ci.yml
+git commit -m "ci(skill-library): validate frontmatter on every PR"
+```
+
+No local test for this task — the workflow triggers only on actual PRs. Post-merge, open a PR that intentionally breaks a skill's frontmatter to confirm the workflow catches it.
+
+---
+
+### Task 15: `skill-library-release.yml` — tag-push mirror workflow
+
+**Files:**
+- Create: `.github/workflows/skill-library-release.yml`
+
+- [ ] **Step 1: Write the workflow**
+
+`.github/workflows/skill-library-release.yml`:
+
+```yaml
+name: skill-library-release
+
+# Release cadence (Unit C OQ4):
+# - Weekly patch release: tag vX.Y.Z every Monday
+# - Monthly minor release: tag vX.(Y+1).0 on the first of each month
+
+on:
+  push:
+    tags:
+      - "skill-library-v*"
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tarball
+        run: |
+          cd packages/skill-library
+          tar -czf ../../skill-library-${GITHUB_REF_NAME}.tar.gz skills/ LICENSE README.md
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-library-tarball
+          path: skill-library-*.tar.gz
+      # The actual push to github.com/atlas-labs/atlas-skills is a MANUAL step for v1
+      # until the public repo is created. Once the public repo exists, add a step here:
+      #
+      #   - name: Push to public repo
+      #     env:
+      #       PUBLIC_REPO_TOKEN: ${{ secrets.ATLAS_SKILLS_PUBLIC_PUSH }}
+      #     run: |
+      #       git clone https://x:${PUBLIC_REPO_TOKEN}@github.com/atlas-labs/atlas-skills public
+      #       rsync -a --delete packages/skill-library/skills/ public/skills/
+      #       cp packages/skill-library/LICENSE public/LICENSE
+      #       cp packages/skill-library/README.md public/README.md
+      #       cd public
+      #       git add -A
+      #       git commit -m "mirror: ${GITHUB_REF_NAME}"
+      #       git tag ${GITHUB_REF_NAME}
+      #       git push origin main --tags
+      - name: Remind to push to public repo
+        run: |
+          echo "::notice::Tarball built. Manual step: clone github.com/atlas-labs/atlas-skills, copy skills/ + LICENSE + README, commit + tag + push."
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add .github/workflows/skill-library-release.yml
+git commit -m "ci(skill-library): tag-push release workflow (manual public-repo mirror for v1)"
+```
+
+---
+
+### Task 16: Wire bundled-library discovery into `@atlas/skill-runtime.loadBundledSkills()`
+
+**Files:**
+- Modify: `packages/skill-runtime/src/helpers.ts`
+- Create: `packages/skill-runtime/test/bundled-library.test.ts`
+
+The C.1 ship of `loadBundledSkills` was a stub that returned an empty array. Replace it with a real implementation that resolves the monorepo-root-relative path `packages/skill-library/skills/` and uses `loadSkillsFromDir` to read every group's skills.
+
+- [ ] **Step 1: Write the failing test**
+
+`packages/skill-runtime/test/bundled-library.test.ts`:
+
+```typescript
+import { describe, it, expect } from "vitest";
+import { loadBundledSkills } from "../src/helpers.js";
+
+describe("loadBundledSkills (post-C.2)", () => {
+  it("returns at least 39 skills from the bundled library", () => {
+    const skills = loadBundledSkills();
+    expect(skills.length).toBeGreaterThanOrEqual(39);
+  });
+
+  it("includes the canonical Architect skills", () => {
+    const skills = loadBundledSkills();
+    const names = new Set(skills.map((s) => s.frontmatter.name));
+    for (const expected of ["brainstorm", "spec-graph", "runnable-plan", "visualize-diff", "approve-or-reject"]) {
+      expect(names.has(expected)).toBe(true);
+    }
+  });
+
+  it("includes every test-generator with a node:<kind> activate_on pattern", () => {
+    const skills = loadBundledSkills();
+    const testGens = skills.filter((s) => s.frontmatter.name.startsWith("gen-test-"));
+    expect(testGens.length).toBeGreaterThanOrEqual(14);
+    for (const skill of testGens) {
+      expect(skill.frontmatter.activate_on).toMatch(/^node:/);
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run test — expect fail**
+
+```bash
+pnpm -F @atlas/skill-runtime test bundled-library
+```
+
+Expected: test fails because `loadBundledSkills` still returns the C.1 stub (likely an empty array or throws).
+
+- [ ] **Step 3: Update `helpers.ts`**
+
+Find the existing `loadBundledSkills` export in `packages/skill-runtime/src/helpers.ts`. Replace its body with:
+
+```typescript
+import { dirname, join, resolve } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { loadSkillsFromDir } from "./loader.js";
+import type { Skill } from "./skill.js";
+
+// Resolves the bundled skill-library path relative to this file's location in node_modules.
+// In dev monorepo mode (pnpm workspace), node_modules/@atlas/skill-runtime/dist/ → repo root → packages/skill-library/skills.
+function resolveBundledSkillsRoot(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // Walk up until we find a directory containing `packages/skill-library/skills/`.
+  let cursor = here;
+  for (let i = 0; i < 10; i++) {
+    const candidate = join(cursor, "packages", "skill-library", "skills");
+    if (existsSync(candidate) && statSync(candidate).isDirectory()) return candidate;
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  throw new Error(`Could not locate packages/skill-library/skills/ from ${here}`);
+}
+
+export function loadBundledSkills(): Skill[] {
+  const root = resolveBundledSkillsRoot();
+  const groups = readdirSync(root, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => join(root, e.name));
+  const out: Skill[] = [];
+  for (const group of groups) {
+    out.push(...loadSkillsFromDir(group));
+  }
+  return out;
+}
+```
+
+Keep `createRegistryFromBundledLibrary` untouched — it already composes `loadBundledSkills`.
+
+- [ ] **Step 4: Run test — expect pass**
+
+```bash
+pnpm -F @atlas/skill-runtime build
+pnpm -F @atlas/skill-runtime test bundled-library
+```
+
+Expected: 3 tests pass.
+
+- [ ] **Step 5: Verify no other skill-runtime tests regressed**
+
+```bash
+pnpm -F @atlas/skill-runtime test
+```
+
+Expected: the previous 63 tests still green + 3 new bundled-library tests green (66 total, give or take).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/skill-runtime/src/helpers.ts packages/skill-runtime/test/bundled-library.test.ts
+git commit -m "feat(skill-runtime): resolve loadBundledSkills against packages/skill-library/skills/"
+```
+
+---
+
+### Task 17: Package README
+
+**Files:**
+- Create: `packages/skill-library/README.md`
+
+- [ ] **Step 1: Write the README**
+
+````markdown
+# @atlas/skill-library
+
+Atlas's starter skill library — ~39 OSS skills (Apache 2.0) authored by the Atlas team.
+
+Skills are markdown files with YAML frontmatter, loaded at runtime by `@atlas/skill-runtime`. They describe **how** a role should handle a task, not implementation details. Skills auto-activate based on user intent (no slash commands for non-power users), compose cleanly, and are user-extensible.
+
+## What's in the library
+
+| Group | Count | Purpose |
+|---|---|---|
+| `architect/` | 5 | Brainstorm, spec-graph, runnable-plan, visualize-diff, approve-or-reject |
+| `developer/` | 4 | TDD-feature, edit-only-what-changed, refactor, upgrade-dep |
+| `debugger/` | 2 | Four-phase debug, incident response |
+| `security/` | 4 | Audit RLS, CORS, secrets scan, CVE check |
+| `accessibility/` | 4 | WCAG audit, RTL layout, keyboard nav, contrast check |
+| `reviewer/` | 3 | Reviewer critique, PR summary, release notes |
+| `ship/` | 4 | Domain/DNS/TLS, auth wire, payments wire, ship with rollback |
+| `test-generators/` | 14 | One per node kind (page, route, component, client-state, model, endpoint, flow, auth-boundary, compliance, ai-feature, media-asset, design-token, dependency, test) |
+
+## How to author a new skill
+
+1. Pick the right group directory.
+2. Create a `kebab-case.md` file. The filename stem must match the `name` field in frontmatter.
+3. Populate the frontmatter:
+
+```yaml
+---
+name: kebab-case
+description: One-line summary ≤140 chars
+activate_on: "some-intent-tag-or-pattern"   # recommended for most; required for test-generators
+composes: ["other-skill-name"]              # optional
+model_hint: "haiku" | "sonnet" | "opus"      # optional
+---
+```
+
+4. Write the body: `# Title`, `## When to use`, `## Checklist`, optional `## Examples`, optional `## Anti-patterns`. Target 30-80 lines.
+5. Run `pnpm -F @atlas/skill-library validate` to confirm the frontmatter parses and the file passes schema validation.
+
+## Version pinning
+
+Projects that want reproducible skill behaviour should commit `.atlas/skills/pin.json` (see `@atlas/skill-runtime`'s README for the schema). Weekly updates to the library may add or refine skills; the pin file fences a project to a known-good set.
+
+## Release cadence
+
+- **Weekly patch**: every Monday, auto-tagged `skill-library-vX.Y.Z+1` if any non-breaking change landed.
+- **Monthly minor**: first of each month, `skill-library-vX.(Y+1).0`.
+- **Breaking changes (major)**: batched quarterly, with a migration note in release notes.
+
+The release workflow (`.github/workflows/skill-library-release.yml`) builds a tarball on tag push; the actual mirror to `github.com/atlas-labs/atlas-skills` is a manual step for v1 until the public repo is provisioned.
+
+## License
+
+Apache 2.0 — see `LICENSE`. Community contributions welcome via the public repo once live.
+````
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add packages/skill-library/README.md
+git commit -m "docs(skill-library): README — library contents, authoring guide, pin conventions"
+```
+
+---
+
+### Task 18: Update plans README + handoff to C.3
+
+**Files:**
+- Modify: `docs/superpowers/plans/README.md`
+
+- [ ] **Step 1: Add a row for C.2**
+
+Insert a new row in the Plan index table immediately after the C.1 row (row 7). New row 8 reads:
+
+```
+| 8 | `2026-04-20-skill-library.md` | **C.2 — Starter Skill Library + OSS pipeline** | ~39 markdown skills grouped by role; frontmatter validator + CI; tag-push release workflow; real `loadBundledSkills()` | 18 tasks, TDD | Shipped (pending merge — TODO: update SHA post-merge) |
+```
+
+Renumber existing rows 8→9 (D.1), 9→10 (phase-a-units directional), 10→11 (phases-b-through-f-roadmap). Adjust cross-references in the execution-order diagram (e.g., `Plans[8]` → `Plans[9]` for D.1) accordingly.
+
+Also in the ASCII execution-order diagram under `### Phase A — immediate`, refine the C.1 subtree so C.2 is visible:
+
+```
+            ├─ C.1 (Plans[7], shipped) — Skill Runtime
+            │    └─ C.2 (Plans[8], shipped) — Starter Skill Library
+            │         └─ C.3 — Test-Generator Registry (after C.2)
+            └─ D.1 (Plans[9], shipped) — Conductor + LLM Provider
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/superpowers/plans/README.md
+git commit -m "docs(plans): add C.2 skill-library to plan index + refresh execution order"
+```
+
+---
+
+## Completion Checklist
+
+After all 18 tasks:
+
+- [ ] `pnpm -F @atlas/skill-library validate` — exits 0, reports `validated 39 skills`
+- [ ] `pnpm -F @atlas/skill-library test` — all 3 validator tests pass
+- [ ] `pnpm -F @atlas/skill-runtime test` — the 66 tests (63 pre-C.2 + 3 bundled-library) all pass
+- [ ] `pnpm -r test` — no regressions across workspace packages
+- [ ] Every skill has valid frontmatter (name + description; activate_on for test-generators)
+- [ ] `loadBundledSkills()` returns ≥ 39 Skill objects when called from within the monorepo
+- [ ] `.github/workflows/skill-library-ci.yml` runs on every PR touching the library
+- [ ] `.github/workflows/skill-library-release.yml` runs on `skill-library-v*` tag push
+- [ ] `packages/skill-library/README.md` documents authoring, pinning, release cadence
+- [ ] Plans README row 8 lists C.2 as shipped; execution-order diagram updated
+
+## Handoff to C.3
+
+C.3 (Test-Generator Registry + Human Baseline Infrastructure) consumes:
+
+- Every `skills/test-generators/gen-test-<kind>.md` loaded by `loadBundledSkills()`.
+- The `SkillRegistry.match(intent)` path — given a graph-mutation intent like `"node:page:added"`, the classifier routes to the matching test-generator skill.
+- A new `packages/test-generator-registry/` (introduced by C.3) that wraps the 14 generators with: per-node-type dispatch, human-baseline-assertion co-location (`baselines/<kind>.md` files the LLM cannot rewrite per PRD §10.1), and drift detection against a calibration dataset.
+
+C.3 does NOT modify C.2's skill files directly. New test-generator skills (e.g., for Phase-B infra nodes) land here as additive library entries; C.3 picks them up via the registry.
