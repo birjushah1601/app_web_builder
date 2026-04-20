@@ -24,11 +24,15 @@ process.stdout.write(`wrote ${schemaFile}\n`);
 
 // 2. Invariant-codes artifact — grep all `code: "I..."` literals from source
 const invariantsDir = join(__dirname, "..", "src", "invariants");
-const codeRegex = /"(I\d{2}_[A-Z0-9_]+)"/g;
+const codeRegex = /(?:code\s*:|[?:])\s*"(I\d{2}_[A-Z0-9_]+)"/g;
 const codes = new Set();
 for (const file of readdirSync(invariantsDir)) {
   if (!file.match(/^i\d{2}-.*\.ts$/)) continue;
-  const source = readFileSync(join(invariantsDir, file), "utf8");
+  let source = readFileSync(join(invariantsDir, file), "utf8");
+  // Strip block comments (/* ... */) before scanning
+  source = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  // Strip single-line comments (// ...) before scanning
+  source = source.replace(/\/\/[^\n]*/g, "");
   for (const match of source.matchAll(codeRegex)) {
     codes.add(match[1]);
   }

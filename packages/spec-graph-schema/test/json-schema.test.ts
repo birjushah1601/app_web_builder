@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,13 +28,16 @@ describe("generated JSON Schema artifact", () => {
 describe("invariant-codes.json artifact", () => {
   const CODES_ARTIFACT = join(here, "..", "dist", "schema", "invariant-codes.json");
 
-  it("exists after build", () => {
-    if (!existsSync(CODES_ARTIFACT)) return; // soft-skip: build must run first
-    expect(existsSync(CODES_ARTIFACT)).toBe(true);
+  beforeAll(() => {
+    if (!existsSync(CODES_ARTIFACT)) {
+      throw new Error(
+        `invariant-codes.json not found at ${CODES_ARTIFACT}. ` +
+        `Run 'pnpm -F @atlas/spec-graph-schema build' before 'pnpm test'.`
+      );
+    }
   });
 
   it("contains the 17 canonical invariant codes, sorted", () => {
-    if (!existsSync(CODES_ARTIFACT)) return;
     const codes = JSON.parse(readFileSync(CODES_ARTIFACT, "utf8")) as string[];
     expect(Array.isArray(codes)).toBe(true);
     expect(codes).toHaveLength(17);
@@ -50,7 +53,6 @@ describe("invariant-codes.json artifact", () => {
   });
 
   it("every code matches the I\\d{2}_ prefix pattern", () => {
-    if (!existsSync(CODES_ARTIFACT)) return;
     const codes = JSON.parse(readFileSync(CODES_ARTIFACT, "utf8")) as string[];
     for (const code of codes) {
       expect(code).toMatch(/^I\d{2}_[A-Z0-9_]+$/);
