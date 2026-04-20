@@ -18,8 +18,10 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 2 | `2026-04-18-spec-graph-sync-daemon.md` | **A.2 — File ↔ mirror sync daemon** | chokidar file watcher → `@atlas/spec-graph-data` repos; bidirectional with feedback-loop prevention; CLI entry | 14 tasks, TDD | Ready to execute (after A.1) |
 | 3 | `2026-04-18-spec-graph-merge-driver.md` | **A.3 — Custom Git merge driver** | `.gitattributes`-registered driver; line-union for `events.jsonl`, mirror-first + structural fallback for `spec.graph.json`; install/uninstall commands | 15 tasks, TDD | Ready to execute (after A.1; benefits from A.2) |
 | 4 | `2026-04-18-spec-graph-compaction-offline.md` | **A.4 — Compaction + offline mode** | snapshot+tail compactor, Postgres advisory lock, cold-storage (FS + S3); `atlas-offline` tar.gz export/import; closes Unit A | 15 tasks, TDD | Ready to execute (after A.1, A.2) |
-| 5 | `2026-04-18-phase-a-units-b-through-g.md` | **Phase A Units B–G** directional | Schema+Validation (B), Skill Framework (C), Conductor+Roles (D), Ritual+UX (E), Bootstrap checkpoint (F), Edit-tiering (G) | Milestone-level; sub-plans authored at T-minus-3-weeks | Directional |
-| 6 | `2026-04-18-phases-b-through-f-roadmap.md` | **Phases B–F** directional | Build polish + Migrate alpha (B), Run GA (C), Sovereign (D), Migrate GA (E), Brownfield (F) | Milestone-level with entry/exit criteria | Directional |
+| 5 | `2026-04-19-spec-graph-schema.md` | **B.1 — Spec Graph Schema** | TS types, Zod schemas, 14 invariants, JSON Schema artifact | 43 tasks, TDD | Shipped (merged c7ab760) |
+| 6 | `2026-04-20-spec-graph-schema-py.md` | **B.2 — Python bindings** | Pydantic v2 models generated from the JSON Schema; structural validator; drift check | 17 tasks, TDD | Ready to execute |
+| 7 | `2026-04-18-phase-a-units-b-through-g.md` | **Phase A Units B–G** directional | Schema+Validation (B), Skill Framework (C), Conductor+Roles (D), Ritual+UX (E), Bootstrap checkpoint (F), Edit-tiering (G) | Milestone-level; sub-plans authored at T-minus-3-weeks | Directional |
+| 8 | `2026-04-18-phases-b-through-f-roadmap.md` | **Phases B–F** directional | Build polish + Migrate alpha (B), Run GA (C), Sovereign (D), Migrate GA (E), Brownfield (F) | Milestone-level with entry/exit criteria | Directional |
 
 ---
 
@@ -31,12 +33,14 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 A.1 (Plans[1])
   ├─ A.2 (Plans[2])  ─┬─ A.3 (Plans[3])
   │                    └─ A.4 (Plans[4])
-  └─ Unit B — Schema & Validation  [from Plans[5] Unit B section]
-       ├─ Unit C — Skill Framework  [from Plans[5] Unit C]
-       └─ Unit D — Conductor + Roles [from Plans[5] Unit D]
-            └─ Unit E — Ritual + UX [from Plans[5] Unit E]
-                 └─ Unit F — Bootstrap + risk gates [from Plans[5] Unit F]
-                      └─ Unit G — Edit tiering [from Plans[5] Unit G]
+  └─ Unit B — Schema & Validation
+       ├─ B.1 (Plans[5], shipped)
+       └─ B.2 (Plans[6], ready)
+            └─ Unit C — Skill Framework  [from Plans[7] Unit C]
+                 ├─ Unit D — Conductor + Roles [from Plans[7] Unit D]
+                      └─ Unit E — Ritual + UX [from Plans[7] Unit E]
+                           └─ Unit F — Bootstrap + risk gates [from Plans[7] Unit F]
+                                └─ Unit G — Edit tiering [from Plans[7] Unit G]
 ```
 
 - **A.1 is the critical path.** Start here. Nothing else begins until `@atlas/spec-graph-data` is published.
@@ -49,7 +53,7 @@ A.1 (Plans[1])
 
 ### After Phase A
 
-Phase B–F roadmap (Plans[6]) is the guide for the next 18+ months. Task-level plans for phases B and beyond are **intentionally not yet written** — their requirements will shift meaningfully as Phase A reveals real constraints. Authoring cadence:
+Phase B–F roadmap (Plans[8]) is the guide for the next 18+ months. Task-level plans for phases B and beyond are **intentionally not yet written** — their requirements will shift meaningfully as Phase A reveals real constraints. Authoring cadence:
 
 > **Write each unit's plan when execution is ≤ 3 weeks away.**
 
