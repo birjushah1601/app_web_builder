@@ -66,7 +66,7 @@ const generated = readFileSync(outFile, "utf8");
 // semantic node classes (Model1 → Model, ComplianceClass1 → ComplianceClass).
 function resolveCollisions(source) {
   let result = source;
-  // Step 1: rename the complianceClasses wrapper
+  // Step 1: rename the complianceClasses string-wrapper RootModel class
   result = result.replaceAll(/\bclass ComplianceClass\(RootModel/g, "class ComplianceClassName(RootModel");
   // Step 2: rename the SpecGraph RootModel wrapper
   result = result.replaceAll(/\bclass Model\(RootModel\[SpecGraph\]\)/g, "class SpecGraphRoot(RootModel[SpecGraph])");
@@ -74,6 +74,14 @@ function resolveCollisions(source) {
   result = result.replaceAll(/\bModel1\b/g, "Model");
   // Step 4: reclaim the ComplianceClass name for the node class
   result = result.replaceAll(/\bComplianceClass1\b/g, "ComplianceClass");
+  // Step 5: fix SpecGraph.compliance_classes field — it was pointing at the string-wrapper
+  //         RootModel (now ComplianceClassName) but codegen emits it as list[ComplianceClass].
+  //         After step 4 that now points at the node model, which is wrong. Restore to the
+  //         correct string-wrapper reference.
+  result = result.replaceAll(
+    /\bcompliance_classes: list\[ComplianceClass\]/g,
+    "compliance_classes: list[ComplianceClassName]"
+  );
   return result;
 }
 const processed = resolveCollisions(generated);
