@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateFrontmatter } from "../src/frontmatter.js";
+import { validateFrontmatter, parseFrontmatter } from "../src/frontmatter.js";
 
 describe("validateFrontmatter", () => {
   it("accepts minimal valid frontmatter", () => {
@@ -55,5 +55,42 @@ describe("validateFrontmatter", () => {
     expect(() =>
       validateFrontmatter({ name: "my skill", description: "x", activate_on: ["x"] })
     ).toThrow();
+  });
+});
+
+describe("parseFrontmatter", () => {
+  const md = `---
+name: brainstorm
+description: Explore requirements
+activate_on:
+  - brainstorm
+  - explore
+---
+
+# Brainstorm
+
+Think about what you want to build.
+`;
+
+  it("extracts frontmatter object", () => {
+    const { frontmatter } = parseFrontmatter(md);
+    expect((frontmatter as Record<string, unknown>).name).toBe("brainstorm");
+  });
+
+  it("extracts body without the delimiters", () => {
+    const { body } = parseFrontmatter(md);
+    expect(body.trim()).toMatch(/^# Brainstorm/);
+    expect(body).not.toContain("---");
+  });
+
+  it("returns empty-object frontmatter for a file with no frontmatter block", () => {
+    const { frontmatter, body } = parseFrontmatter("# Just a body\n");
+    expect(frontmatter).toEqual({});
+    expect(body).toContain("# Just a body");
+  });
+
+  it("throws a descriptive error when YAML is malformed", () => {
+    const bad = `---\nkey: [\n---\n# body\n`;
+    expect(() => parseFrontmatter(bad)).toThrow(/YAML/i);
   });
 });
