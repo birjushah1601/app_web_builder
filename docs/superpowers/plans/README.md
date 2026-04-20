@@ -14,10 +14,10 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 
 | # | File | Plan | Scope | Shape | Status |
 |---|---|---|---|---|---|
-| 1 | `2026-04-18-spec-graph-data-layer.md` | **A.1 — Spec Graph data layer** | Postgres schema (`spec_graphs`, `spec_events`, `spec_snapshots`), RLS tenant isolation, typed repos, observability | 21 tasks, TDD | Ready to execute |
-| 2 | `2026-04-18-spec-graph-sync-daemon.md` | **A.2 — File ↔ mirror sync daemon** | chokidar file watcher → `@atlas/spec-graph-data` repos; bidirectional with feedback-loop prevention; CLI entry | 14 tasks, TDD | Ready to execute (after A.1) |
-| 3 | `2026-04-18-spec-graph-merge-driver.md` | **A.3 — Custom Git merge driver** | `.gitattributes`-registered driver; line-union for `events.jsonl`, mirror-first + structural fallback for `spec.graph.json`; install/uninstall commands | 15 tasks, TDD | Ready to execute (after A.1; benefits from A.2) |
-| 4 | `2026-04-18-spec-graph-compaction-offline.md` | **A.4 — Compaction + offline mode** | snapshot+tail compactor, Postgres advisory lock, cold-storage (FS + S3); `atlas-offline` tar.gz export/import; closes Unit A | 15 tasks, TDD | Ready to execute (after A.1, A.2) |
+| 1 | `2026-04-18-spec-graph-data-layer.md` | **A.1 — Spec Graph data layer** | Postgres schema (`spec_graphs`, `spec_events`, `spec_snapshots`), RLS tenant isolation, typed repos, observability | 21 tasks, TDD | Shipped (merged 398c539) |
+| 2 | `2026-04-18-spec-graph-sync-daemon.md` | **A.2 — File ↔ mirror sync daemon** | chokidar file watcher → `@atlas/spec-graph-data` repos; bidirectional with feedback-loop prevention; CLI entry | 14 tasks, TDD | Shipped (merged 05bf3c8) |
+| 3 | `2026-04-18-spec-graph-merge-driver.md` | **A.3 — Custom Git merge driver** | `.gitattributes`-registered driver; line-union for `events.jsonl`, mirror-first + structural fallback for `spec.graph.json`; install/uninstall commands | 15 tasks, TDD | Shipped (merged edd3769) |
+| 4 | `2026-04-18-spec-graph-compaction-offline.md` | **A.4 — Compaction + offline mode** | snapshot+tail compactor, Postgres advisory lock, cold-storage (FS + S3); `atlas-offline` tar.gz export/import; closes Unit A | 15 tasks, TDD | Shipped (merged cef6a41) |
 | 5 | `2026-04-19-spec-graph-schema.md` | **B.1 — Spec Graph Schema** | TS types, Zod schemas, 14 invariants, JSON Schema artifact | 43 tasks, TDD | Shipped (merged c7ab760) |
 | 6 | `2026-04-20-spec-graph-schema-py.md` | **B.2 — Python bindings** | Pydantic v2 models generated from the JSON Schema; structural validator; drift check | 17 tasks, TDD | Shipped (merged e412268) |
 | 7 | `2026-04-20-skill-runtime.md` | **C.1 — Skill Runtime** | TS package: skill frontmatter parser, `SkillRegistry`, `IntentClassifier` interface (mocked in C.1, real in D.1), composes-graph resolver, pin.json version check | 20 tasks, TDD | Shipped (merged 78bdd79) |
