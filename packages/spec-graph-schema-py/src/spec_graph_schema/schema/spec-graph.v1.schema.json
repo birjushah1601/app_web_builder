@@ -133,7 +133,8 @@
                   "title",
                   "renderMode"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "Page"
               },
               {
                 "type": "object",
@@ -180,7 +181,8 @@
                   "method",
                   "handlerType"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "Route"
               },
               {
                 "type": "object",
@@ -231,7 +233,8 @@
                   "name",
                   "styleApproach"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "Component"
               },
               {
                 "type": "object",
@@ -302,7 +305,8 @@
                   "persistence",
                   "scope"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "ClientState"
               },
               {
                 "type": "object",
@@ -416,7 +420,8 @@
                   "name",
                   "fields"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "Model"
               },
               {
                 "type": "object",
@@ -479,7 +484,8 @@
                   "routeRef",
                   "method"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "Endpoint"
               },
               {
                 "type": "object",
@@ -550,7 +556,8 @@
                   "steps",
                   "entryPoints"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "Flow"
               },
               {
                 "type": "object",
@@ -609,7 +616,8 @@
                   "name",
                   "type"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "AuthBoundary"
               },
               {
                 "type": "object",
@@ -668,7 +676,8 @@
                   "filepath",
                   "coversRef"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "Test"
               },
               {
                 "type": "object",
@@ -730,7 +739,8 @@
                   "category",
                   "value"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "DesignToken"
               },
               {
                 "type": "object",
@@ -815,7 +825,8 @@
                   "license",
                   "cveScanStatus"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "Dependency"
               },
               {
                 "type": "object",
@@ -869,7 +880,8 @@
                   "attestation",
                   "effectiveDate"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "ComplianceClass"
               },
               {
                 "type": "object",
@@ -997,7 +1009,8 @@
                   "fallbackBehavior",
                   "costTier"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "AIFeature"
               },
               {
                 "type": "object",
@@ -1061,7 +1074,8 @@
                   "licenseStatus",
                   "contentHash"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "MediaAsset"
               }
             ]
           }
@@ -1092,7 +1106,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "RendersEdge"
               },
               {
                 "type": "object",
@@ -1116,7 +1131,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "FetchesEdge"
               },
               {
                 "type": "object",
@@ -1140,7 +1156,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "ReadsEdge"
               },
               {
                 "type": "object",
@@ -1164,7 +1181,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "MutatesEdge"
               },
               {
                 "type": "object",
@@ -1188,7 +1206,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "RequiresEdge"
               },
               {
                 "type": "object",
@@ -1212,7 +1231,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "CoversEdge"
               },
               {
                 "type": "object",
@@ -1236,7 +1256,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "DependsOnEdge"
               },
               {
                 "type": "object",
@@ -1260,7 +1281,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "StyledByEdge"
               },
               {
                 "type": "object",
@@ -1284,7 +1306,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "SubjectToEdge"
               },
               {
                 "type": "object",
@@ -1308,7 +1331,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "SupersedesEdge"
               },
               {
                 "type": "object",
@@ -1332,7 +1356,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "PowersEdge"
               },
               {
                 "type": "object",
@@ -1356,7 +1381,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "DisplaysEdge"
               },
               {
                 "type": "object",
@@ -1380,7 +1406,8 @@
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "title": "ManagesEdge"
               }
             ]
           }

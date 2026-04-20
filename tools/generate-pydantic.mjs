@@ -32,6 +32,7 @@ const args = [
   "--target-python-version", "3.11",
   "--output-model-type", "pydantic_v2.BaseModel",
   "--use-schema-description",
+  "--use-title-as-name",  // ← ADD THIS LINE
   "--use-standard-collections",
   "--use-union-operator",
   "--disable-timestamp",
