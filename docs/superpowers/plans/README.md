@@ -21,8 +21,8 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 5 | `2026-04-19-spec-graph-schema.md` | **B.1 — Spec Graph Schema** | TS types, Zod schemas, 14 invariants, JSON Schema artifact | 43 tasks, TDD | Shipped (merged c7ab760) |
 | 6 | `2026-04-20-spec-graph-schema-py.md` | **B.2 — Python bindings** | Pydantic v2 models generated from the JSON Schema; structural validator; drift check | 17 tasks, TDD | Shipped (merged e412268) |
 | 7 | `2026-04-20-skill-runtime.md` | **C.1 — Skill Runtime** | TS package: skill frontmatter parser, `SkillRegistry`, `IntentClassifier` interface (mocked in C.1, real in D.1), composes-graph resolver, pin.json version check | 20 tasks, TDD | Shipped (merged 78bdd79) |
-| 8 | `2026-04-20-conductor-llm-abstraction.md` | **D.1 — Conductor + LLM Provider Abstraction** | `@atlas/llm-provider` (Anthropic + Google stub, retry, circuit breaker, OTel + Prom metrics) and `@atlas/conductor` (thin dispatcher, 3-tier prompt-cache, graph-slice hash, checkpoint-based retry, escalation) | 22 tasks, TDD | Shipped (merged d641404) |
-| 9 | `2026-04-20-skill-library.md` | **C.2 — Starter Skill Library + OSS pipeline** | `packages/skill-library/` — ~39 markdown skills grouped by role; frontmatter validator + CI; tag-push release workflow; real `loadBundledSkills()` | 18 tasks, TDD | Ready to execute (after C.1) |
+| 8 | `2026-04-20-skill-library.md` | **C.2 — Starter Skill Library + OSS pipeline** | ~39 markdown skills grouped by role; frontmatter validator + CI; tag-push release workflow; real `loadBundledSkills()` | 18 tasks, TDD | Shipped (pending merge — TODO: update SHA post-merge) |
+| 9 | `2026-04-20-conductor-llm-abstraction.md` | **D.1 — Conductor + LLM Provider Abstraction** | `@atlas/llm-provider` (Anthropic + Google stub, retry, circuit breaker, OTel + Prom metrics) and `@atlas/conductor` (thin dispatcher, 3-tier prompt-cache, graph-slice hash, checkpoint-based retry, escalation) | 22 tasks, TDD | Shipped (merged d641404) |
 | 10 | `2026-04-20-role-architect.md` | **D.2 — Architect role** | Two-pass ritual-authoring: Haiku triage (ambiguity report) → Opus deep plan (scope-variant output); implements `Role` from `@atlas/conductor`; `llm-provider` `completeWithToolUse` extension | 18 tasks, TDD | Ready to execute (after D.1) |
 | 11 | `2026-04-18-phase-a-units-b-through-g.md` | **Phase A Units B–G** directional | Schema+Validation (B), Skill Framework (C), Conductor+Roles (D), Ritual+UX (E), Bootstrap checkpoint (F), Edit-tiering (G) | Milestone-level; sub-plans authored at T-minus-3-weeks | Directional |
 | 12 | `2026-04-18-phases-b-through-f-roadmap.md` | **Phases B–F** directional | Build polish + Migrate alpha (B), Run GA (C), Sovereign (D), Migrate GA (E), Brownfield (F) | Milestone-level with entry/exit criteria | Directional |
@@ -41,11 +41,11 @@ A.1 (Plans[1])
        ├─ B.1 (Plans[5], shipped)
        └─ B.2 (Plans[6], shipped)
             ├─ C.1 (Plans[7], shipped) — Skill Runtime
-            │    ├─ C.2 — Starter Skill Library (after C.1)
-            │    └─ C.3 — Test-Generator Registry (after C.2)
-            └─ D.1 (Plans[8], shipped) — Conductor + LLM Provider
-                 ├─ Unit C continues — C.2 + C.3 (from Plans[9] Unit C)
-                 └─ Unit D continues — D.2..D.5 role plans (from Plans[9] Unit D)
+            │    └─ C.2 (Plans[8], shipped) — Starter Skill Library
+            │         └─ C.3 — Test-Generator Registry (after C.2)
+            └─ D.1 (Plans[9], shipped) — Conductor + LLM Provider
+                 ├─ Unit C continues — C.3 (from Plans[11] Unit C)
+                 └─ Unit D continues — D.2..D.5 role plans (from Plans[11] Unit D)
                       └─ Unit E — Ritual + UX [from Plans[9] Unit E]
                            └─ Unit F — Bootstrap + risk gates [from Plans[9] Unit F]
                                 └─ Unit G — Edit tiering [from Plans[9] Unit G]
@@ -61,7 +61,7 @@ A.1 (Plans[1])
 
 ### After Phase A
 
-Phase B–F roadmap (Plans[8]) is the guide for the next 18+ months. Task-level plans for phases B and beyond are **intentionally not yet written** — their requirements will shift meaningfully as Phase A reveals real constraints. Authoring cadence:
+Phase B–F roadmap (Plans[12]) is the guide for the next 18+ months. Task-level plans for phases B and beyond are **intentionally not yet written** — their requirements will shift meaningfully as Phase A reveals real constraints. Authoring cadence:
 
 > **Write each unit's plan when execution is ≤ 3 weeks away.**
 

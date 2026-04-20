@@ -13,7 +13,9 @@ export const SkillFrontmatterSchema = z.object({
     .min(1)
     .regex(/^[\w-]+$/, "name must contain only word characters and hyphens"),
   description: z.string().min(1),
-  activate_on: z.array(z.string().min(1)).min(1),
+  activate_on: z
+    .union([z.string().min(1), z.array(z.string().min(1)).min(1)])
+    .transform((v) => (Array.isArray(v) ? v : [v])),
   composes: z.array(z.string().min(1)).optional(),
   model_hint: z.string().optional(),
   inputs: z.unknown().optional(),
