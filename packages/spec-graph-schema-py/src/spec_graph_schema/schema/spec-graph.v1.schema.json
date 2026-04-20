@@ -407,8 +407,7 @@
                   },
                   "dataRetentionDays": {
                     "type": "integer",
-                    "exclusiveMinimum": true,
-                    "minimum": 0
+                    "exclusiveMinimum": 0
                   }
                 },
                 "required": [
@@ -463,8 +462,7 @@
                       },
                       "max": {
                         "type": "integer",
-                        "exclusiveMinimum": true,
-                        "minimum": 0
+                        "exclusiveMinimum": 0
                       }
                     },
                     "required": [

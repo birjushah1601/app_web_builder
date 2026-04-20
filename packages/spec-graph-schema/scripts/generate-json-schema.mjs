@@ -19,6 +19,22 @@ if (!jsonSchema.$schema) {
   // zod-to-json-schema@3.23.5 silently ignores the 2020-12 target; inject manually
   jsonSchema.$schema = "https://json-schema.org/draft/2020-12/schema";
 }
+
+// zod-to-json-schema emits Draft4-style `exclusiveMinimum: true, minimum: N`
+// even when targeting Draft 2020-12.  In 2020-12, `exclusiveMinimum` must be a
+// number (the exclusive bound itself), not a boolean flag.  Walk the schema and
+// rewrite any `{ exclusiveMinimum: true, minimum: N }` → `{ exclusiveMinimum: N }`.
+function fixExclusiveMinimum(node) {
+  if (node === null || typeof node !== "object") return;
+  if (Array.isArray(node)) { node.forEach(fixExclusiveMinimum); return; }
+  if (node.exclusiveMinimum === true && typeof node.minimum === "number") {
+    node.exclusiveMinimum = node.minimum;
+    delete node.minimum;
+  }
+  for (const v of Object.values(node)) fixExclusiveMinimum(v);
+}
+fixExclusiveMinimum(jsonSchema);
+
 writeFileSync(schemaFile, JSON.stringify(jsonSchema, null, 2) + "\n", "utf8");
 process.stdout.write(`wrote ${schemaFile}\n`);
 
