@@ -21,7 +21,7 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 5 | `2026-04-19-spec-graph-schema.md` | **B.1 — Spec Graph Schema** | TS types, Zod schemas, 14 invariants, JSON Schema artifact | 43 tasks, TDD | Shipped (merged c7ab760) |
 | 6 | `2026-04-20-spec-graph-schema-py.md` | **B.2 — Python bindings** | Pydantic v2 models generated from the JSON Schema; structural validator; drift check | 17 tasks, TDD | Shipped (merged e412268) |
 | 7 | `2026-04-20-skill-runtime.md` | **C.1 — Skill Runtime** | TS package: skill frontmatter parser, `SkillRegistry`, `IntentClassifier` interface (mocked in C.1, real in D.1), composes-graph resolver, pin.json version check | 20 tasks, TDD | Shipped (merged 78bdd79) |
-| 8 | `2026-04-20-conductor-llm-abstraction.md` | **D.1 — Conductor + LLM Provider Abstraction** | `@atlas/llm-provider` (Anthropic + Google stub, retry, circuit breaker, OTel + Prom metrics) and `@atlas/conductor` (thin dispatcher, 3-tier prompt-cache, graph-slice hash, checkpoint-based retry, escalation) | 22 tasks, TDD | Ready to execute (after B.2; parallel with C.1) |
+| 8 | `2026-04-20-conductor-llm-abstraction.md` | **D.1 — Conductor + LLM Provider Abstraction** | `@atlas/llm-provider` (Anthropic + Google stub, retry, circuit breaker, OTel + Prom metrics) and `@atlas/conductor` (thin dispatcher, 3-tier prompt-cache, graph-slice hash, checkpoint-based retry, escalation) | 22 tasks, TDD | Shipped (pending merge — TODO: update SHA post-merge) |
 | 9 | `2026-04-18-phase-a-units-b-through-g.md` | **Phase A Units B–G** directional | Schema+Validation (B), Skill Framework (C), Conductor+Roles (D), Ritual+UX (E), Bootstrap checkpoint (F), Edit-tiering (G) | Milestone-level; sub-plans authored at T-minus-3-weeks | Directional |
 | 10 | `2026-04-18-phases-b-through-f-roadmap.md` | **Phases B–F** directional | Build polish + Migrate alpha (B), Run GA (C), Sovereign (D), Migrate GA (E), Brownfield (F) | Milestone-level with entry/exit criteria | Directional |
 
@@ -41,7 +41,7 @@ A.1 (Plans[1])
             ├─ C.1 (Plans[7], shipped) — Skill Runtime
             │    ├─ C.2 — Starter Skill Library (after C.1)
             │    └─ C.3 — Test-Generator Registry (after C.2)
-            └─ D.1 (Plans[8], ready) — Conductor + LLM Provider
+            └─ D.1 (Plans[8], shipped) — Conductor + LLM Provider
                  ├─ Unit C continues — C.2 + C.3 (from Plans[9] Unit C)
                  └─ Unit D continues — D.2..D.5 role plans (from Plans[9] Unit D)
                       └─ Unit E — Ritual + UX [from Plans[9] Unit E]
