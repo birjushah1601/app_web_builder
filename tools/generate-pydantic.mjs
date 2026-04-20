@@ -42,7 +42,7 @@ const args = [
 
 const codegen = spawnSync("uv", args, { cwd: pyPackage, stdio: "inherit" });
 if (codegen.status !== 0) {
-  process.stderr.write(`generate-pydantic: datamodel-code-generator exited ${codegen.status}\n`);
+  process.stderr.write(`generate-pydantic: datamodel-codegen exited ${codegen.status}\n`);
   process.exit(codegen.status ?? 1);
 }
 

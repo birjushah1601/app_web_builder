@@ -34,7 +34,12 @@ test("generate-pydantic produces models.py with the banner on line 1", () => {
 });
 
 test("generate-pydantic is idempotent — running twice produces identical output", () => {
+  // Ensure prereq: sync + first generation
+  spawnSync("node", ["tools/sync-schema-artifact.mjs"], { cwd: repoRoot, stdio: "inherit" });
+  spawnSync("node", ["tools/generate-pydantic.mjs"], { cwd: repoRoot, stdio: "inherit" });
   const first = readFileSync(modelsFile, "utf8");
+
+  // Generate again and compare
   spawnSync("node", ["tools/generate-pydantic.mjs"], { cwd: repoRoot, stdio: "inherit" });
   const second = readFileSync(modelsFile, "utf8");
   assert.equal(first, second, "output must be identical on repeat runs");
