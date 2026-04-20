@@ -1,6 +1,10 @@
+import { dirname, join } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { Skill } from "./skill.js";
 import type { IntentClassifier } from "./classifier.js";
 import { SkillRegistry } from "./registry.js";
+import { loadSkillsFromDir } from "./loader.js";
 
 /**
  * Merges bundled (library) skills and local override skills into a single
@@ -22,17 +26,32 @@ export function createRegistryWithOverrides(
   return new SkillRegistry([...merged.values()], classifier);
 }
 
-/**
- * Placeholder for the C.2 bundled library path.
- * When C.2 ships `packages/skill-library/`, this helper will load from that
- * directory. For C.1, returns an empty array — the library has no skills yet.
- */
+// Resolves the bundled skill-library path relative to this file's location in node_modules.
+// In dev monorepo mode (pnpm workspace), node_modules/@atlas/skill-runtime/dist/ → repo root → packages/skill-library/skills.
+function resolveBundledSkillsRoot(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // Walk up until we find a directory containing `packages/skill-library/skills/`.
+  let cursor = here;
+  for (let i = 0; i < 10; i++) {
+    const candidate = join(cursor, "packages", "skill-library", "skills");
+    if (existsSync(candidate) && statSync(candidate).isDirectory()) return candidate;
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  throw new Error(`Could not locate packages/skill-library/skills/ from ${here}`);
+}
+
 export function loadBundledSkills(): Skill[] {
-  // C.2 will replace this stub with:
-  //   import { fileURLToPath } from "node:url";
-  //   const LIBRARY_DIR = fileURLToPath(new URL("../../skill-library/src", import.meta.url));
-  //   return loadSkillsFromDir(LIBRARY_DIR);
-  return [];
+  const root = resolveBundledSkillsRoot();
+  const groups = readdirSync(root, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => join(root, e.name));
+  const out: Skill[] = [];
+  for (const group of groups) {
+    out.push(...loadSkillsFromDir(group));
+  }
+  return out;
 }
 
 /**
