@@ -23,7 +23,7 @@ from pydantic import (
 )
 
 
-class ComplianceClass(RootModel[constr(min_length=1)]):
+class ComplianceClassName(RootModel[constr(min_length=1)]):
     root: constr(min_length=1)
 
 
@@ -399,7 +399,7 @@ class ClientState(BaseModel):
     )
 
 
-class Model1(BaseModel):
+class Model(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -505,7 +505,7 @@ class Dependency(BaseModel):
     cve_scan_status: CveScanStatus = Field(..., alias='cveScanStatus')
 
 
-class ComplianceClass1(BaseModel):
+class ComplianceClass(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -711,14 +711,14 @@ class SpecGraph(BaseModel):
         | Route
         | Component
         | ClientState
-        | Model1
+        | Model
         | Endpoint
         | Flow
         | AuthBoundary
         | Test
         | DesignToken
         | Dependency
-        | ComplianceClass1
+        | ComplianceClass
         | AIFeature
         | MediaAsset,
     ]
@@ -740,5 +740,5 @@ class SpecGraph(BaseModel):
     extensions: Extensions | None = None
 
 
-class Model(RootModel[SpecGraph]):
+class SpecGraphRoot(RootModel[SpecGraph]):
     root: SpecGraph

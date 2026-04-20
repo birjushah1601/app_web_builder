@@ -57,5 +57,26 @@ const BANNER = [
 ].join("\n");
 
 const generated = readFileSync(outFile, "utf8");
-writeFileSync(outFile, BANNER + generated, "utf8");
+
+// Post-process codegen output to resolve Model/ComplianceClass name collisions.
+// datamodel-codegen generates a top-level RootModel wrapper `Model(RootModel[SpecGraph])`
+// and another RootModel `ComplianceClass(RootModel[constr(...)])` for the root-level
+// complianceClasses: string[] field. These shadow our node classes (Model, ComplianceClass)
+// per spec §7. Rename the wrappers out of the way, then reclaim the names for the
+// semantic node classes (Model1 → Model, ComplianceClass1 → ComplianceClass).
+function resolveCollisions(source) {
+  let result = source;
+  // Step 1: rename the complianceClasses wrapper
+  result = result.replaceAll(/\bclass ComplianceClass\(RootModel/g, "class ComplianceClassName(RootModel");
+  // Step 2: rename the SpecGraph RootModel wrapper
+  result = result.replaceAll(/\bclass Model\(RootModel\[SpecGraph\]\)/g, "class SpecGraphRoot(RootModel[SpecGraph])");
+  // Step 3: reclaim the Model name for the node class
+  result = result.replaceAll(/\bModel1\b/g, "Model");
+  // Step 4: reclaim the ComplianceClass name for the node class
+  result = result.replaceAll(/\bComplianceClass1\b/g, "ComplianceClass");
+  return result;
+}
+const processed = resolveCollisions(generated);
+
+writeFileSync(outFile, BANNER + processed, "utf8");
 process.stdout.write(`wrote ${outFile}\n`);
