@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { parsePinFile, loadPinFile, type SkillPin } from "../src/pin.js";
+import { parsePinFile, loadPinFile, checkPinVersions, SkillVersionMismatchError, type SkillPin } from "../src/pin.js";
 
 const FIXTURE_PIN = path.resolve(import.meta.dirname, "fixtures/pin.json");
 
@@ -41,5 +41,39 @@ describe("loadPinFile", () => {
   it("returns empty array for a non-existent file", () => {
     const pins = loadPinFile(path.join(import.meta.dirname, "fixtures/__no_pin.json"));
     expect(pins).toEqual([]);
+  });
+});
+
+describe("checkPinVersions", () => {
+  const pins: SkillPin[] = [
+    { skill: "brainstorm", version: "1.0.0", provenance: "bundled" }
+  ];
+
+  it("passes silently when the loaded skill version matches the pin", () => {
+    expect(() =>
+      checkPinVersions(pins, [
+        {
+          frontmatter: { name: "brainstorm", description: "x", activate_on: ["x"], version: "1.0.0" } as never,
+          body: "",
+          sourcePath: "/virtual/brainstorm.md"
+        }
+      ])
+    ).not.toThrow();
+  });
+
+  it("throws SkillVersionMismatchError when a pinned skill has no version field", () => {
+    expect(() =>
+      checkPinVersions(pins, [
+        {
+          frontmatter: { name: "brainstorm", description: "x", activate_on: ["x"] } as never,
+          body: "",
+          sourcePath: "/virtual/brainstorm.md"
+        }
+      ])
+    ).toThrow(SkillVersionMismatchError);
+  });
+
+  it("passes silently when a pinned skill is not currently loaded (it may be optional)", () => {
+    expect(() => checkPinVersions(pins, [])).not.toThrow();
   });
 });
