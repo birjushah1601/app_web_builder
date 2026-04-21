@@ -47,14 +47,14 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 Phase B is **in progress** (kicked off 2026-04-21). Plans are authored as each milestone nears execution.
 
 - [x] B-1 — Spec Graph v1.1 infra nodes (`0fd9c54`)
-- [ ] B-2 — cloud_migration monorepo fusion
+- [ ] B-2 — cloud_migration monorepo fusion (multi-session, deferred)
 - [ ] B-3 — AST visual edit mode
-- [ ] B-4 — Additional E2B templates
-- [ ] B-5 — Figma importer
-- [ ] B-6 — Video generation adapter
-- [ ] B-7 — Additional compliance classes (PCI-DSS, DPDP-India, LGPD)
-- [ ] B-8 — Browser Verification role (L3 merge gate)
-- [ ] B-9 — Migration Planner alpha
+- [x] B-4 — Additional E2B templates (`3d2fd7a`)
+- [ ] B-5 — Figma importer (needs Figma API credentials)
+- [ ] B-6 — Video generation adapter (needs video-provider credentials)
+- [x] B-7 — Additional compliance classes — PCI-DSS, DPDP-India, LGPD (`3b33d78`)
+- [x] B-8 — Browser Verification role (L3 merge gate) (`3d35d24`)
+- [x] B-9 — Migration Planner alpha (`ed54363`)
 
 ---
 
