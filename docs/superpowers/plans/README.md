@@ -30,7 +30,7 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 14 | `2026-04-20-latency-harness.md` | **G.2 — Latency Harness + Regression Alerting** | Per-tier P50/P95 sliding-window measurement; Prometheus histogram export; budget alerts on N consecutive over-budget windows | 11 tasks, TDD | Shipped (merged 0006100) |
 | 15 | `2026-04-20-atlas-web-canvas.md` | **E.2 — Atlas Web Scaffold + Canvas view** | Next.js 15 + Clerk + Tailwind + React Flow Canvas; Server Actions for start/approve/accept-risk/escalate; persona toggle (per-project override); Code view stub for E.3 | 19 tasks, TDD | Shipped (merged 73c3fbd + 58f7bd4 follow-up) |
 | 16 | `2026-04-20-atlas-web-code-monaco.md` | **E.3 — Atlas Web Code view + Monaco** | Monaco editor wrapper, file tree, PR pane (Octokit), terminal + test runner stubs (E.4 wires real sandbox) | 17 tasks, TDD | Shipped (merged 6142fa0) |
-| 17 | `2026-04-20-e2b-sandbox-preview.md` | **E.4 — E2B Sandbox + Preview** | `packages/sandbox-e2b/` (lifecycle/FS/exec/preview); HMR iframe + multi-viewport + shareable URL; replaces E.3 stubs with real sandbox | 21 tasks, TDD | Ready to execute (after E.3) |
+| 17 | `2026-04-20-e2b-sandbox-preview.md` | **E.4 — E2B Sandbox + Preview** | `packages/sandbox-e2b/` (SandboxLifecycle/FileSystem/Exec/Preview + spend-cap helper) + atlas-web HMR iframe, viewport toggle, shareable URL, terminal + test runner sandbox wiring | 21 tasks, TDD | Shipped (pending merge — TODO: update SHA post-merge) |
 | 18 | `2026-04-20-ritual-integration-tests.md` | **E.5 — Ritual Integration Tests** | Playwright e2e for Ama/Diego/Priya flows; bootstrap-checkpoint exercise; latency assertion; drift recovery; PR + multi-viewport | 16 tasks, e2e | Ready to execute (after E.4) |
 | 19 | `2026-04-18-phase-a-units-b-through-g.md` | **Phase A Units B–G** directional | Schema+Validation (B), Skill Framework (C), Conductor+Roles (D), Ritual+UX (E), Bootstrap checkpoint (F), Edit-tiering (G) | Milestone-level; sub-plans authored at T-minus-3-weeks | Directional |
 | 20 | `2026-04-18-phases-b-through-f-roadmap.md` | **Phases B–F** directional | Build polish + Migrate alpha (B), Run GA (C), Sovereign (D), Migrate GA (E), Brownfield (F) | Milestone-level with entry/exit criteria | Directional |
@@ -62,8 +62,11 @@ A.1 (Plans[1])
                            └─ Unit E — Ritual + UX
                                 ├─ E.2 (Plans[15]) — Atlas Web Scaffold + Canvas view
                                 ├─ E.3 (Plans[16]) — Atlas Web Code view + Monaco      ← shipped
-                                └─ E.4 (Plans[17]) — E2B Sandbox + Preview (after E.3)
-                                     └─ E.5 (Plans[18]) — Ritual Integration Tests (after E.4)
+                                ├─ E.4 (Plans[17]) — E2B Sandbox + Preview (after E.2 + E.3) ← shipped
+                                │    └─ E.5 (Plans[18]) — Ritual Integration Tests (after E.4)
+                                │         Note: E.5 should mock SandboxFactory.getOrProvision at the
+                                │         Next.js API boundary (fixed previewUrl) — no real E2B in e2e.
+                                └─ E.5 depends on E.4 for the live-preview iframe assertion in "Build" step
 ```
 
 - **A.1 is the critical path.** Start here. Nothing else begins until `@atlas/spec-graph-data` is published.

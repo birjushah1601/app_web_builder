@@ -12,7 +12,7 @@ export default defineConfig({
       deps: {
         // pg and next/server are Node-only; let Vite treat them as external
         // so vi.doMock() interceptions work cleanly in the test environment.
-        external: [/^pg$/, /^next\//]
+        external: [/^pg$/, /^next\//, /^iframe-resizer/]
       }
     }
   },

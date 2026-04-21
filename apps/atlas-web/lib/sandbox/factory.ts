@@ -1,0 +1,98 @@
+import {
+  E2BLifecycle,
+  checkSpendCap,
+  SandboxIdSchema,
+  type SandboxLifecycle,
+  type SpendReader,
+  type SpendCapConfig,
+  type TemplateId,
+} from "@atlas/sandbox-e2b";
+import type { SandboxSession } from "./types.js";
+
+interface SandboxFactoryConfig {
+  lifecycle: SandboxLifecycle;
+  spendReader: SpendReader;
+  spendCapConfig: SpendCapConfig;
+  defaultTemplate: TemplateId;
+}
+
+export class SandboxFactory {
+  private readonly config: SandboxFactoryConfig;
+  /** projectId → SandboxSession */
+  private readonly sessions = new Map<string, SandboxSession>();
+  /** In-flight provision promises — prevents race when two requests hit simultaneously */
+  private readonly inflight = new Map<string, Promise<SandboxSession>>();
+
+  constructor(config: SandboxFactoryConfig) {
+    this.config = config;
+  }
+
+  async getOrProvision(projectId: string): Promise<SandboxSession> {
+    const cached = this.sessions.get(projectId);
+    if (cached) return cached;
+
+    // Coalesce concurrent calls for the same projectId
+    const existing = this.inflight.get(projectId);
+    if (existing) return existing;
+
+    const promise = this.doProvision(projectId);
+    this.inflight.set(projectId, promise);
+    try {
+      const session = await promise;
+      this.sessions.set(projectId, session);
+      return session;
+    } finally {
+      this.inflight.delete(projectId);
+    }
+  }
+
+  async terminate(projectId: string): Promise<void> {
+    const session = this.sessions.get(projectId);
+    if (!session) return;
+    const sandboxId = SandboxIdSchema.parse(session.record.sandboxId);
+    await this.config.lifecycle.terminate(sandboxId);
+    this.sessions.delete(projectId);
+  }
+
+  private async doProvision(projectId: string): Promise<SandboxSession> {
+    await checkSpendCap(projectId, this.config.spendReader, this.config.spendCapConfig);
+    const record = await this.config.lifecycle.provision(
+      this.config.defaultTemplate,
+      projectId
+    );
+    const defaultPort = this.config.defaultTemplate === "atlas-next-ts" ? 3000 : 8000;
+    // For the factory, derive preview URL from the sandbox record's previewBaseUrl
+    // (set by E2BLifecycle.provision via E2B's getHost) or fall back to a placeholder.
+    const previewUrl = record.previewBaseUrl ?? `https://${defaultPort}-${record.sandboxId}.e2b.app`;
+    return { record, previewUrl };
+  }
+}
+
+// Module-level singleton — Next.js server-side; constructed lazily on first import.
+let _factory: SandboxFactory | null = null;
+
+export function getSandboxFactory(): SandboxFactory {
+  if (!_factory) {
+    _factory = new SandboxFactory({
+      lifecycle: new E2BLifecycle({
+        apiKey: process.env.E2B_API_KEY ?? "",
+        templateDigests: {
+          "atlas-next-ts": process.env.E2B_TEMPLATE_NEXT_TS_DIGEST ?? "",
+          "atlas-python-fastapi": process.env.E2B_TEMPLATE_PYTHON_FASTAPI_DIGEST ?? "",
+        },
+      }),
+      spendReader: {
+        // Production wiring — replace with @atlas/spec-graph-data query when available
+        // TODO(E.4): wire real SpendReader from @atlas/spec-graph-data sandbox_spend_log
+        getAccumulatedSpend: async () => 0,
+        getRollingAverageSpend: async () => 0,
+      },
+      spendCapConfig: {
+        capUsd: Number(process.env.SANDBOX_SPEND_CAP_USD_PER_PROJECT_MONTH ?? "50"),
+        warnMultiplier: 3,
+      },
+      defaultTemplate: "atlas-next-ts",
+    });
+  }
+  return _factory;
+}

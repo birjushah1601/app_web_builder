@@ -2,9 +2,15 @@
 
 import React, { useEffect, useState } from "react";
 import { getTestResults, type GetTestResultsResult } from "../../lib/actions/code/getTestResults.js";
+import type { SandboxExec } from "@atlas/sandbox-e2b";
+import type { SandboxId } from "@atlas/sandbox-e2b";
 
 export interface TestRunnerPaneProps {
   projectId: string;
+  /** E.4: When provided, stream vitest output from the real sandbox instead of using the E.3 stub. */
+  sandboxId?: SandboxId;
+  /** E.4: Injected SandboxExec — allows tests to pass a mock without touching the factory. */
+  sandboxExec?: Pick<SandboxExec, "streamCommand">;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -16,16 +22,61 @@ function StatusBadge({ status }: { status: string }) {
 /**
  * Client Component. Displays vitest results from the E2B sandbox.
  * In E.3 the backend stub returns status: "stub" with an empty suite list.
- * Plan E.4 wires the real test-runner stream.
+ * E.4 adds a real vitest stream via SandboxExec.streamCommand when sandboxId is provided.
  */
-export function TestRunnerPane({ projectId }: TestRunnerPaneProps) {
+export function TestRunnerPane({ projectId, sandboxId, sandboxExec }: TestRunnerPaneProps) {
   const [results, setResults] = useState<GetTestResultsResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [streamOutput, setStreamOutput] = useState<string[]>([]);
 
   useEffect(() => {
-    getTestResults({ projectId }).then(setResults);
-    // TODO(E.4): replace with a streaming SSE or WebSocket listener
-  }, [projectId]);
+    if (!sandboxId) {
+      // Fallback to E.3 stub behaviour
+      getTestResults({ projectId }).then(setResults);
+    }
+  }, [projectId, sandboxId]);
 
+  async function runTests() {
+    if (!sandboxId || !sandboxExec) return;
+    setRunning(true);
+    setStreamOutput([]);
+    try {
+      for await (const chunk of sandboxExec.streamCommand(
+        sandboxId,
+        "npx vitest run --reporter=verbose",
+        { cwd: "/app" }
+      )) {
+        setStreamOutput((prev) => [...prev, chunk.data]);
+      }
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  // Sandbox-wired mode
+  if (sandboxId && sandboxExec) {
+    return (
+      <div className="flex h-full flex-col gap-2 overflow-y-auto p-3 text-sm text-zinc-200">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">Test Runner</span>
+          <StatusBadge status={running ? "running" : "idle"} />
+          <button
+            type="button"
+            onClick={runTests}
+            disabled={running}
+            className="ml-auto rounded bg-zinc-700 px-2 py-0.5 text-xs hover:bg-zinc-600 disabled:opacity-50"
+          >
+            Run tests
+          </button>
+        </div>
+        <pre className="flex-1 overflow-y-auto text-xs text-zinc-300 whitespace-pre-wrap">
+          {streamOutput.join("")}
+        </pre>
+      </div>
+    );
+  }
+
+  // E.3 stub mode
   if (!results) {
     return <div className="flex h-full items-center justify-center text-xs text-zinc-500">Loading…</div>;
   }
