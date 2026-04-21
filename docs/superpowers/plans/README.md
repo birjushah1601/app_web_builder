@@ -48,13 +48,20 @@ Phase B is **in progress** (kicked off 2026-04-21). Plans are authored as each m
 
 - [x] B-1 — Spec Graph v1.1 infra nodes (`0fd9c54`)
 - [ ] B-2 — cloud_migration monorepo fusion (multi-session, deferred)
-- [ ] B-3 — AST visual edit mode
+- [x] B-3 — AST visual edit mode skeleton (`ba142a1`); concrete TS Compiler mapper deferred (D8)
 - [x] B-4 — Additional E2B templates (`3d2fd7a`)
 - [ ] B-5 — Figma importer (needs Figma API credentials)
 - [ ] B-6 — Video generation adapter (needs video-provider credentials)
 - [x] B-7 — Additional compliance classes — PCI-DSS, DPDP-India, LGPD (`3b33d78`)
 - [x] B-8 — Browser Verification role (L3 merge gate) (`3d35d24`)
 - [x] B-9 — Migration Planner alpha (`ed54363`)
+
+**Phase B status:** 6 of 9 milestones shipped (B-1, B-3 skeleton, B-4, B-7, B-8, B-9). B-2/B-5/B-6 require external resources — see "Pending external resources" below.
+
+**Pending external resources (Phase B):**
+- B-2 (cloud_migration monorepo fusion) — Per PRD §22, this is 6–8 weeks of integration work pulling `birjushah1601/cloud_migration` (Python FastAPI + Celery) into `services/migrate/` + `apps/migrate/`. Cannot be done in a single session safely. Needs a dedicated multi-session plan with the cloud_migration repo accessible.
+- B-5 (Figma importer) — Needs a Figma API token and at least one source design file to validate against.
+- B-6 (Video generation adapter) — Needs API credentials for at least one of Seedance / Kling / Veo / Runway, plus the cost-cap policy decision.
 
 ---
 
