@@ -1,4 +1,6 @@
 import { CanvasClient } from "@/components/CanvasClient.js";
+import { ChatPanel } from "@/components/ChatPanel.js";
+import { startRitual } from "@/lib/actions/startRitual.js";
 
 export default async function CanvasPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -11,6 +13,10 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
       <section className="flex-1">
         <CanvasClient graph={graph} projectId={projectId} />
       </section>
+      <ChatPanel
+        projectId={projectId}
+        onSend={async (userTurn) => startRitual({ projectId, userTurn, editClass: "structural" })}
+      />
     </main>
   );
 }
