@@ -22,6 +22,7 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 6 | `2026-04-20-spec-graph-schema-py.md` | **B.2 — Python bindings** | Pydantic v2 models generated from the JSON Schema; structural validator; drift check | 17 tasks, TDD | Shipped (merged e412268) |
 | 7 | `2026-04-20-skill-runtime.md` | **C.1 — Skill Runtime** | TS package: skill frontmatter parser, `SkillRegistry`, `IntentClassifier` interface (mocked in C.1, real in D.1), composes-graph resolver, pin.json version check | 20 tasks, TDD | Shipped (merged 78bdd79) |
 | 8 | `2026-04-20-skill-library.md` | **C.2 — Starter Skill Library + OSS pipeline** | 40 markdown skills grouped by role; frontmatter validator + CI; tag-push release workflow; real `loadBundledSkills()` | 18 tasks, TDD | Shipped (merged d163544) |
+| 8a | `2026-04-21-test-generator-registry.md` | **C.3 — Test-Generator Registry + Human Baselines** | Node-kind → generator-skill index; HumanBaselineStore loads `.atlas/baselines/*.yaml`; invokeGenerator injects baselines for AuthBoundary + PII-Model + ComplianceClass (I13-aligned); DriftDetector with SHA-256 pinning; CLI for baseline list/show + drift check | 16 tasks, TDD | Shipped (merged c471d9a) |
 | 9 | `2026-04-20-conductor-llm-abstraction.md` | **D.1 — Conductor + LLM Provider Abstraction** | `@atlas/llm-provider` (Anthropic + Google stub, retry, circuit breaker, OTel + Prom metrics) and `@atlas/conductor` (thin dispatcher, 3-tier prompt-cache, graph-slice hash, checkpoint-based retry, escalation) | 22 tasks, TDD | Shipped (merged d641404) |
 | 10 | `2026-04-20-role-architect.md` | **D.2 — Architect role** | Two-pass ritual-authoring: Haiku triage (ambiguity report) → Opus deep plan (scope-variant output); implements `Role` from `@atlas/conductor`; `llm-provider` `completeWithToolUse` extension | 18 tasks, TDD | Shipped (merged 8d59190) |
 | 11 | `2026-04-21-role-developer.md` | **D.3 — Developer role (parallel Sonnet+Gemini + Reviewer voting)** | Parallel two-provider code-gen + Reviewer pass; real `GoogleProvider` (Gemini SDK + tool-use); walkover semantics + BothProvidersFailedError | 17 tasks, TDD | Shipped (merged e8a7902) |
@@ -52,6 +53,7 @@ Phase A is complete when ALL of the following plans are merged to `main`:
 - [x] B.2 — Python bindings (`e412268`)
 - [x] C.1 — Skill Runtime (`78bdd79`)
 - [x] C.2 — Starter Skill Library + OSS pipeline (`d163544`)
+- [x] C.3 — Test-Generator Registry + Human Baselines (`c471d9a`)
 - [x] D.1 — Conductor + LLM Provider Abstraction (`d641404`)
 - [x] D.2 — Architect role (`8d59190`)
 - [x] D.3 — Developer role (parallel Sonnet+Gemini + Reviewer voting) (`e8a7902`)
