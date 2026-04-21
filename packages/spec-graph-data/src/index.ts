@@ -34,3 +34,4 @@ export {
 } from "./observability.js";
 
 export { BootstrapRepo, type BootstrapRecord } from "./repo/bootstrap-repo.js";
+export { PreferencesRepo, type PersonaOverride } from "./repo/preferences-repo.js";

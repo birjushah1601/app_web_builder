@@ -25,7 +25,8 @@ export class BootstrapRepo {
       "SELECT ts, ritual_id FROM bootstrap_checkpoints WHERE project_id = $1",
       [projectId]
     );
-    if (r.rowCount === 0) return null;
-    return { ts: r.rows[0].ts, ritualId: r.rows[0].ritual_id };
+    const row = r.rows[0];
+    if (!row) return null;
+    return { ts: row.ts, ritualId: row.ritual_id };
   }
 }
