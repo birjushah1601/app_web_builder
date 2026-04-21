@@ -6,7 +6,10 @@
       "properties": {
         "schemaVersion": {
           "type": "string",
-          "const": "1.0.0"
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
         },
         "projectId": {
           "type": "string",
@@ -81,7 +84,7 @@
                   },
                   "id": {
                     "type": "string",
-                    "pattern": "^(page|route|component|clientstate|model|endpoint|flow|authboundary|test|designtoken|dependency|compliance|aifeature|mediaasset):[A-Za-z0-9._-]+$"
+                    "pattern": "^(page|route|component|clientstate|model|endpoint|flow|authboundary|test|designtoken|dependency|compliance|aifeature|mediaasset|region|dataresidency|runtime|provider|workloadtopology):[A-Za-z0-9._-]+$"
                   },
                   "extensions": {
                     "type": "object",
@@ -1076,6 +1079,197 @@
                 ],
                 "additionalProperties": false,
                 "title": "MediaAsset"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "region"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cloudProviderRef": {
+                    "type": "string"
+                  },
+                  "jurisdictionRef": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "code"
+                ],
+                "additionalProperties": false,
+                "title": "Region"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "dataresidency"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "jurisdiction": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "jurisdiction"
+                ],
+                "additionalProperties": false,
+                "title": "DataResidency"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "runtime"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "language": {
+                    "type": "string",
+                    "enum": [
+                      "node",
+                      "python",
+                      "go",
+                      "rust",
+                      "java",
+                      "ruby",
+                      "other"
+                    ]
+                  },
+                  "version": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "language",
+                  "version"
+                ],
+                "additionalProperties": false,
+                "title": "Runtime"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "provider"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "hyperscaler",
+                      "regional",
+                      "on-prem",
+                      "sovereign"
+                    ]
+                  },
+                  "regionRefs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "title": "Provider"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "workloadtopology"
+                  },
+                  "id": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  },
+                  "shape": {
+                    "type": "string",
+                    "enum": [
+                      "single-region",
+                      "multi-region-active-passive",
+                      "multi-region-active-active",
+                      "edge-only",
+                      "hybrid-on-prem-cloud"
+                    ]
+                  },
+                  "providerRefs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "regionRefs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "shape",
+                  "providerRefs",
+                  "regionRefs"
+                ],
+                "additionalProperties": false,
+                "title": "WorkloadTopology"
               }
             ]
           }
@@ -1408,6 +1602,81 @@
                 ],
                 "additionalProperties": false,
                 "title": "ManagesEdge"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "runsOn"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false,
+                "title": "RunsOnEdge"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "storesDataIn"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false,
+                "title": "StoresDataInEdge"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "migratesTo"
+                  },
+                  "from": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "to": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/id"
+                  },
+                  "extensions": {
+                    "$ref": "#/definitions/SpecGraph/properties/nodes/additionalProperties/anyOf/0/properties/extensions"
+                  }
+                },
+                "required": [
+                  "type",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false,
+                "title": "MigratesToEdge"
               }
             ]
           }
