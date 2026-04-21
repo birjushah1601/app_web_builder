@@ -65,6 +65,34 @@ Phase B is **in progress** (kicked off 2026-04-21). Plans are authored as each m
 
 ---
 
+## Phase C plans
+
+Phase C is **in progress** (foundations landed 2026-04-21). Per PRD entry criteria, full Phase C ship requires real production state (≥ 99.9% uptime, NPS ≥ 50). Engineering deliverables ship as foundations now; integration with managed providers waits on real credentials.
+
+- [ ] C-1 — One-click deploy (Neon + Vercel + DNS + Stripe + Resend + Sentry — needs real provider credentials)
+- [ ] C-2 — Atlas Run observability dashboard (needs OTLP collector + Prometheus scrape target running)
+- [x] C-3 — SLO + error-budget engine (`c789d26`)
+- [ ] C-4 — Multi-region failover (needs Neon multi-region + Vercel edge — credentials)
+- [x] C-5 — Payments hardening — idempotency + webhook signature verification (`c789d26`)
+- [ ] C-6 — Usage telemetry + cost dashboards (depends on real telemetry stream)
+- [x] C-7 — Audit log schema + sink (`c789d26`)
+
+**Phase C status:** 3 of 7 milestones shipped (C-3 SLO engine, C-5 payments hardening, C-7 audit log). C-1/C-2/C-4/C-6 are gated on real provider credentials and are deferred until those are in hand.
+
+---
+
+## Phase D / E / F plans
+
+Phase D (Sovereign / On-Prem), Phase E (Migrate GA), and Phase F (Brownfield Discovery GA) are **strategically gated** rather than engineering-gated. Per the roadmap (`2026-04-18-phases-b-through-f-roadmap.md`):
+
+- **Phase D** entry requires ≥ 3 enterprise customers committed, signed MoUs with regional partners (CtrlS, OVHcloud, Liquid Telecom), and B-9 Migration Planner mature with 3 successful pilots. Engineering work is meaningful (OpenStack target, VMware adapter, K8s target, sovereign Helm chart) but cannot start without those commitments.
+- **Phase E** entry requires Phase D exit + 3 successful real-customer migrations + auditor-validated compliance evidence + 5+ migration-engineer hires.
+- **Phase F** entry requires Phase E + brownfield discovery agentless infra implemented (parts of which start in E-2).
+
+Authoring and execution of D/E/F plans should happen per the writing-plans skill rule "write each unit's plan when execution is ≤ 3 weeks away" — i.e., when entry criteria are demonstrably close to met. Premature D/E/F task-level plans are false precision.
+
+---
+
 ## Phase A Exit Checklist
 
 Phase A is complete when ALL of the following plans are merged to `main`:
