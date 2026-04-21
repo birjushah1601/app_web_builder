@@ -7,6 +7,8 @@ import {
   type SpendCapConfig,
   type TemplateId,
 } from "@atlas/sandbox-e2b";
+import { SandboxSpendRepo } from "@atlas/spec-graph-data";
+import pg from "pg";
 import type { SandboxSession } from "./types.js";
 
 interface SandboxFactoryConfig {
@@ -68,8 +70,24 @@ export class SandboxFactory {
   }
 }
 
-// Module-level singleton — Next.js server-side; constructed lazily on first import.
+// Module-level singletons — Next.js server-side; constructed lazily on first import.
 let _factory: SandboxFactory | null = null;
+let _spendPool: pg.Pool | null = null;
+
+function getSpendReader(): SpendReader {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    // No DB configured (e.g., local `next build` without env) → cap never triggers.
+    return {
+      getAccumulatedSpend: async () => 0,
+      getRollingAverageSpend: async () => 0,
+    };
+  }
+  if (!_spendPool) {
+    _spendPool = new pg.Pool({ connectionString: url });
+  }
+  return new SandboxSpendRepo(_spendPool);
+}
 
 export function getSandboxFactory(): SandboxFactory {
   if (!_factory) {
@@ -81,12 +99,7 @@ export function getSandboxFactory(): SandboxFactory {
           "atlas-python-fastapi": process.env.E2B_TEMPLATE_PYTHON_FASTAPI_DIGEST ?? "",
         },
       }),
-      spendReader: {
-        // Production wiring — replace with @atlas/spec-graph-data query when available
-        // TODO(E.4): wire real SpendReader from @atlas/spec-graph-data sandbox_spend_log
-        getAccumulatedSpend: async () => 0,
-        getRollingAverageSpend: async () => 0,
-      },
+      spendReader: getSpendReader(),
       spendCapConfig: {
         capUsd: Number(process.env.SANDBOX_SPEND_CAP_USD_PER_PROJECT_MONTH ?? "50"),
         warnMultiplier: 3,

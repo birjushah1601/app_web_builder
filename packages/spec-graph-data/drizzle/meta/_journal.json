@@ -43,6 +43,13 @@
       "when": 1776608100000,
       "tag": "0005_user_project_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776608200000,
+      "tag": "0006_sandbox_spend_log",
+      "breakpoints": true
     }
   ]
 }
