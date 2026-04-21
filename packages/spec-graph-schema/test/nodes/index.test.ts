@@ -20,8 +20,9 @@ describe("nodes index", () => {
   it("registry contains every node kind", () => {
     expect(Object.keys(nodeRegistry).sort()).toEqual([
       "aifeature", "authboundary", "clientstate", "compliance", "component",
-      "dependency", "designtoken", "endpoint", "flow", "mediaasset", "model",
-      "page", "route", "test"
+      "dataresidency", "dependency", "designtoken", "endpoint", "flow",
+      "mediaasset", "model", "page", "provider", "region", "route",
+      "runtime", "test", "workloadtopology"
     ]);
   });
 
