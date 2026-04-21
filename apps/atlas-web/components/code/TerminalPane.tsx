@@ -2,19 +2,28 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { connectTerminal } from "../../lib/actions/code/connectTerminal.js";
+import type { SandboxExec } from "@atlas/sandbox-e2b";
+import type { SandboxId } from "@atlas/sandbox-e2b";
 
 export interface TerminalPaneProps {
   projectId: string;
+  /** E.4: When provided, stream sandbox shell output instead of using the E.3 stub. */
+  sandboxId?: SandboxId;
+  /** E.4: Injected SandboxExec — allows tests to pass a mock without touching the factory. */
+  sandboxExec?: Pick<SandboxExec, "streamCommand">;
+  /** E.4: Shell command to stream. Defaults to "bash". */
+  shellCommand?: string;
 }
 
 /**
  * Client Component. Mounts xterm.js in the DOM ref.
  * In E.3 the backend stub returns a "not connected" message.
- * Plan E.4 replaces the stub with a real WebSocket URL.
+ * E.4 adds a real sandbox shell via SandboxExec.streamCommand when sandboxId is provided.
  */
-export function TerminalPane({ projectId }: TerminalPaneProps) {
+export function TerminalPane({ projectId, sandboxId, sandboxExec, shellCommand }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const termRef = useRef<import("xterm").Terminal | null>(null);
 
   useEffect(() => {
     let terminal: import("xterm").Terminal | null = null;
@@ -28,6 +37,7 @@ export function TerminalPane({ projectId }: TerminalPaneProps) {
         fontSize: 13,
         cursorBlink: true,
       });
+      termRef.current = terminal;
       const fitAddon = new FitAddon();
       terminal.loadAddon(fitAddon);
 
@@ -36,21 +46,41 @@ export function TerminalPane({ projectId }: TerminalPaneProps) {
         fitAddon.fit();
       }
 
-      // Connect to backend (stub in E.3)
-      const result = await connectTerminal({ projectId });
-      if (result.status === "stub") {
-        terminal.write(`\r\n\x1b[33m${result.message}\x1b[0m\r\n`);
-        setStatusMessage(result.message);
+      if (!sandboxId || !sandboxExec) {
+        // Fallback to E.3 stub behaviour
+        const result = await connectTerminal({ projectId });
+        if (result.status === "stub") {
+          terminal.write(`\r\n\x1b[33m${result.message}\x1b[0m\r\n`);
+          setStatusMessage(result.message);
+        }
       }
-      // TODO(E.4): result.status === "connected" → establish WebSocket and pipe to terminal
     }
 
     init();
 
     return () => {
       terminal?.dispose();
+      termRef.current = null;
     };
   }, [projectId]);
+
+  // E.4: Stream sandbox shell output when sandboxId is provided
+  useEffect(() => {
+    if (!sandboxId || !sandboxExec) return;
+    const term = termRef.current;
+    if (!term) return;
+
+    let cancelled = false;
+
+    async function stream() {
+      for await (const chunk of sandboxExec!.streamCommand(sandboxId!, shellCommand ?? "bash")) {
+        if (cancelled) break;
+        termRef.current?.write(chunk.data);
+      }
+    }
+    void stream();
+    return () => { cancelled = true; };
+  }, [sandboxId, sandboxExec, shellCommand]);
 
   return (
     <div className="flex h-full flex-col bg-zinc-950">
