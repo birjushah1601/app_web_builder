@@ -32,3 +32,5 @@ export {
   repoOpDuration,
   withSpan
 } from "./observability.js";
+
+export { BootstrapRepo, type BootstrapRecord } from "./repo/bootstrap-repo.js";
