@@ -4,6 +4,8 @@ Engineering work that was consciously deferred during Phase A — tracked here s
 
 This list is a complement to PRD §21 (which covers strategic risks); items here are tactical engineering follow-ups, not strategic uncertainties.
 
+> **Note (2026-04-21):** Several Phase B/C entries below were rewritten following ADR-001 (OSS stack pivot — see `docs/adr/2026-04-21-oss-stack-pivot.md`). Closed-SaaS integrations (Stripe / Vercel / Neon / Sentry / Clerk) are no longer the default direction; their replacements are scoped per ADR-001.
+
 ---
 
 ## D1. E.5 Playwright e2e tests parse but don't actually run
@@ -115,6 +117,76 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 **Trigger to revisit:** When the UX validates that click-to-select is the right interaction (which we'll learn from the first 5–10 hero projects), prioritize the concrete mapper.
 
 **Owner-of-revisit:** Whoever owns the next atlas-web canvas iteration. Suggested first concrete mapper: TS + Next.js App Router (the dominant Atlas template).
+
+---
+
+## D9. Postgres-branching adapter (Neon replacement)
+
+**What:** ADR-001 replaces Neon with plain OSS Postgres. Neon's killer feature was per-branch ephemeral databases. We need an equivalent: a `BranchingPostgresAdapter` interface with at least one concrete implementation (schema-per-branch is the cheap path; container-per-branch is the clean-isolation path).
+
+**Why deferred:** Adapter design is plan-authoring work, not implementation. Needs the open question from ADR-001 §"Open questions" #3 answered first.
+
+**Risk if left:** Phase C-1 (one-click deploy) cannot ship until preview-branch databases work.
+
+**Trigger to revisit:** Before authoring the C-1 plan.
+
+**Owner-of-revisit:** Whoever owns C-1 plan authoring.
+
+---
+
+## D10. K8s PaaS layer choice (Vercel replacement)
+
+**What:** ADR-001 replaces Vercel with own infrastructure on K8s. Need a decision on whether to use an OSS PaaS (Coolify / Dokploy / CapRover) or build a thin orchestration layer over plain K8s + Caddy + a CDN.
+
+**Why deferred:** This is an architecture-investigation task, not implementation. ADR-001 §"Open questions" #1.
+
+**Risk if left:** C-1 (one-click deploy) cannot be scoped without this decision.
+
+**Trigger to revisit:** Before authoring the C-1 plan.
+
+**Owner-of-revisit:** Founder + tech lead. Recommend a 1-week spike comparing the three OSS PaaS options + a "DIY on K8s" option.
+
+---
+
+## D11. Own monitoring stack (Sentry replacement)
+
+**What:** ADR-001 replaces Sentry with an own-monitoring stack: OpenTelemetry collector + Prometheus + Grafana + Loki + a Sentry-compatible OSS error sink (GlitchTip is the candidate). Needs concrete deployment + Atlas integration plan.
+
+**Why deferred:** Decision-and-deploy task, not implementation in atlas-web. ADR-001 §"Open questions" #4.
+
+**Risk if left:** C-2 (Atlas Run observability dashboard) cannot ship without telemetry pipes wired.
+
+**Trigger to revisit:** Before authoring the C-2 plan.
+
+**Owner-of-revisit:** Whoever owns C-2 plan authoring. The `prom-client` patterns already in role-* packages give a starting point.
+
+---
+
+## D12. Keycloak self-host auth path (alongside Clerk)
+
+**What:** ADR-001 keeps Clerk for hosted-dev convenience but mandates Keycloak (or another OSS OIDC/SAML provider) for sovereign / self-host deployments. Need a Keycloak adapter for atlas-web's auth surface, gated by `ATLAS_FF_AUTH_KEYCLOAK`.
+
+**Why deferred:** Auth swap is a substantial atlas-web refactor (Clerk middleware, session helpers, user-management UI). Worth doing as a focused unit.
+
+**Risk if left:** Atlas Sovereign (D-5) cannot ship without OSS auth.
+
+**Trigger to revisit:** When D-5 plan authoring begins, OR when the first sovereign customer signs.
+
+**Owner-of-revisit:** Whoever owns the D-5 Helm-chart plan.
+
+---
+
+## D13. Kling video adapter (the only video provider for v1)
+
+**What:** ADR-001 narrows the video-provider field from {Seedance, Kling, Veo, Runway} to **Kling only** for v1. Need a Kling SDK wrapper, gated by `ATLAS_FF_VIDEO_KLING`, plus the per-project cost cap.
+
+**Why deferred:** Needs Kling API credentials + the cost-cap policy decision before any code lands.
+
+**Risk if left:** B-6 (video generation adapter) cannot ship.
+
+**Trigger to revisit:** When Kling API credentials are obtained.
+
+**Owner-of-revisit:** Whoever owns B-6 implementation.
 
 ---
 
