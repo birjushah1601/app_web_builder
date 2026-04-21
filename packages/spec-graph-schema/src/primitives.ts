@@ -14,7 +14,12 @@ export const NODE_KINDS = [
   "dependency",
   "compliance",
   "aifeature",
-  "mediaasset"
+  "mediaasset",
+  "region",
+  "dataresidency",
+  "runtime",
+  "provider",
+  "workloadtopology"
 ] as const;
 
 export type NodeKind = (typeof NODE_KINDS)[number];

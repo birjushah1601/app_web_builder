@@ -5,8 +5,10 @@ import {
   EdgeIdSchema,
   PiiClassificationSchema,
   ExtensionsSchema,
-  parseNodeKindFromId
+  parseNodeKindFromId,
+  NODE_KINDS
 } from "../src/primitives.js";
+import { SpecGraphSchema } from "../src/graph.js";
 
 describe("primitives", () => {
   describe("ProjectIdSchema", () => {
@@ -69,6 +71,38 @@ describe("primitives", () => {
     });
     it("rejects empty", () => {
       expect(() => EdgeIdSchema.parse("")).toThrow();
+    });
+  });
+
+  describe("v1.1 additions", () => {
+    it("NODE_KINDS includes 5 new infra kinds", () => {
+      expect(NODE_KINDS).toContain("region");
+      expect(NODE_KINDS).toContain("dataresidency");
+      expect(NODE_KINDS).toContain("runtime");
+      expect(NODE_KINDS).toContain("provider");
+      expect(NODE_KINDS).toContain("workloadtopology");
+    });
+
+    it("SpecGraphSchema accepts schemaVersion 1.1.0 and still accepts 1.0.0", () => {
+      const base = {
+        projectId: "00000000-0000-4000-8000-000000000000",
+        name: "n",
+        complianceClasses: ["baseline"],
+        databaseProvider: {
+          tier: "atlas-run" as const,
+          provider: "neon",
+          region: "us-east-1",
+          connectionStringRef: "ref"
+        },
+        templateDigest: "sha256:abcdef",
+        createdAt: "2026-04-21T00:00:00.000Z",
+        updatedAt: "2026-04-21T00:00:00.000Z",
+        nodes: {},
+        edges: []
+      };
+      expect(SpecGraphSchema.safeParse({ schemaVersion: "1.0.0", ...base }).success).toBe(true);
+      expect(SpecGraphSchema.safeParse({ schemaVersion: "1.1.0", ...base }).success).toBe(true);
+      expect(SpecGraphSchema.safeParse({ schemaVersion: "2.0.0", ...base }).success).toBe(false);
     });
   });
 });

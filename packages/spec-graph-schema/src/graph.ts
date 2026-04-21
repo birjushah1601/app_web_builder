@@ -16,7 +16,7 @@ const TemplateDigestSchema = z.string().regex(/^sha256:[0-9a-f]{6,64}$/, "templa
 
 export const SpecGraphSchema = z
   .object({
-    schemaVersion: z.literal("1.0.0"),
+    schemaVersion: z.enum(["1.0.0", "1.1.0"]),
     projectId: ProjectIdSchema,
     name: z.string().min(1),
     complianceClasses: z.array(z.string().min(1)).nonempty(),
