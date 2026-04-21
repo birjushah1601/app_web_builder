@@ -104,6 +104,20 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 
 ---
 
+## D8. AST mapping concrete implementation (TS Compiler API)
+
+**What:** B-3 ships the architectural skeleton for AST visual edit mode: the `@atlas/ast-mapper` package interfaces, `AstMapFile` schema, `MutationProposal` schema, and a `NullAstMapper` that returns `undefined` for every node. The Canvas UI surfaces an explicit "AST mapping not yet wired" notice in the SelectedNodePanel. The concrete `TsCompilerAstMapper` that walks `tsc` AST + maps source ranges → graph nodes is not yet built.
+
+**Why deferred:** Building the TS Compiler integration is a substantial task in its own right — it needs a heuristic that maps Page nodes to App Router file paths, Component nodes to JSX export sites, Endpoint nodes to route handler signatures, etc. Each language/framework gets its own concrete mapper. Doing this well requires its own plan (~15 tasks). Shipping the skeleton + Canvas selection now unblocks the UX iteration.
+
+**Risk if left:** Atlas users see "AST mapping not yet wired" in the side panel. The full B-3 promise — "edits at Agree become typed graph mutations that regenerate just the affected component" — is not yet executable.
+
+**Trigger to revisit:** When the UX validates that click-to-select is the right interaction (which we'll learn from the first 5–10 hero projects), prioritize the concrete mapper.
+
+**Owner-of-revisit:** Whoever owns the next atlas-web canvas iteration. Suggested first concrete mapper: TS + Next.js App Router (the dominant Atlas template).
+
+---
+
 ## How to use this file
 
 - **When picking up a deferral:** delete its section once the work merges. Don't leave "completed" entries; this file is current state, not history.
