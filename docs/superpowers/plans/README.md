@@ -25,7 +25,7 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 9 | `2026-04-20-conductor-llm-abstraction.md` | **D.1 — Conductor + LLM Provider Abstraction** | `@atlas/llm-provider` (Anthropic + Google stub, retry, circuit breaker, OTel + Prom metrics) and `@atlas/conductor` (thin dispatcher, 3-tier prompt-cache, graph-slice hash, checkpoint-based retry, escalation) | 22 tasks, TDD | Shipped (merged d641404) |
 | 10 | `2026-04-20-role-architect.md` | **D.2 — Architect role** | Two-pass ritual-authoring: Haiku triage (ambiguity report) → Opus deep plan (scope-variant output); implements `Role` from `@atlas/conductor`; `llm-provider` `completeWithToolUse` extension | 18 tasks, TDD | Shipped (merged 8d59190) |
 | 11 | `2026-04-21-role-developer.md` | **D.3 — Developer role (parallel Sonnet+Gemini + Reviewer voting)** | Parallel two-provider code-gen + Reviewer pass; real `GoogleProvider` (Gemini SDK + tool-use); walkover semantics + BothProvidersFailedError | 17 tasks, TDD | Shipped (merged e8a7902) |
-| 11b | `2026-04-21-role-security.md` | **D.4 — Security role (L4 merge gate)** | Dual-interface: `Role` + `GateRunner`; Opus 4.7; 4 composed skills (audit-rls, cors-policy, secrets-scan, cve-check); `SecurityReport` with critical→passed=false constraint; concrete L4 runner for G.1 scheduler | 13 tasks, TDD | Shipped (pending merge) |
+| 11b | `2026-04-21-role-security.md` | **D.4 — Security role (L4 merge gate)** | Dual-interface: `Role` + `GateRunner`; Opus 4.7; 4 composed skills (audit-rls, cors-policy, secrets-scan, cve-check); `SecurityReport` with critical→passed=false constraint; concrete L4 runner for G.1 scheduler | 13 tasks, TDD | Shipped (merged ccccd7d) |
 | 12 | `2026-04-20-ritual-engine.md` | **E.1 — Ritual Engine (headless)** | RitualEngine state machine for Visualize→Agree→Build, persona-tiered approval, RiskAccepted Zod with persona gate, cosmetic-edit fast path | 16 tasks, TDD | Shipped (merged d8f1808) |
 | 12 | `2026-04-20-bootstrap-checkpoint.md` | **F.1 — Bootstrap Checkpoint + Risk-Accept Gates** | 6-item per-project sanity checklist intercepting first ritual; persona-tiered renderer; bootstrap_checkpoints DB table; escalation_requested escape hatch | 16 tasks, TDD | Shipped (merged 272e73d) |
 | 13 | `2026-04-20-edit-classifier-gate-scheduler.md` | **G.1 — Edit Classifier + Gate Scheduler** | Deterministic edit-tier classifier (cosmetic/structural/SC-touching); sync-async gate scheduler per PRD §11.4; auto-rollback on critical issues; 3 user resolutions (retry/undo/risk-accept) | 20 tasks, TDD | Shipped (merged 5585f69 + c2641bb follow-up) |
@@ -54,7 +54,7 @@ Phase A is complete when ALL of the following plans are merged to `main`:
 - [x] D.1 — Conductor + LLM Provider Abstraction (`d641404`)
 - [x] D.2 — Architect role (`8d59190`)
 - [x] D.3 — Developer role (parallel Sonnet+Gemini + Reviewer voting) (`e8a7902`)
-- [x] D.4 — Security role (L4 merge gate) (pending merge)
+- [x] D.4 — Security role (L4 merge gate) (`ccccd7d`)
 - [x] E.1 — Ritual Engine (headless) (`d8f1808`)
 - [x] E.2 — Atlas Web Scaffold + Canvas view (`73c3fbd` + `58f7bd4`)
 - [x] E.3 — Atlas Web Code view + Monaco integration (`6142fa0`)
