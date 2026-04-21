@@ -35,3 +35,4 @@ export {
 
 export { BootstrapRepo, type BootstrapRecord } from "./repo/bootstrap-repo.js";
 export { PreferencesRepo, type PersonaOverride } from "./repo/preferences-repo.js";
+export { SandboxSpendRepo, type SpendRecord } from "./repo/sandbox-spend-repo.js";

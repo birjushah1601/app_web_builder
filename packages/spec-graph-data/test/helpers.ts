@@ -6,5 +6,7 @@ export function uniqueProjectId(): string {
 }
 
 export async function truncateAllTables(db: Database): Promise<void> {
-  await db.pool.query("TRUNCATE spec_graphs, spec_events, spec_snapshots RESTART IDENTITY CASCADE");
+  await db.pool.query(
+    "TRUNCATE spec_graphs, spec_events, spec_snapshots, sandbox_spend_log RESTART IDENTITY CASCADE"
+  );
 }
