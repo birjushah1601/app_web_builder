@@ -4,8 +4,15 @@ import { z } from "zod";
 export const SandboxIdSchema = z.string().min(1).brand("SandboxId");
 export type SandboxId = z.infer<typeof SandboxIdSchema>;
 
-/** The two Atlas prebuilt E2B templates (from A.1 Compose stack). */
-export const TemplateIdSchema = z.enum(["atlas-next-ts", "atlas-python-fastapi"]);
+/** Atlas prebuilt E2B templates. v1.0 shipped 2; v1.1 (B-4) adds 4 more. */
+export const TemplateIdSchema = z.enum([
+  "atlas-next-ts",
+  "atlas-python-fastapi",
+  "atlas-react-vite",
+  "atlas-astro",
+  "atlas-sveltekit",
+  "atlas-expo"
+]);
 export type TemplateId = z.infer<typeof TemplateIdSchema>;
 
 export const SandboxStatusSchema = z.enum(["provisioning", "running", "terminated", "error"]);

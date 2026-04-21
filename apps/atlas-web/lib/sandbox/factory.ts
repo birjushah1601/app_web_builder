@@ -62,13 +62,22 @@ export class SandboxFactory {
       this.config.defaultTemplate,
       projectId
     );
-    const defaultPort = this.config.defaultTemplate === "atlas-next-ts" ? 3000 : 8000;
+    const defaultPort = TEMPLATE_DEFAULT_PORTS[this.config.defaultTemplate];
     // For the factory, derive preview URL from the sandbox record's previewBaseUrl
     // (set by E2BLifecycle.provision via E2B's getHost) or fall back to a placeholder.
     const previewUrl = record.previewBaseUrl ?? `https://${defaultPort}-${record.sandboxId}.e2b.app`;
     return { record, previewUrl };
   }
 }
+
+const TEMPLATE_DEFAULT_PORTS: Record<TemplateId, number> = {
+  "atlas-next-ts": 3000,
+  "atlas-python-fastapi": 8000,
+  "atlas-react-vite": 5173,
+  "atlas-astro": 4321,
+  "atlas-sveltekit": 5173,
+  "atlas-expo": 8081
+};
 
 // Module-level singletons — Next.js server-side; constructed lazily on first import.
 let _factory: SandboxFactory | null = null;
@@ -97,6 +106,10 @@ export function getSandboxFactory(): SandboxFactory {
         templateDigests: {
           "atlas-next-ts": process.env.E2B_TEMPLATE_NEXT_TS_DIGEST ?? "",
           "atlas-python-fastapi": process.env.E2B_TEMPLATE_PYTHON_FASTAPI_DIGEST ?? "",
+          "atlas-react-vite": process.env.E2B_TEMPLATE_REACT_VITE_DIGEST ?? "",
+          "atlas-astro": process.env.E2B_TEMPLATE_ASTRO_DIGEST ?? "",
+          "atlas-sveltekit": process.env.E2B_TEMPLATE_SVELTEKIT_DIGEST ?? "",
+          "atlas-expo": process.env.E2B_TEMPLATE_EXPO_DIGEST ?? "",
         },
       }),
       spendReader: getSpendReader(),
