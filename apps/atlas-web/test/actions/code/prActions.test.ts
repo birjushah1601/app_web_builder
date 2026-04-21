@@ -73,6 +73,7 @@ describe("openPr", () => {
 
   it("includes a TODO(E.4) comment for the sandbox git-push step", async () => {
     // Verify the Server Action source contains the stub comment
+    // @ts-expect-error — ?raw imports are not typed in this environment
     const src = await import("../../../lib/actions/code/openPr.js?raw").catch(() => null);
     // If raw import not supported, skip — the comment check is a lint/grep concern
     expect(true).toBe(true); // placeholder assertion; manual verification required

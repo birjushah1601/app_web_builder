@@ -3,6 +3,7 @@
 import React, { useCallback } from "react";
 import dynamic from "next/dynamic";
 import { saveFile } from "../../lib/actions/code/saveFile.js";
+import type { EditClass } from "@atlas/ritual-engine";
 
 // Monaco depends on browser globals — must be loaded with ssr: false
 const MonacoEditorWrapper = dynamic(
@@ -31,7 +32,7 @@ export function MonacoPane({ projectId, filePath, content, language }: MonacoPan
     }: {
       content: string;
       filePath: string;
-      editClass: "cosmetic" | "structural";
+      editClass: EditClass;
     }) => {
       // 1. Persist through spec-graph-sync
       await saveFile({ projectId, filePath: fp, content: newContent });

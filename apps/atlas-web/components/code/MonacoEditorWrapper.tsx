@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { classifyEdit } from "../../lib/code/editClassifier.js";
+import type { EditClass } from "@atlas/ritual-engine";
 
 export interface MonacoEditorWrapperProps {
   projectId: string;
@@ -10,7 +11,7 @@ export interface MonacoEditorWrapperProps {
   initialContent: string;
   language: string;
   readOnly?: boolean;
-  onSave?: (args: { content: string; filePath: string; editClass: "cosmetic" | "structural" }) => void;
+  onSave?: (args: { content: string; filePath: string; editClass: EditClass }) => void;
 }
 
 /**
