@@ -29,7 +29,7 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 13 | `2026-04-20-edit-classifier-gate-scheduler.md` | **G.1 — Edit Classifier + Gate Scheduler** | Deterministic edit-tier classifier (cosmetic/structural/SC-touching); sync-async gate scheduler per PRD §11.4; auto-rollback on critical issues; 3 user resolutions (retry/undo/risk-accept) | 20 tasks, TDD | Shipped (merged 5585f69 + c2641bb follow-up) |
 | 14 | `2026-04-20-latency-harness.md` | **G.2 — Latency Harness + Regression Alerting** | Per-tier P50/P95 sliding-window measurement; Prometheus histogram export; budget alerts on N consecutive over-budget windows | 11 tasks, TDD | Shipped (merged 0006100) |
 | 15 | `2026-04-20-atlas-web-canvas.md` | **E.2 — Atlas Web Scaffold + Canvas view** | Next.js 15 + Clerk + Tailwind + React Flow Canvas; Server Actions for start/approve/accept-risk/escalate; persona toggle (per-project override); Code view stub for E.3 | 19 tasks, TDD | Shipped (merged 73c3fbd + 58f7bd4 follow-up) |
-| 16 | `2026-04-20-atlas-web-code-monaco.md` | **E.3 — Atlas Web Code view + Monaco** | Monaco editor wrapper, file tree, PR pane (Octokit), terminal + test runner stubs (E.4 wires real sandbox) | 17 tasks, TDD | Ready to execute (after E.2) |
+| 16 | `2026-04-20-atlas-web-code-monaco.md` | **E.3 — Atlas Web Code view + Monaco** | Monaco editor wrapper, file tree, PR pane (Octokit), terminal + test runner stubs (E.4 wires real sandbox) | 17 tasks, TDD | Shipped (merged on branch phase-a/unit-e3-monaco) |
 | 17 | `2026-04-20-e2b-sandbox-preview.md` | **E.4 — E2B Sandbox + Preview** | `packages/sandbox-e2b/` (lifecycle/FS/exec/preview); HMR iframe + multi-viewport + shareable URL; replaces E.3 stubs with real sandbox | 21 tasks, TDD | Ready to execute (after E.3) |
 | 18 | `2026-04-20-ritual-integration-tests.md` | **E.5 — Ritual Integration Tests** | Playwright e2e for Ama/Diego/Priya flows; bootstrap-checkpoint exercise; latency assertion; drift recovery; PR + multi-viewport | 16 tasks, e2e | Ready to execute (after E.4) |
 | 19 | `2026-04-18-phase-a-units-b-through-g.md` | **Phase A Units B–G** directional | Schema+Validation (B), Skill Framework (C), Conductor+Roles (D), Ritual+UX (E), Bootstrap checkpoint (F), Edit-tiering (G) | Milestone-level; sub-plans authored at T-minus-3-weeks | Directional |
@@ -59,7 +59,11 @@ A.1 (Plans[1])
                            ├─ F.1 (Plans[12]) — Bootstrap Checkpoint + Risk-Accept Gates
                            ├─ G.1 (Plans[13]) — Edit Classifier + Gate Scheduler
                            │    └─ G.2 (Plans[14]) — Latency Harness + Regression Alerting
-                           └─ E.2 (Plans[15]) — Atlas Web Scaffold + Canvas view
+                           └─ Unit E — Ritual + UX
+                                ├─ E.2 (Plans[15]) — Atlas Web Scaffold + Canvas view
+                                ├─ E.3 (Plans[16]) — Atlas Web Code view + Monaco      ← shipped
+                                └─ E.4 (Plans[17]) — E2B Sandbox + Preview (after E.3)
+                                     └─ E.5 (Plans[18]) — Ritual Integration Tests (after E.4)
 ```
 
 - **A.1 is the critical path.** Start here. Nothing else begins until `@atlas/spec-graph-data` is published.
