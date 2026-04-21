@@ -31,7 +31,7 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 15 | `2026-04-20-atlas-web-canvas.md` | **E.2 — Atlas Web Scaffold + Canvas view** | Next.js 15 + Clerk + Tailwind + React Flow Canvas; Server Actions for start/approve/accept-risk/escalate; persona toggle (per-project override); Code view stub for E.3 | 19 tasks, TDD | Shipped (merged 73c3fbd + 58f7bd4 follow-up) |
 | 16 | `2026-04-20-atlas-web-code-monaco.md` | **E.3 — Atlas Web Code view + Monaco** | Monaco editor wrapper, file tree, PR pane (Octokit), terminal + test runner stubs (E.4 wires real sandbox) | 17 tasks, TDD | Shipped (merged 6142fa0) |
 | 17 | `2026-04-20-e2b-sandbox-preview.md` | **E.4 — E2B Sandbox + Preview** | `packages/sandbox-e2b/` (SandboxLifecycle/FileSystem/Exec/Preview + spend-cap helper) + atlas-web HMR iframe, viewport toggle, shareable URL, terminal + test runner sandbox wiring | 21 tasks, TDD | Shipped (merged 9f31e9a) |
-| 18 | `2026-04-20-ritual-integration-tests.md` | **E.5 — Ritual Integration Tests** | Playwright e2e for Ama/Diego/Priya flows; bootstrap-checkpoint exercise; latency assertion; drift recovery; PR + multi-viewport | 16 tasks, e2e | Shipped (pending merge) |
+| 18 | `2026-04-20-ritual-integration-tests.md` | **E.5 — Ritual Integration Tests** | Playwright e2e for Ama/Diego/Priya flows; bootstrap-checkpoint exercise; latency assertion; drift recovery; PR + multi-viewport | 16 tasks, e2e | Shipped (merged 7c001ee) |
 | 19 | `2026-04-18-phase-a-units-b-through-g.md` | **Phase A Units B–G** directional | Schema+Validation (B), Skill Framework (C), Conductor+Roles (D), Ritual+UX (E), Bootstrap checkpoint (F), Edit-tiering (G) | Milestone-level; sub-plans authored at T-minus-3-weeks | Directional |
 | 20 | `2026-04-18-phases-b-through-f-roadmap.md` | **Phases B–F** directional | Build polish + Migrate alpha (B), Run GA (C), Sovereign (D), Migrate GA (E), Brownfield (F) | Milestone-level with entry/exit criteria | Directional |
 
@@ -41,24 +41,24 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 
 Phase A is complete when ALL of the following plans are merged to `main`:
 
-- [ ] A.1 — Spec Graph data layer
-- [ ] A.2 — File ↔ mirror sync daemon
-- [ ] A.3 — Custom Git merge driver
-- [ ] A.4 — Compaction + offline mode
-- [ ] B.1 — Spec Graph Schema
-- [ ] B.2 — Python bindings
-- [ ] C.1 — Skill Runtime
-- [ ] C.2 — Starter Skill Library + OSS pipeline
-- [ ] D.1 — Conductor + LLM Provider Abstraction
-- [ ] D.2 — Architect role
-- [ ] E.1 — Ritual Engine (headless)
-- [ ] E.2 — Atlas Web Scaffold + Canvas view *(plan not yet authored)*
-- [ ] E.3 — Atlas Web Code view + Monaco integration *(plan not yet authored)*
-- [ ] E.4 — E2B Sandbox + Preview *(plan not yet authored)*
-- [ ] **E.5 — Ritual Integration Tests** ← final Phase A gate
-- [ ] F.1 — Bootstrap Checkpoint + Risk-Accept Gates
-- [ ] G.1 — Edit Classifier + Gate Scheduler
-- [ ] G.2 — Latency Harness + Regression Alerting
+- [x] A.1 — Spec Graph data layer (`398c539`)
+- [x] A.2 — File ↔ mirror sync daemon (`05bf3c8`)
+- [x] A.3 — Custom Git merge driver (`edd3769`)
+- [x] A.4 — Compaction + offline mode (`cef6a41`)
+- [x] B.1 — Spec Graph Schema (`c7ab760`)
+- [x] B.2 — Python bindings (`e412268`)
+- [x] C.1 — Skill Runtime (`78bdd79`)
+- [x] C.2 — Starter Skill Library + OSS pipeline (`d163544`)
+- [x] D.1 — Conductor + LLM Provider Abstraction (`d641404`)
+- [x] D.2 — Architect role (`8d59190`)
+- [x] E.1 — Ritual Engine (headless) (`d8f1808`)
+- [x] E.2 — Atlas Web Scaffold + Canvas view (`73c3fbd` + `58f7bd4`)
+- [x] E.3 — Atlas Web Code view + Monaco integration (`6142fa0`)
+- [x] E.4 — E2B Sandbox + Preview (`9f31e9a`)
+- [x] **E.5 — Ritual Integration Tests** ← final Phase A gate (`7c001ee`)
+- [x] F.1 — Bootstrap Checkpoint + Risk-Accept Gates (`272e73d`)
+- [x] G.1 — Edit Classifier + Gate Scheduler (`5585f69` + `c2641bb`)
+- [x] G.2 — Latency Harness + Regression Alerting (`0006100`)
 
 When all boxes are checked: cut the `phase-a/complete` tag on `main` and open the Phase B kickoff issue.
 
