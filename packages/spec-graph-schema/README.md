@@ -1,6 +1,6 @@
 # @atlas/spec-graph-schema
 
-The canonical schema for the Atlas Spec Graph: 14 node types, 13 edge types, 14 structural invariants.
+The canonical schema for the Atlas Spec Graph: 19 node types, 16 edge types, 16 structural invariants. (v1.1 — 2026-04-21; schemaVersion is an enum `"1.0.0" | "1.1.0"` so v1.0 graphs remain valid.)
 
 This is the **typed contract** that every Atlas surface reads — skill framework, conductor, merge gates, the Atlas backend, the public OSS skill library. It carries no runtime dependencies beyond Zod and exposes a pure `validate()` function.
 
@@ -36,15 +36,19 @@ const graph: SpecGraph = SpecGraphSchema.parse(someJson);
 - `ALL_INVARIANTS` — the array of invariant functions, importable for partial runs
 - A JSON Schema 2020-12 artifact at `dist/schema/spec-graph.v1.schema.json` for non-TS consumers (Python, Go, generated tooling)
 
-## Node types (14)
+## Node types (19)
 
-`Page` · `Route` · `Component` · `ClientState` · `Model` · `Endpoint` · `Flow` · `AuthBoundary` · `Test` · `DesignToken` · `Dependency` · `ComplianceClass` · `AIFeature` · `MediaAsset`
+**Core (14):** `Page` · `Route` · `Component` · `ClientState` · `Model` · `Endpoint` · `Flow` · `AuthBoundary` · `Test` · `DesignToken` · `Dependency` · `ComplianceClass` · `AIFeature` · `MediaAsset`
 
-## Edge types (13)
+**v1.1 infra (5):** `Region` · `DataResidency` · `Runtime` · `Provider` · `WorkloadTopology`
 
-`renders` · `fetches` · `reads` · `mutates` · `requires` · `covers` · `dependsOn` · `styledBy` · `subjectTo` · `supersedes` · `powers` · `displays` · `manages`
+## Edge types (16)
 
-## Structural invariants (14)
+**Core (13):** `renders` · `fetches` · `reads` · `mutates` · `requires` · `covers` · `dependsOn` · `styledBy` · `subjectTo` · `supersedes` · `powers` · `displays` · `manages`
+
+**v1.1 infra (3):** `runsOn` · `storesDataIn` · `migratesTo`
+
+## Structural invariants (16)
 
 | # | Code | Summary |
 |---|---|---|
@@ -62,6 +66,8 @@ const graph: SpecGraph = SpecGraphSchema.parse(someJson);
 | I12 | `I12_PII_CLIENTSTATE_MISSING_COMPLIANCE` | ClientState with PII needs a ComplianceClass. |
 | I13 | `I13_PROTECTED_TARGET_MISSING_BASELINE_TEST` | AuthBoundaries, PII Models, and non-baseline ComplianceClasses each need at least one Test with `source: "baseline"`. |
 | I14 | `I14_MEDIAASSET_KIND_PHASE_B` | MediaAsset.kind must be one of `image`, `icon`, `illustration` in v1. |
+| I15 | `I15_WORKLOAD_TOPOLOGY_REFERENCES_INVALID` | v1.1 — every WorkloadTopology `providerRefs` / `regionRefs` must resolve to an existing Provider / Region node. |
+| I16 | `I16_PII_MODEL_MISSING_STORES_DATA_IN` | v1.1 — in graphs containing Region/DataResidency nodes, every PII Model must have a `storesDataIn` edge. |
 
 ## Wire-up with `@atlas/spec-graph-data`
 
