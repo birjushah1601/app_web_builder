@@ -16,6 +16,8 @@
     "py:gen": "node tools/sync-schema-artifact.mjs && node tools/generate-pydantic.mjs",
     "py:check": "pnpm run py:gen && git diff --exit-code -- packages/spec-graph-schema-py/src/spec_graph_schema/models.py packages/spec-graph-schema-py/src/spec_graph_schema/schema/",
     "py:test": "cd packages/spec-graph-schema-py && uv run pytest",
-    "validate:skills": "pnpm -F @atlas/skill-library validate"
+    "validate:skills": "pnpm -F @atlas/skill-library validate",
+    "tg:baseline": "node tools/test-gen-cli.mjs baseline",
+    "tg:drift": "node tools/test-gen-cli.mjs drift check"
   }
 }
