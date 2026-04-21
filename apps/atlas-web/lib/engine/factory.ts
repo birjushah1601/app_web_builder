@@ -1,8 +1,8 @@
 import { cache } from "react";
 import { Conductor } from "@atlas/conductor";
 import { RitualEngine } from "@atlas/ritual-engine";
-import { ClerkPersonaPreferences } from "./persona-prefs.js";
-import { SpecEventsSink } from "./event-sink.js";
+import { ClerkPersonaPreferences } from "./persona-prefs";
+import { SpecEventsSink } from "./event-sink";
 
 /** Lazy + per-request cached. Real DB client + Conductor wiring happens here. */
 export const getRitualEngine = cache(async (projectId: string): Promise<RitualEngine> => {

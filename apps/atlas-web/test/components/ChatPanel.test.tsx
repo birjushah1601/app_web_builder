@@ -10,6 +10,6 @@ describe("ChatPanel", () => {
     await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "add login");
     await userEvent.click(screen.getByRole("button", { name: /Send/i }));
     expect(onSend).toHaveBeenCalledOnce();
-    expect(onSend.mock.calls[0][0]).toBe("add login");
+    expect(onSend).toHaveBeenCalledWith("add login");
   });
 });

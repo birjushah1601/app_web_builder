@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { ClerkProvider, SignedIn, UserButton } from "@clerk/nextjs";
 import "./globals.css";
 
+// Prevent static prerendering — Clerk requires runtime auth context.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Atlas",
   description: "AI Builder — Visualize · Agree · Build"

@@ -13,8 +13,7 @@ describe("startRitual action", () => {
     const r = await startRitual({ projectId: "p-1", userTurn: "add forgot-password", editClass: "structural" });
     expect(r).toBe("r-123");
     expect(start).toHaveBeenCalledOnce();
-    const arg = start.mock.calls[0][0];
-    expect(arg).toMatchObject({ userTurn: "add forgot-password", editClass: "structural", projectId: "p-1", userId: "u-1" });
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({ userTurn: "add forgot-password", editClass: "structural", projectId: "p-1", userId: "u-1" }));
   });
 
   it("rejects unauthed callers", async () => {

@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { getRitualEngine } from "@/lib/engine/factory.js";
+import { getRitualEngine } from "@/lib/engine/factory";
 import type { PersonaTier } from "@atlas/ritual-engine";
 
 export interface AcceptRiskInput {
