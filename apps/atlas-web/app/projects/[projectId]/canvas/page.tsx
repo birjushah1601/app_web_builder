@@ -1,6 +1,6 @@
-import { CanvasClient } from "@/components/CanvasClient.js";
-import { ChatPanel } from "@/components/ChatPanel.js";
-import { startRitual } from "@/lib/actions/startRitual.js";
+import { CanvasClient } from "@/components/CanvasClient";
+import { ChatPanel } from "@/components/ChatPanel";
+import { startRitual } from "@/lib/actions/startRitual";
 
 export default async function CanvasPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;

@@ -1,5 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import type { AuthProvider } from "./provider.js";
+import type { AuthProvider } from "./provider";
 
 export class ClerkAuthProvider implements AuthProvider {
   async getCurrentUserId(): Promise<string | null> {
