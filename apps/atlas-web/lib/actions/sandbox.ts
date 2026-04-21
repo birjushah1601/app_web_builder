@@ -11,10 +11,10 @@ const CreateShareableUrlInputSchema = z.object({
   sandboxId: z.string().min(1),
   accessMode: AccessModeSchema,
   passwordPlaintext: z.string().min(1).optional(),
-  expiresInHours: z.number().int().min(1).max(720).default(24),
+  expiresInHours: z.number().int().min(1).max(720).optional().default(24),
 });
 
-export type CreateShareableUrlInput = z.infer<typeof CreateShareableUrlInputSchema>;
+export type CreateShareableUrlInput = z.input<typeof CreateShareableUrlInputSchema>;
 
 export interface ShareableUrlResult {
   url: string;
