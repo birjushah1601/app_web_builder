@@ -100,7 +100,7 @@ export class GoogleProvider implements LLMProvider {
       const calls = resp.response.functionCalls?.() ?? [];
       const first = calls[0];
       if (!first) {
-        throw new InvalidRequestError("expected functionCall response, got plain text or empty");
+        throw new InvalidRequestError("expected tool/functionCall response, got plain text or empty");
       }
       return {
         toolName: first.name,
