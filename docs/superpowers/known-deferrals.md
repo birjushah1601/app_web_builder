@@ -120,13 +120,13 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 
 ---
 
-## D9. Postgres-branching adapter (Neon replacement)
+## D9. Postgres-branching adapter — schema-per-branch implementation
 
-**What:** ADR-001 replaces Neon with plain OSS Postgres. Neon's killer feature was per-branch ephemeral databases. We need an equivalent: a `BranchingPostgresAdapter` interface with at least one concrete implementation (schema-per-branch is the cheap path; container-per-branch is the clean-isolation path).
+**What:** ADR-001 §3 (resolved 2026-04-22) chose **schema-per-branch with migration scripts**. Need a `BranchingPostgresAdapter` package that wraps `CREATE SCHEMA branch_<id>; SET search_path TO branch_<id>;` and a migrator that replays the existing drizzle migrations against each branch schema.
 
-**Why deferred:** Adapter design is plan-authoring work, not implementation. Needs the open question from ADR-001 §"Open questions" #3 answered first.
+**Why deferred:** Implementation, not decision. Three concrete pieces needed: (a) `packages/postgres-branching/` adapter, (b) extension to `@atlas/spec-graph-data` migrate script that accepts a target schema, (c) lifecycle hook in C-1 deploy orchestrator that creates/drops branch schemas on PR open/close.
 
-**Risk if left:** Phase C-1 (one-click deploy) cannot ship until preview-branch databases work.
+**Risk if left:** C-1 (one-click deploy) cannot ship preview environments.
 
 **Trigger to revisit:** Before authoring the C-1 plan.
 
@@ -134,31 +134,33 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 
 ---
 
-## D10. K8s PaaS layer choice (Vercel replacement)
+## D10. Deploy orchestrator — Argo CD + Knative + cert-manager (Vercel replacement)
 
-**What:** ADR-001 replaces Vercel with own infrastructure on K8s. Need a decision on whether to use an OSS PaaS (Coolify / Dokploy / CapRover) or build a thin orchestration layer over plain K8s + Caddy + a CDN.
+**What:** ADR-001 §1 (resolved 2026-04-22) chose **DIY on K8s with Argo CD + Knative Serving + cert-manager**. Need a `packages/deploy-orchestrator/` that emits Argo CD `Application` manifests + Knative `Service` manifests + cert-manager `Certificate` manifests for each Atlas Run deployment. Cloudflare handles the edge (TLS termination, WAF, DDoS) — outside the K8s control plane.
 
-**Why deferred:** This is an architecture-investigation task, not implementation. ADR-001 §"Open questions" #1.
+**Why deferred:** Implementation work blocking C-1. Needs (a) the orchestrator package, (b) a baseline Helm chart at `deploy/atlas-helm/` for the Atlas Run target cluster, (c) Cloudflare zone-config glue for per-app DNS records.
 
-**Risk if left:** C-1 (one-click deploy) cannot be scoped without this decision.
+**Risk if left:** C-1 (one-click deploy) is undeliverable.
 
-**Trigger to revisit:** Before authoring the C-1 plan.
+**Trigger to revisit:** When C-1 plan authoring begins.
 
-**Owner-of-revisit:** Founder + tech lead. Recommend a 1-week spike comparing the three OSS PaaS options + a "DIY on K8s" option.
+**Owner-of-revisit:** Whoever owns C-1 plan authoring. Recommended ordering: build the orchestrator first against a local k3d cluster; then a real cluster deploy in a sovereign-friendly region.
 
 ---
 
-## D11. Own monitoring stack (Sentry replacement)
+## D11. Own monitoring stack — two layers per ADR-001 §4 (resolved)
 
-**What:** ADR-001 replaces Sentry with an own-monitoring stack: OpenTelemetry collector + Prometheus + Grafana + Loki + a Sentry-compatible OSS error sink (GlitchTip is the candidate). Needs concrete deployment + Atlas integration plan.
+**What:** ADR-001 §4 (resolved 2026-04-22) chose two layers:
+- **Platform telemetry:** OpenTelemetry collector + Prometheus + Grafana + Loki. Aligns with existing `prom-client` patterns in `role-*` packages.
+- **User-app exception capture:** GlitchTip (Sentry-protocol-compatible OSS), bundled into the Atlas Run deploy template with `SENTRY_DSN` preconfigured. Users opt out via env.
 
-**Why deferred:** Decision-and-deploy task, not implementation in atlas-web. ADR-001 §"Open questions" #4.
+**Why deferred:** Implementation work blocking C-2. Needs (a) Helm-chart values for the Grafana/Loki/Prom/OTel stack, (b) GlitchTip Helm install, (c) deploy-template patches that inject the SDK + DSN, (d) atlas-web Run dashboard widgets backed by Grafana data sources.
 
-**Risk if left:** C-2 (Atlas Run observability dashboard) cannot ship without telemetry pipes wired.
+**Risk if left:** C-2 (Atlas Run observability dashboard) is undeliverable.
 
-**Trigger to revisit:** Before authoring the C-2 plan.
+**Trigger to revisit:** When C-2 plan authoring begins.
 
-**Owner-of-revisit:** Whoever owns C-2 plan authoring. The `prom-client` patterns already in role-* packages give a starting point.
+**Owner-of-revisit:** Whoever owns C-2 plan authoring. The `prom-client` patterns already in `role-*` packages give a starting point for the platform layer.
 
 ---
 

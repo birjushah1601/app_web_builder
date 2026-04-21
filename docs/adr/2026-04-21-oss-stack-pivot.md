@@ -48,14 +48,23 @@ A platform whose pitch is sovereignty cannot simultaneously default to closed-Sa
 - C-1 (one-click deploy) shifts from "wire Vercel" to "build a deploy orchestrator over our own K8s + CDN". Larger scope; accept the slip.
 - D-5 (Atlas Sovereign Helm chart) gets faster because the OSS-first stack is the same chart used for hosted Atlas.
 
-## Open questions
+## Decisions resolved 2026-04-22
 
-1. **Which K8s PaaS layer?** Coolify, Dokploy, CapRover, or roll-our-own. Decision before C-1 plan authoring.
-2. **CDN choice.** Caddy + Cloudflare-OSS, or BunnyCDN, or self-hosted Varnish at the regional partners. Decision before C-2 plan authoring.
-3. **Postgres branching strategy.** Schema-per-branch is cheap but leaks shared catalog locks. Container-per-branch is clean but expensive. Hybrid (schema-per-dev-branch, container-per-prod-branch) is likely correct. Decision before the Postgres-branching adapter plan.
-4. **GlitchTip vs roll-our-own error sink.** Decision before C-2 plan authoring.
+1. **K8s PaaS layer → DIY on K8s with Argo CD (GitOps) + Knative Serving (workloads, scale-to-zero) + cert-manager (TLS).**
+   *Rationale:* Atlas owns the user-facing UX (Canvas/Code/Build); a Coolify/Dokploy UI underneath is dead weight. Sovereign customers expect a Helm chart — that's K8s primitives natively. Knative's scale-to-zero pairs cleanly with the schema-per-branch DB strategy: per-branch preview environments cost nothing when idle.
+   *Trade-off accepted:* higher upfront ops vs no future migration when the sovereign Helm chart ships.
 
-These are **plan-authoring questions**, not implementation blockers — they need answers before the relevant Phase C plan is written.
+2. **CDN → Cloudflare.**
+   *Decided directly by founder.* Atlas owns nothing at the edge layer; Cloudflare handles TLS termination, DDoS, image transforms, and WAF. Outside the K8s control plane.
+
+3. **Postgres branching → schema-per-branch with migration scripts.**
+   *Decided directly by founder.* Each branch lives in its own Postgres `schema` within a shared cluster. Migration scripts replay against each branch schema independently. Cheap; well-understood. Catalog lock contention is a Phase D operational risk, not a Phase C blocker.
+
+4. **Error sink → two layers, two purposes:**
+   - **Platform monitoring** (LLM call timings, ritual events, gate runs, role events): OpenTelemetry + Prometheus + Grafana + Loki. Already aligned with the existing `prom-client` patterns in `role-*` packages.
+   - **User-app exception capture** (apps deployed via Atlas Run get a Sentry-compatible SDK): GlitchTip. Drop-in for the Sentry SDK, OSS, no lock-in. Bundled into the deploy template; users opt out via env.
+
+   *Rationale:* platform telemetry is structured + dashboard-driven (Grafana wins). User-app exceptions need stack traces + breadcrumbs + session replay (the Sentry shape; GlitchTip implements the same protocol without the SaaS lock-in).
 
 ## Implementation today (this commit)
 
