@@ -1,8 +1,8 @@
 // apps/atlas-web/e2e/fixtures/with-fresh-project.ts
 import { test as base, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { Pool } from "pg";
 import { Sandbox } from "@e2b/sdk";
-import { SpecGraphRepo } from "@atlas/spec-graph-data";
 import { PERSONA_STORAGE_STATE, type Persona } from "./personas.js";
 import { minimalSeed, insertSeed, deleteSeed } from "./spec-graph-seeds.js";
 
@@ -33,8 +33,8 @@ export function makeFreshProjectTest(opts: FreshProjectOptions = {}) {
       const name = `${projectName}-${projectId.slice(0, 8)}`;
 
       // Provision DB row
-      const repo = new SpecGraphRepo(process.env.DATABASE_URL!);
-      await insertSeed(repo, minimalSeed(projectId, name));
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+      await insertSeed(pool, minimalSeed(projectId, name));
 
       // Provision E2B sandbox
       let sandbox: Sandbox | null = null;
@@ -53,7 +53,8 @@ export function makeFreshProjectTest(opts: FreshProjectOptions = {}) {
       if (sandbox) {
         await sandbox.kill().catch(() => { /* non-fatal */ });
       }
-      await deleteSeed(repo, projectId).catch(() => { /* non-fatal */ });
+      await deleteSeed(pool, projectId).catch(() => { /* non-fatal */ });
+      await pool.end().catch(() => { /* non-fatal */ });
     },
   });
 }

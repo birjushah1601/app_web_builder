@@ -1,5 +1,6 @@
 // apps/atlas-web/e2e/tests/pr-flow.spec.ts
 import { expect } from "@playwright/test";
+import { Pool } from "pg";
 import { SpecGraphRepo } from "@atlas/spec-graph-data";
 import { makeFreshProjectTest } from "../fixtures/index.js";
 
@@ -27,9 +28,14 @@ test.describe("Diego: Code view edit → PR pane → merge → Spec Graph persis
     await expect(prPane.getByTestId("pr-status")).toHaveText(/merged/i, { timeout: 30_000 });
 
     // Verify Spec Graph mutation persisted in Postgres
-    const repo = new SpecGraphRepo(process.env.DATABASE_URL!);
-    const graph = await repo.findByProjectId(projectId);
-    expect(graph).not.toBeNull();
-    expect((graph!.nodes as Record<string, { title: string }>)["page:home"].title).toBe("Welcome — Updated");
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+    const repo = new SpecGraphRepo(pool);
+    const row = await repo.findByProjectId(projectId);
+    await pool.end();
+
+    expect(row).not.toBeNull();
+    // graphData is the raw JSONB blob — cast to access the nested nodes
+    const graphData = row!.graphData as { nodes: Record<string, { title: string }> };
+    expect(graphData.nodes["page:home"].title).toBe("Welcome — Updated");
   });
 });

@@ -1,4 +1,5 @@
 // apps/atlas-web/e2e/fixtures/spec-graph-seeds.ts
+import { Pool } from "pg";
 import { SpecGraphRepo } from "@atlas/spec-graph-data";
 import type { SpecGraph } from "@atlas/spec-graph-schema";
 
@@ -25,6 +26,7 @@ export function minimalSeed(projectId: string, name: string): SpecGraph {
         path: "/",
         title: "Home",
         renderMode: "ssr",
+        authRequired: false,
         routeRef: "GET /",
       },
     },
@@ -32,10 +34,11 @@ export function minimalSeed(projectId: string, name: string): SpecGraph {
   };
 }
 
-export async function insertSeed(repo: SpecGraphRepo, seed: SpecGraph): Promise<void> {
-  await repo.upsert(seed);
+export async function insertSeed(pool: Pool, seed: SpecGraph): Promise<void> {
+  const repo = new SpecGraphRepo(pool);
+  await repo.create(seed.projectId, seed);
 }
 
-export async function deleteSeed(repo: SpecGraphRepo, projectId: string): Promise<void> {
-  await repo.delete(projectId);
+export async function deleteSeed(pool: Pool, projectId: string): Promise<void> {
+  await pool.query("DELETE FROM spec_graphs WHERE project_id = $1", [projectId]);
 }
