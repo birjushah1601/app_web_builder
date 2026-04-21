@@ -38,6 +38,23 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 18 | `2026-04-20-ritual-integration-tests.md` | **E.5 — Ritual Integration Tests** | Playwright e2e for Ama/Diego/Priya flows; bootstrap-checkpoint exercise; latency assertion; drift recovery; PR + multi-viewport | 16 tasks, e2e | Shipped (merged 7c001ee) |
 | 19 | `2026-04-18-phase-a-units-b-through-g.md` | **Phase A Units B–G** directional | Schema+Validation (B), Skill Framework (C), Conductor+Roles (D), Ritual+UX (E), Bootstrap checkpoint (F), Edit-tiering (G) | Milestone-level; sub-plans authored at T-minus-3-weeks | Directional |
 | 20 | `2026-04-18-phases-b-through-f-roadmap.md` | **Phases B–F** directional | Build polish + Migrate alpha (B), Run GA (C), Sovereign (D), Migrate GA (E), Brownfield (F) | Milestone-level with entry/exit criteria | Directional |
+| 21 | `2026-04-21-spec-graph-v1.1-infra-nodes.md` | **B-1 — Spec Graph v1.1 infra nodes** | 5 new node kinds (Region, DataResidency, Runtime, Provider, WorkloadTopology) + 3 edges (runsOn, storesDataIn, migratesTo) + 2 invariants (I15, I16); schemaVersion enum for backward compat | 15 tasks, TDD | Shipped (merged 0fd9c54) |
+
+---
+
+## Phase B plans
+
+Phase B is **in progress** (kicked off 2026-04-21). Plans are authored as each milestone nears execution.
+
+- [x] B-1 — Spec Graph v1.1 infra nodes (`0fd9c54`)
+- [ ] B-2 — cloud_migration monorepo fusion
+- [ ] B-3 — AST visual edit mode
+- [ ] B-4 — Additional E2B templates
+- [ ] B-5 — Figma importer
+- [ ] B-6 — Video generation adapter
+- [ ] B-7 — Additional compliance classes (PCI-DSS, DPDP-India, LGPD)
+- [ ] B-8 — Browser Verification role (L3 merge gate)
+- [ ] B-9 — Migration Planner alpha
 
 ---
 

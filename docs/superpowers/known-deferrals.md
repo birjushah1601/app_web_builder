@@ -90,6 +90,20 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 
 ---
 
+## D7. Python models.py regeneration for v1.1 schema
+
+**What:** After merging B-1 (Spec Graph v1.1 — 5 new node kinds + 3 edges + 2 invariants), `packages/spec-graph-schema-py/src/spec_graph_schema/models.py` still reflects the v1.0 structure. The JSON Schema + invariant-codes artifacts in the Python package *are* synced to v1.1, so `drift-check` passes; only the generated Pydantic classes lag.
+
+**Why deferred:** `pnpm py:gen` requires `uv` on PATH; the shell that executed B-1 didn't have uv available. Running `pnpm py:gen` from a shell with uv will regenerate models.py deterministically from the shared schema.
+
+**Risk if left:** Python callers that import the new Region / DataResidency / Runtime / Provider / WorkloadTopology Pydantic classes will fail. v1.0 callers are unaffected.
+
+**Trigger to revisit:** Either (a) a Python caller needs the new node kinds, or (b) next scheduled build on a machine with uv.
+
+**Owner-of-revisit:** Whoever next touches `packages/spec-graph-schema-py/`. Command: `pnpm py:gen && pnpm py:check && pnpm py:test` from any shell with `uv` on PATH.
+
+---
+
 ## How to use this file
 
 - **When picking up a deferral:** delete its section once the work merges. Don't leave "completed" entries; this file is current state, not history.
