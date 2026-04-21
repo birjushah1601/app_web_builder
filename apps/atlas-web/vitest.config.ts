@@ -7,7 +7,14 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
-    include: ["test/**/*.test.{ts,tsx}"]
+    include: ["test/**/*.test.{ts,tsx}"],
+    server: {
+      deps: {
+        // pg and next/server are Node-only; let Vite treat them as external
+        // so vi.doMock() interceptions work cleanly in the test environment.
+        external: [/^pg$/, /^next\//]
+      }
+    }
   },
   resolve: {
     alias: { "@": new URL("./", import.meta.url).pathname.replace(/\/$/, "") }
