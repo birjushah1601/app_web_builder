@@ -24,7 +24,7 @@ Plans are the how, at the **task level**. Each executable plan decomposes a deli
 | 8 | `2026-04-20-skill-library.md` | **C.2 — Starter Skill Library + OSS pipeline** | 40 markdown skills grouped by role; frontmatter validator + CI; tag-push release workflow; real `loadBundledSkills()` | 18 tasks, TDD | Shipped (merged d163544) |
 | 9 | `2026-04-20-conductor-llm-abstraction.md` | **D.1 — Conductor + LLM Provider Abstraction** | `@atlas/llm-provider` (Anthropic + Google stub, retry, circuit breaker, OTel + Prom metrics) and `@atlas/conductor` (thin dispatcher, 3-tier prompt-cache, graph-slice hash, checkpoint-based retry, escalation) | 22 tasks, TDD | Shipped (merged d641404) |
 | 10 | `2026-04-20-role-architect.md` | **D.2 — Architect role** | Two-pass ritual-authoring: Haiku triage (ambiguity report) → Opus deep plan (scope-variant output); implements `Role` from `@atlas/conductor`; `llm-provider` `completeWithToolUse` extension | 18 tasks, TDD | Shipped (merged 8d59190) |
-| 11 | `2026-04-20-ritual-engine.md` | **E.1 — Ritual Engine (headless)** | RitualEngine state machine for Visualize→Agree→Build, persona-tiered approval, RiskAccepted Zod with persona gate, cosmetic-edit fast path | 16 tasks, TDD | Ready to execute (after D.2) |
+| 11 | `2026-04-20-ritual-engine.md` | **E.1 — Ritual Engine (headless)** | RitualEngine state machine for Visualize→Agree→Build, persona-tiered approval, RiskAccepted Zod with persona gate, cosmetic-edit fast path | 16 tasks, TDD | Shipped (pending merge — TODO: update SHA post-merge) |
 | 12 | `2026-04-20-bootstrap-checkpoint.md` | **F.1 — Bootstrap Checkpoint + Risk-Accept Gates** | 6-item per-project sanity checklist intercepting first ritual; persona-tiered renderer; bootstrap_checkpoints DB table; escalation_requested escape hatch | 16 tasks, TDD | Ready to execute (after E.1) |
 | 13 | `2026-04-20-edit-classifier-gate-scheduler.md` | **G.1 — Edit Classifier + Gate Scheduler** | Deterministic edit-tier classifier (cosmetic/structural/SC-touching); sync-async gate scheduler per PRD §11.4; auto-rollback on critical issues; 3 user resolutions (retry/undo/risk-accept) | 20 tasks, TDD | Ready to execute (after E.1) |
 | 14 | `2026-04-20-latency-harness.md` | **G.2 — Latency Harness + Regression Alerting** | Per-tier P50/P95 sliding-window measurement; Prometheus histogram export; budget alerts on N consecutive over-budget windows | 11 tasks, TDD | Ready to execute (after G.1) |
@@ -55,9 +55,10 @@ A.1 (Plans[1])
                  ├─ D.2 (Plans[10], shipped) — Architect role
                  ├─ Unit C continues — C.2 + C.3 (from Plans[11] Unit C)
                  └─ Unit D continues — D.3..D.5 role plans (from Plans[11] Unit D)
-                      └─ Unit E — Ritual + UX [from Plans[9] Unit E]
-                           └─ Unit F — Bootstrap + risk gates [from Plans[9] Unit F]
-                                └─ Unit G — Edit tiering [from Plans[9] Unit G]
+                      └─ E.1 (Plans[11], shipped) — Ritual Engine (headless)
+                           ├─ F.1 (Plans[12]) — Bootstrap Checkpoint + Risk-Accept Gates
+                           ├─ G.1 (Plans[13]) — Edit Classifier + Gate Scheduler
+                           └─ E.2 (Plans[15]) — Atlas Web Scaffold + Canvas view
 ```
 
 - **A.1 is the critical path.** Start here. Nothing else begins until `@atlas/spec-graph-data` is published.
