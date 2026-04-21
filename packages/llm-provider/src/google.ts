@@ -89,9 +89,9 @@ export class GoogleProvider implements LLMProvider {
             parameters: t.input_schema as never
           }))
         }],
-        toolConfig: options.toolChoice.type === "tool"
+        toolConfig: (options.toolChoice.type === "tool"
           ? { functionCallingConfig: { mode: "ANY", allowedFunctionNames: [options.toolChoice.name] } }
-          : { functionCallingConfig: { mode: "AUTO" } }
+          : { functionCallingConfig: { mode: "AUTO" } }) as never
       });
       const contents = mapMessages(messages);
       const resp = (await model.generateContent({ contents })) as unknown as GeminiRawResponse & {
