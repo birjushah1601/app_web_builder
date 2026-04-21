@@ -40,6 +40,10 @@ const record = await lifecycle.provision("atlas-next-ts", projectId);
 | `E2B_API_KEY` | Yes | E2B API key — server-side only, never sent to browser |
 | `E2B_TEMPLATE_NEXT_TS_DIGEST` | Yes | Pinned digest for the `atlas-next-ts` template |
 | `E2B_TEMPLATE_PYTHON_FASTAPI_DIGEST` | Yes | Pinned digest for the `atlas-python-fastapi` template |
+| `E2B_TEMPLATE_REACT_VITE_DIGEST` | B-4 | Pinned digest for the `atlas-react-vite` template (Phase B) |
+| `E2B_TEMPLATE_ASTRO_DIGEST` | B-4 | Pinned digest for the `atlas-astro` template (Phase B) |
+| `E2B_TEMPLATE_SVELTEKIT_DIGEST` | B-4 | Pinned digest for the `atlas-sveltekit` template (Phase B) |
+| `E2B_TEMPLATE_EXPO_DIGEST` | B-4 | Pinned digest for the `atlas-expo` template (Phase B) |
 | `SANDBOX_SPEND_CAP_USD_PER_PROJECT_MONTH` | No | Per-project monthly spend cap in USD (default: 50) |
 
 ## Spend cap
