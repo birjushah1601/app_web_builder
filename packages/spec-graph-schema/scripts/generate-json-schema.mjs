@@ -24,6 +24,13 @@ const NODE_TITLES = {
   "aifeature": "AIFeature",
   "media-asset": "MediaAsset",
   "mediaasset": "MediaAsset",
+  "region": "Region",
+  "data-residency": "DataResidency",
+  "dataresidency": "DataResidency",
+  "runtime": "Runtime",
+  "provider": "Provider",
+  "workload-topology": "WorkloadTopology",
+  "workloadtopology": "WorkloadTopology",
 };
 const EDGE_TITLES = {
   "renders": "RendersEdge",
@@ -45,6 +52,15 @@ const EDGE_TITLES = {
   "powers": "PowersEdge",
   "displays": "DisplaysEdge",
   "manages": "ManagesEdge",
+  "runs-on": "RunsOnEdge",
+  "runsOn": "RunsOnEdge",
+  "runson": "RunsOnEdge",
+  "stores-data-in": "StoresDataInEdge",
+  "storesDataIn": "StoresDataInEdge",
+  "storesdatain": "StoresDataInEdge",
+  "migrates-to": "MigratesToEdge",
+  "migratesTo": "MigratesToEdge",
+  "migratesto": "MigratesToEdge",
 };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
