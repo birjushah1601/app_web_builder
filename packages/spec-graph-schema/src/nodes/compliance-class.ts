@@ -1,7 +1,15 @@
 import { z } from "zod";
 import { BaseNodeFields, ExtensionsSchema } from "../primitives.js";
 
-export const COMPLIANCE_CLASSES_V1 = ["baseline", "GDPR", "HIPAA", "SOC2-lite"] as const;
+export const COMPLIANCE_CLASSES_V1 = [
+  "baseline",
+  "GDPR",
+  "HIPAA",
+  "SOC2-lite",
+  "PCI-DSS",
+  "DPDP-India",
+  "LGPD"
+] as const;
 export const ComplianceClassNameSchema = z.enum(COMPLIANCE_CLASSES_V1);
 export type ComplianceClassName = z.infer<typeof ComplianceClassNameSchema>;
 

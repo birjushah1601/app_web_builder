@@ -11,13 +11,15 @@ const valid = {
 };
 
 describe("ComplianceClassSchema", () => {
-  it("accepts the four v1 names", () => {
-    for (const name of ["baseline", "GDPR", "HIPAA", "SOC2-lite"]) {
-      expect(() => ComplianceClassSchema.parse({ ...valid, id: `compliance:${name.toLowerCase()}`, name })).not.toThrow();
+  it("accepts the seven v1+B-7 names", () => {
+    for (const name of ["baseline", "GDPR", "HIPAA", "SOC2-lite", "PCI-DSS", "DPDP-India", "LGPD"]) {
+      expect(() =>
+        ComplianceClassSchema.parse({ ...valid, id: `compliance:${name.toLowerCase()}`, name })
+      ).not.toThrow();
     }
   });
-  it("rejects out-of-scope class names (Phase B classes are validation errors in v1)", () => {
-    for (const name of ["PCI-DSS", "DPDP-India", "LGPD", "POPIA", "COPPA", "FERPA", "ITAR", "ISO27001"]) {
+  it("rejects out-of-scope class names (deferred to later phases)", () => {
+    for (const name of ["POPIA", "COPPA", "FERPA", "ITAR", "ISO27001"]) {
       expect(() => ComplianceClassSchema.parse({ ...valid, name })).toThrow();
     }
   });

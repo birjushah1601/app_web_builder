@@ -37,10 +37,10 @@ describe("invariant-codes.json artifact", () => {
     }
   });
 
-  it("contains the 17 canonical invariant codes, sorted", () => {
+  it("contains the 19 canonical invariant codes (v1.1), sorted", () => {
     const codes = JSON.parse(readFileSync(CODES_ARTIFACT, "utf8")) as string[];
     expect(Array.isArray(codes)).toBe(true);
-    expect(codes).toHaveLength(17);
+    expect(codes).toHaveLength(19);
     expect(codes).toContain("I01_PAGE_MISSING_ROUTEREF");
     expect(codes).toContain("I04_PII_ENDPOINT_MISSING_AUTH");
     expect(codes).toContain("I04_PII_ENDPOINT_MISSING_COMPLIANCE");
@@ -49,6 +49,8 @@ describe("invariant-codes.json artifact", () => {
     expect(codes).toContain("I08_BASELINE_COMPLIANCE_MISSING");
     expect(codes).toContain("I08_BASELINE_COMPLIANCE_DUPLICATED");
     expect(codes).toContain("I14_MEDIAASSET_KIND_PHASE_B");
+    expect(codes).toContain("I15_WORKLOAD_TOPOLOGY_REFERENCES_INVALID");
+    expect(codes).toContain("I16_PII_MODEL_MISSING_STORES_DATA_IN");
     expect(codes).toEqual([...codes].sort());
   });
 
