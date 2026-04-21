@@ -15,6 +15,8 @@ import { i11MediaAssetGeneratedNeedsProvider } from "./invariants/i11-mediaasset
 import { i12PiiClientStateNeedsCompliance } from "./invariants/i12-pii-clientstate-needs-compliance.js";
 import { i13BaselineTestsForProtectedTargets } from "./invariants/i13-baseline-tests-for-protected-targets.js";
 import { i14MediaAssetKindAllowlistV1 } from "./invariants/i14-mediaasset-kind-allowlist-v1.js";
+import { i15WorkloadTopologyReferences } from "./invariants/i15-workload-topology-references.js";
+import { i16ModelResidencyRequiresStoresDataIn } from "./invariants/i16-model-residency-requires-stores-data-in.js";
 
 export const ALL_INVARIANTS: Invariant[] = [
   i01PageRouteRef,
@@ -30,7 +32,9 @@ export const ALL_INVARIANTS: Invariant[] = [
   i11MediaAssetGeneratedNeedsProvider,
   i12PiiClientStateNeedsCompliance,
   i13BaselineTestsForProtectedTargets,
-  i14MediaAssetKindAllowlistV1
+  i14MediaAssetKindAllowlistV1,
+  i15WorkloadTopologyReferences,
+  i16ModelResidencyRequiresStoresDataIn
 ];
 
 /**

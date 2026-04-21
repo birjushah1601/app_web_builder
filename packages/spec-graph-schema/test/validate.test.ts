@@ -24,8 +24,8 @@ const minimalValid = {
 };
 
 describe("validate()", () => {
-  it("ALL_INVARIANTS contains 14 entries", () => {
-    expect(ALL_INVARIANTS).toHaveLength(14);
+  it("ALL_INVARIANTS contains 16 entries (v1.1)", () => {
+    expect(ALL_INVARIANTS).toHaveLength(16);
   });
 
   it("clean minimal graph passes", () => {
