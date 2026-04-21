@@ -1,0 +1,16 @@
+import { CanvasClient } from "@/components/CanvasClient.js";
+
+export default async function CanvasPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+
+  // E.2 ships an empty-graph fallback. A future task wires SpecGraphRepo.read(projectId).
+  const graph = { nodes: {}, edges: [] };
+
+  return (
+    <main className="flex h-full">
+      <section className="flex-1">
+        <CanvasClient graph={graph} projectId={projectId} />
+      </section>
+    </main>
+  );
+}
