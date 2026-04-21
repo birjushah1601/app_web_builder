@@ -1,0 +1,18 @@
+kind: pii-model
+version: 1
+assertions:
+  - id: pii-not-in-logs
+    description: PII-classified fields never appear in application logs
+    rationale: |
+      Privacy compliance floor. Any serialization path (JSON.stringify, log.info,
+      error.stack) must not emit raw PII.
+    checklistItem: "Serialize a Model instance containing PII fields via each declared log sink → redacted placeholders only"
+    mustEmitTest: true
+    owner: security-team
+  - id: pii-not-in-error-messages
+    description: Thrown errors do not include raw PII field values
+    rationale: |
+      Error messages frequently leak to external observability services.
+    checklistItem: "Throw an error referencing a PII-classified field → err.message contains no raw value"
+    mustEmitTest: true
+    owner: security-team
