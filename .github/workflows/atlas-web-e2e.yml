@@ -1,0 +1,89 @@
+# .github/workflows/atlas-web-e2e.yml
+name: Atlas Web E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "apps/atlas-web/**"
+      - ".github/workflows/atlas-web-e2e.yml"
+
+concurrency:
+  group: atlas-web-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E (persona flows)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: atlas_test
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://atlas:atlas@localhost:5432/atlas_test
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_TEST_SECRET_KEY }}
+      CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_TEST_PUBLISHABLE_KEY }}
+      E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+      ATLAS_TEST_PASSWORD: ${{ secrets.ATLAS_TEST_PASSWORD }}
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run DB migrations (A.1 schema)
+        run: pnpm --filter @atlas/spec-graph-data migrate
+
+      - name: Build workspace packages
+        run: pnpm --filter "@atlas/*" --filter "!@atlas/web" build
+
+      - name: Build atlas-web
+        run: pnpm --filter @atlas/web build
+
+      - name: Start atlas-web (background)
+        run: pnpm --filter @atlas/web start &
+        env:
+          PORT: 3000
+
+      - name: Wait for atlas-web to be ready
+        run: npx wait-on http://localhost:3000 --timeout 60000
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @atlas/web exec playwright install chromium --with-deps
+
+      - name: Run Playwright E2E tests
+        run: pnpm --filter @atlas/web test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: apps/atlas-web/playwright-report/
+          retention-days: 14
