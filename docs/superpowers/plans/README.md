@@ -70,6 +70,8 @@ Phase A is complete when ALL of the following plans are merged to `main`:
 
 When all boxes are checked: cut the `phase-a/complete` tag on `main` and open the Phase B kickoff issue.
 
+> **Phase A status (2026-04-21):** ✅ Tagged `phase-a/complete`. Known engineering deferrals tracked in [`../known-deferrals.md`](../known-deferrals.md).
+
 ---
 
 ## Execution order
