@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# atlas-web
 
-## Getting Started
+Atlas's product surface — Next.js 15 App Router. Visualize → Agree → Build ritual UI for the three personas (Ama, Diego, Priya).
 
-First, run the development server:
+## Quickstart
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1. Bring up Postgres (A.1's docker-compose)
+pnpm db:up
+
+# 2. Apply latest migrations (includes user_project_preferences)
+pnpm -F @atlas/spec-graph-data migrate:up   # (or whatever A.1's helper is named)
+
+# 3. Set Clerk + DB env
+cp apps/atlas-web/.env.example apps/atlas-web/.env.local
+# fill in Clerk publishable + secret keys from your dev dashboard
+
+# 4. Dev server
+pnpm -F atlas-web dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Sign up → land on the project list → "New project" → Canvas opens.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Architecture
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Server Components** own data fetching + Clerk auth gating.
+- **Server Actions** (`lib/actions/*.ts`) wrap `@atlas/ritual-engine`. Browser code never imports the engine directly.
+- **Client Components** (`components/*.tsx`) own interactivity — Canvas drag-rearrange, chat input, approval buttons.
+- **Per-request cached `RitualEngine`** via React's `cache()` helper — multiple Server Actions in the same render share the same engine instance.
 
-## Learn More
+## Persona resolution
 
-To learn more about Next.js, take a look at the following resources:
+Two-layer:
+1. Per-project override in `user_project_preferences` table (set via `setPersonaOverride` action).
+2. Clerk user metadata `defaultPersona`.
+3. Fallback: `ama` (least privileged).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The `<PersonaToggle>` writes to layer 1; layer 2 is set externally via Clerk dashboard or onboarding flow.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Testing
 
-## Deploy on Vercel
+```bash
+pnpm -F atlas-web test           # vitest + jsdom + Testing Library
+pnpm -F atlas-web typecheck
+pnpm -F atlas-web lint
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Component tests live under `test/components/`; Server Action tests under `test/actions/`. End-to-end Playwright tests land with Plan E.5.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Env vars
+
+| Var | Purpose |
+|---|---|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk client SDK |
+| `CLERK_SECRET_KEY` | Clerk server SDK |
+| `DATABASE_URL` | Postgres for `@atlas/spec-graph-data` |
+
+## What ships in E.2 vs later
+
+| Feature | Plan |
+|---|---|
+| Next.js scaffold + Clerk + Tailwind | E.2 (this) |
+| Canvas (React Flow) | E.2 |
+| Persona toggle + override | E.2 |
+| Server Actions: start / approve / accept-risk / escalate | E.2 |
+| SSE events route (stub) | E.2 |
+| Monaco editor + file tree + PR flow | E.3 |
+| E2B sandbox + HMR iframe + multi-viewport preview | E.4 |
+| Playwright e2e tests across personas | E.5 |
