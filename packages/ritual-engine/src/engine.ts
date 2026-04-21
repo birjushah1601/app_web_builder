@@ -53,9 +53,12 @@ export class RitualEngine {
       }
     });
 
-    // Dispatch Architect role for the Visualize step
+    // Dispatch Architect role for the Visualize step.
+    // ritualId is cast to RitualId via the brand-bypass below; Conductor's
+    // RitualIdSchema expects a branded string, but the brand is purely a
+    // compile-time tag — the runtime value is just the string we generated.
     const result = await this.conductor.dispatch({
-      ritualId: ritualId as never,
+      ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
       graphVersion: 0,
       userTurn: input.userTurn,
       projectId: input.projectId
@@ -132,6 +135,12 @@ export class RitualEngine {
 
   artifact(ritualId: string): unknown {
     return this.rituals.get(ritualId)?.artifact;
+  }
+
+  /** Evict an in-memory ritual record. Call after observing `ritual.completed`
+   *  to prevent unbounded growth in long-running processes. Idempotent. */
+  dispose(ritualId: string): void {
+    this.rituals.delete(ritualId);
   }
 
   private async transition(ritualId: string, tx: RitualTransition): Promise<void> {
