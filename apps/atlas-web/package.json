@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@clerk/clerk-sdk-node": "^5.1.6",
+    "@e2b/sdk": "^2.5.0",
     "@playwright/test": "^1.49.0",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.1",
