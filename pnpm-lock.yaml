@@ -13,6 +13,9 @@ importers:
       '@atlas/conductor':
         specifier: workspace:*
         version: link:../../packages/conductor
+      '@atlas/deploy-orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/deploy-orchestrator
       '@atlas/ritual-engine':
         specifier: workspace:*
         version: link:../../packages/ritual-engine
@@ -219,6 +222,34 @@ importers:
         specifier: 3.23.8
         version: 3.23.8
     devDependencies:
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
+
+  packages/deploy-orchestrator:
+    dependencies:
+      '@atlas/postgres-branching':
+        specifier: workspace:*
+        version: link:../postgres-branching
+      '@atlas/spec-graph-data':
+        specifier: workspace:*
+        version: link:../spec-graph-data
+      js-yaml:
+        specifier: 4.1.0
+        version: 4.1.0
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@types/js-yaml':
+        specifier: 4.0.9
+        version: 4.0.9
       '@types/node':
         specifier: 22.9.0
         version: 22.9.0

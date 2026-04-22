@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@atlas/conductor": "workspace:*",
+    "@atlas/deploy-orchestrator": "workspace:*",
     "@atlas/ritual-engine": "workspace:*",
     "@atlas/role-architect": "workspace:*",
     "@atlas/sandbox-e2b": "workspace:*",

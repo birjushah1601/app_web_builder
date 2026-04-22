@@ -1,0 +1,9 @@
+cloudflare:
+  apiTokenSecretName: cloudflare-api-token
+  apiTokenSecretKey: api-token
+  email: ops@atlas.app
+acme:
+  server: https://acme-v02.api.letsencrypt.org/directory
+namespaces:
+  projects: atlas-projects
+  platform: atlas-platform
