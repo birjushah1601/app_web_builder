@@ -25,14 +25,24 @@ pnpm --filter @atlas/spec-graph-data db:migrate    # applies 0000..0006 to atlas
 
 If `db:migrate` hangs (drizzle-kit on Windows), apply the remaining migrations via psql — see D4 in `docs/superpowers/known-deferrals.md`.
 
+**Project isolation.** Atlas's compose stack uses an explicit project name (`atlas`) and network (`atlas-net`) so it shares nothing with other docker-compose projects on the same host:
+
+```bash
+docker compose ls               # should show "atlas"
+docker network ls | grep atlas  # should show "atlas-net"
+docker ps --filter name=atlas-postgres
+```
+
+Atlas reserves **host port 5440** for its Postgres so it doesn't collide with anything on `5432` (OS default) or `5433` (Postgres.app, prior Atlas builds, etc.).
+
 **Required env vars for integration tests:**
 
 ```bash
 # .env (or export before running)
-DATABASE_URL_TEST=postgresql://atlas:atlas@localhost:5433/atlas_test
+DATABASE_URL_TEST=postgresql://atlas:atlas@localhost:5440/atlas_test
 ```
 
-The rest of this document assumes `DATABASE_URL_TEST` is set. For PowerShell: `$env:DATABASE_URL_TEST = "postgresql://atlas:atlas@localhost:5433/atlas_test"`.
+The rest of this document assumes `DATABASE_URL_TEST` is set. For PowerShell: `$env:DATABASE_URL_TEST = "postgresql://atlas:atlas@localhost:5440/atlas_test"`.
 
 ---
 
@@ -81,7 +91,7 @@ Typecheck everything: `pnpm -r typecheck`. Build everything: `pnpm -r build`.
 ## 2. Local Postgres for integration tests
 
 ```bash
-docker compose up -d postgres        # starts atlas-postgres container on :5433
+docker compose up -d postgres        # starts atlas-postgres container on :5440
 docker compose ps                    # should show atlas-postgres (healthy)
 docker compose exec postgres psql -U atlas -d atlas_test -c "\dt"
 # Expected tables:
@@ -93,7 +103,7 @@ If tables are missing, run migrations:
 
 ```bash
 # happy path
-DATABASE_URL=postgresql://atlas:atlas@localhost:5433/atlas_test \
+DATABASE_URL=postgresql://atlas:atlas@localhost:5440/atlas_test \
   pnpm -F @atlas/spec-graph-data db:migrate
 ```
 
@@ -163,7 +173,7 @@ ATLAS_K3D_CONTEXT=atlas-local pnpm -F @atlas/deploy-orchestrator test
 ### 3.4 Postgres schema-per-branch (C-1)
 
 ```bash
-DATABASE_URL_TEST=postgresql://atlas:atlas@localhost:5433/atlas_test \
+DATABASE_URL_TEST=postgresql://atlas:atlas@localhost:5440/atlas_test \
   pnpm -F @atlas/postgres-branching test
 # 9 tests: branchSchemaName determinism + safety, ensureBranch idempotent,
 # dropBranch idempotent, replayMigrationsToSchema creates spec_graphs in br_*.
@@ -206,7 +216,7 @@ pnpm -F @atlas/sandbox-e2b test                  # 28 tests incl. 5 spend-record
 Verify end-to-end against real Postgres:
 
 ```bash
-DATABASE_URL=postgresql://atlas:atlas@localhost:5433/atlas_dev pnpm -F @atlas/spec-graph-data test sandbox-spend-repo
+DATABASE_URL=postgresql://atlas:atlas@localhost:5440/atlas_dev pnpm -F @atlas/spec-graph-data test sandbox-spend-repo
 # Inspect recorded spend:
 docker compose exec postgres psql -U atlas -d atlas_dev -c \
   "SELECT project_id, sandbox_id, usd_amount, occurred_at FROM sandbox_spend_log ORDER BY occurred_at DESC LIMIT 10;"
@@ -341,7 +351,7 @@ Run this from a freshly pulled main:
 
 ```bash
 docker compose up -d postgres
-export DATABASE_URL_TEST=postgresql://atlas:atlas@localhost:5433/atlas_test
+export DATABASE_URL_TEST=postgresql://atlas:atlas@localhost:5440/atlas_test
 pnpm install
 pnpm -r typecheck
 pnpm -r test

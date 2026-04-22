@@ -1,8 +1,16 @@
+# Compose project name — keeps the network, volume, and container namespaces
+# distinct from any other docker-compose project on this host. Compose already
+# isolates per project; the explicit name here just makes it discoverable
+# (`docker network ls | grep atlas`).
+name: atlas
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: atlas-postgres
     restart: unless-stopped
+    networks:
+      - atlas
     environment:
       # Bootstrap as `postgres` (keeps SUPERUSER). The init script creates
       # the `atlas` app role as NOSUPERUSER NOBYPASSRLS plus both
@@ -13,9 +21,10 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     ports:
-      # Host 5433 -> container 5432. Host 5432 is commonly occupied by other
-      # Postgres instances on dev machines; 5433 avoids that collision.
-      - "5433:5432"
+      # Host 5440 -> container 5432. Atlas reserves 5440 to avoid colliding
+      # with other local Postgres instances (5432 is the OS default; 5433
+      # is commonly used by Postgres.app and another Atlas-shaped project).
+      - "5440:5432"
     volumes:
       - atlas-postgres-data:/var/lib/postgresql/data
       - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/00-atlas-init.sql:ro
@@ -24,6 +33,10 @@ services:
       interval: 2s
       timeout: 5s
       retries: 20
+
+networks:
+  atlas:
+    name: atlas-net
 
 volumes:
   atlas-postgres-data:

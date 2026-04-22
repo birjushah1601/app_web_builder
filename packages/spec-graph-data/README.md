@@ -28,11 +28,11 @@ await events.append(projectId, { eventType: "node.created", payload: { id: "n1" 
 ## Environment
 
 ```
-DATABASE_URL=postgresql://atlas:atlas@localhost:5433/atlas_dev
-DATABASE_URL_TEST=postgresql://atlas:atlas@localhost:5433/atlas_test
+DATABASE_URL=postgresql://atlas:atlas@localhost:5440/atlas_dev
+DATABASE_URL_TEST=postgresql://atlas:atlas@localhost:5440/atlas_test
 ```
 
-Note: host port is **5433**, not 5432. See `docker-compose.yml` for the port-mapping rationale.
+Note: host port is **5440**, not 5432. See `docker-compose.yml` for the port-mapping rationale.
 
 ## Developing
 

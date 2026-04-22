@@ -5,7 +5,7 @@ import { Pool } from "pg";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const TEST_URL = process.env.DATABASE_URL_TEST ?? "postgresql://atlas:atlas@localhost:5433/atlas_test";
+const TEST_URL = process.env.DATABASE_URL_TEST ?? "postgresql://atlas:atlas@localhost:5440/atlas_test";
 process.env.DATABASE_URL_TEST = TEST_URL;
 
 export async function setup() {
