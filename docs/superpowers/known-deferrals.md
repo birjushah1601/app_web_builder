@@ -22,17 +22,13 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 
 ---
 
-## D2. Postgres test flakiness in spec-graph-sync, spec-graph-ops, spec-graph-merge-driver
+## ~~D2. Postgres test flakiness in spec-graph-sync, spec-graph-ops, spec-graph-merge-driver~~ — CLOSED 2026-04-22
 
-**What:** Periodic test failures in these three packages, observed across multiple branches during Phase A. Symptoms include connection reset errors, advisory-lock timeouts, and occasional row-version mismatches.
+Closed by `aa781c9`. Root cause identified: all four DB-integration packages (`spec-graph-data`, `spec-graph-sync`, `spec-graph-merge-driver`, `spec-graph-ops`) were dropping and recreating the shared `public` schema in globalSetup. `pnpm -r test` runs them in parallel, so one package's DROP would land mid-way through another package's migration replay.
 
-**Why deferred:** Each failure was reproducible only intermittently, and none blocked a merge (re-run usually passed). Root-causing required dedicated time we didn't have during plan execution.
+Fix: each package now migrates into a package-scoped schema (`test_spec_graph_data`, `test_spec_graph_sync`, etc.). globalSetup rewrites `DATABASE_URL_TEST` with `?options=-c search_path=<pkg_schema>,public` so downstream test code picks up the scoped schema automatically. `public` stays in search_path for extensions (pgcrypto/gen_random_uuid) and for `spec-graph-ops`'s SECURITY DEFINER helper.
 
-**Risk if left:** Hides real concurrency bugs. CI signal becomes noisy and developers learn to ignore failures.
-
-**Trigger to revisit:** Either (a) flake rate exceeds 1-in-5 runs on main, or (b) a real concurrency bug ships to production.
-
-**Owner-of-revisit:** Owner of the package where the next confirmed failure lands. Suggested first investigation: connection-pool config + transaction-isolation level in test setup.
+Verified green: `pnpm -r test` now completes with 0 non-zero exits across all 32 packages (previously had 2–3 flaky failures in the three named packages).
 
 ---
 
