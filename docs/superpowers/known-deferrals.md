@@ -52,15 +52,17 @@ Closed by `77fc391`. `eslint.config.mjs` now uses `FlatCompat` from `@eslint/esl
 
 ---
 
-## D5. Skill-library OSS publish workflow not yet exercised end-to-end
+## D5. Skill-library OSS publish workflow — AUTHORED 2026-04-22, awaiting public repo
 
-**What:** Plan C.2 authored the GitHub Action that publishes `packages/skill-library/` to a public mirror on tag-push. The workflow has never run because no public mirror repo exists yet.
+**Authoring landed in `9d1d1c3`.** `.github/workflows/skill-library-release.yml` now does end-to-end mirroring when the push secret is present: validate source tree → build tarball → clone public repo → `rsync --delete` skills + LICENSE + README → commit (skipping empty diffs) → tag → push. Falls back to just the tarball artifact + a setup-reminder notice when `ATLAS_SKILLS_PUBLIC_PUSH` is absent, so PR runs and uninitialized public repos don't fail the job.
 
-**Why deferred:** Creating the public `github.com/atlas-labs/atlas-skills` repo + setting up the deploy key + cutting the first tag is gated on the broader OSS launch decision (PRD §22.2 — "Public launch at Phase B close").
+**What remains (credential-bound, not engineering):**
+1. Create `github.com/atlas-labs/atlas-skills` as a public repo with an initial commit on `main`.
+2. Generate a fine-grained PAT (or deploy key) with write access to the public repo.
+3. Store it as secret `ATLAS_SKILLS_PUBLIC_PUSH` on this monorepo.
+4. `workflow_dispatch` the release workflow once to exercise the path, OR cut a `skill-library-vX.Y.Z` tag.
 
-**Risk if left:** None until OSS launch. Workflow may have bugs that only surface on first real run.
-
-**Trigger to revisit:** When the OSS launch decision is made (Phase B close per current roadmap).
+**Trigger to revisit:** when the OSS launch decision is made (PRD §22.2 — public launch at Phase B close).
 
 **Owner-of-revisit:** Whoever owns the OSS launch.
 
@@ -136,15 +138,16 @@ Feature flag default OFF — existing Clerk integration is untouched. Sovereign 
 
 ---
 
-## D13. Kling video adapter (the only video provider for v1)
+## D13. Kling video adapter — LIBRARY AUTHORED 2026-04-22, consumer-side wiring pending
 
-**What:** ADR-001 narrows the video-provider field from {Seedance, Kling, Veo, Runway} to **Kling only** for v1. Need a Kling SDK wrapper, gated by `ATLAS_FF_VIDEO_KLING`, plus the per-project cost cap.
+**Library landed in `dc66a9d`.** `@atlas/video-kling` provides `KlingClient.submit/getJob` (injectable fetch, schema-validated), `checkKlingCostCap` (per-project monthly USD cap, warn + hard-cap thresholds), and the full error class hierarchy. 22 tests pass against mocks.
 
-**Why deferred:** Needs Kling API credentials + the cost-cap policy decision before any code lands.
+**What remains (external-credential-bound):**
+1. Kling API credentials in hand (`KLING_API_KEY`).
+2. atlas-web Server Action that submits + polls + records `usageUsd` into the spend ledger + persists the resulting `MediaAsset` node — gated behind `ATLAS_FF_VIDEO_KLING`.
+3. atlas-web UI surface (prompt box, status streaming, preview) — gated behind the same flag.
 
-**Risk if left:** B-6 (video generation adapter) cannot ship.
-
-**Trigger to revisit:** When Kling API credentials are obtained.
+**Trigger to revisit:** when Kling API credentials are obtained.
 
 **Owner-of-revisit:** Whoever owns B-6 implementation.
 
