@@ -120,21 +120,19 @@ Closed by `d61fde1` (C-2) + `031c696` (HttpGrafanaClient).
 
 ---
 
-## D12. Keycloak self-host auth path — LIBRARY SHIPPED, atlas-web integration still pending
+## ~~D12. Keycloak self-host auth path~~ — CLOSED 2026-04-22 (library + atlas-web wiring)
 
-**Status 2026-04-22:** library landed in `77fc391`. `@atlas/auth-keycloak` provides `KeycloakAuthProvider` with OIDC code-flow (PKCE + refresh + `jose`-backed id_token verification). 15 tests pass.
+Library closed in `77fc391` (`@atlas/auth-keycloak`); atlas-web wiring closed in `579c258`:
 
-**What remains:** atlas-web-side wiring to let the Clerk→Keycloak swap actually happen in self-host deployments. Specifically:
-- Middleware that reads `ATLAS_FF_AUTH_KEYCLOAK` and routes `/auth/start` + `/auth/callback` to the Keycloak provider when enabled.
-- Server helpers (`getCurrentUser`, `requireAuth`) that read from an encrypted session cookie in Keycloak mode instead of Clerk's context.
-- Sign-in / sign-out pages that trigger the flow.
-- Tests that the Clerk path still works when the flag is off (already true — default OFF).
+- `apps/atlas-web/lib/auth/session-cookie.ts` — HMAC-SHA256 sealed cookie, 32-char min secret, `timingSafeEqual` compare. 8 tests.
+- `apps/atlas-web/lib/auth/current-user.ts` — `getCurrentUser()` dispatcher: Clerk by default, Keycloak-cookie-backed when `ATLAS_FF_AUTH_KEYCLOAK=1`. 6 tests.
+- `apps/atlas-web/app/auth/start/route.ts` — redirect to Keycloak authorize URL + transit cookies. 3 tests.
+- `apps/atlas-web/app/auth/callback/route.ts` — state check, code exchange, seal session, clear transit cookies, same-origin `return_to` support. 8 tests.
+- `apps/atlas-web/app/auth/logout/route.ts` — clear session, redirect `/`. 2 tests.
 
-**Why this split:** the library is genuinely provider-agnostic and testable today. The atlas-web wire-up is an opinionated refactor of routing + middleware + UI, best done as a focused plan when the first sovereign customer is imminent.
+Feature flag default OFF — existing Clerk integration is untouched. Sovereign deploys set `ATLAS_FF_AUTH_KEYCLOAK=1`, `KEYCLOAK_*` envs, and a ≥32-char `ATLAS_SESSION_SECRET`.
 
-**Trigger to revisit:** when D-5 (Atlas Sovereign Helm) plan authoring begins, OR when the first sovereign customer signs.
-
-**Owner-of-revisit:** Whoever owns the D-5 Helm-chart plan.
+**One follow-up (not a deferral, just mechanical cleanup):** existing Server Actions use Clerk's `auth()` directly instead of the new `getCurrentUser()`. A sweep to migrate ~30 call sites would make both backends work uniformly. Defer until the first sovereign customer — the dispatcher is already in place for all new code.
 
 ---
 
