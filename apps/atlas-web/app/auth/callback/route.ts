@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isFeatureEnabled } from "@/lib/feature-flags.js";
-import { keycloakFromEnv } from "@/lib/auth/keycloak-factory.js";
-import { ATLAS_SESSION_COOKIE, sealSession } from "@/lib/auth/session-cookie.js";
-import { STATE_COOKIE, NONCE_COOKIE } from "@/lib/auth/oidc-cookies.js";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { keycloakFromEnv } from "@/lib/auth/keycloak-factory";
+import { ATLAS_SESSION_COOKIE, sealSession } from "@/lib/auth/session-cookie";
+import { STATE_COOKIE, NONCE_COOKIE } from "@/lib/auth/oidc-cookies";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!isFeatureEnabled("auth-keycloak")) {

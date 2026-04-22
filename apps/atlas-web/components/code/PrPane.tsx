@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { listPrs, type Pr } from "../../lib/actions/code/listPrs.js";
-import { openPr } from "../../lib/actions/code/openPr.js";
-import { getPrDiff } from "../../lib/actions/code/getPrDiff.js";
-import { PrDiffViewer } from "./PrDiffViewer.js";
-import { PrCommentThread } from "./PrCommentThread.js";
+import { listPrs, type Pr } from "../../lib/actions/code/listPrs";
+import { openPr } from "../../lib/actions/code/openPr";
+import { getPrDiff } from "../../lib/actions/code/getPrDiff";
+import { PrDiffViewer } from "./PrDiffViewer";
+import { PrCommentThread } from "./PrCommentThread";
 
 export interface PrPaneProps {
   projectId: string;

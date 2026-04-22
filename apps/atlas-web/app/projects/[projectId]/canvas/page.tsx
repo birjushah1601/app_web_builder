@@ -32,10 +32,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
         />
         <CanvasClient graph={graph} projectId={projectId} />
       </section>
-      <ChatPanel
-        projectId={projectId}
-        onSend={async (userTurn) => startRitual({ projectId, userTurn, editClass: "structural" })}
-      />
+      <ChatPanel projectId={projectId} action={startRitual} />
     </main>
   );
 }

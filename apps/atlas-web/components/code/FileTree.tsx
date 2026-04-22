@@ -1,6 +1,6 @@
 import React from "react";
 import { listMirroredFiles } from "@atlas/spec-graph-sync";
-import { FileTreeClient } from "./FileTreeClient.js";
+import { FileTreeClient } from "./FileTreeClient";
 
 export interface FileTreeProps {
   projectId: string;

@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth/clerk-compat.js";
+import { auth } from "@/lib/auth/clerk-compat";
 import { getRitualEngine } from "@/lib/engine/factory";
 import type { PersonaTier } from "@atlas/ritual-engine";
 

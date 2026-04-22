@@ -1,5 +1,5 @@
 import React from "react";
-import { auth } from "@/lib/auth/clerk-compat.js";
+import { auth } from "@/lib/auth/clerk-compat";
 import { redirect } from "next/navigation";
 import { listMirroredFiles } from "@atlas/spec-graph-sync";
 import { CodeLayout } from "@/components/code/CodeLayout";

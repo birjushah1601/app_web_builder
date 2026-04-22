@@ -4,10 +4,19 @@ import { useState } from "react";
 
 export interface ChatPanelProps {
   projectId: string;
-  onSend: (userTurn: string) => Promise<string>;
+  /**
+   * Server Action reference — must be the raw action export, not an inline
+   * closure. React 19 serializes server actions across the RSC boundary but
+   * refuses to serialize user-defined closures.
+   */
+  action: (input: {
+    projectId: string;
+    userTurn: string;
+    editClass: "structural" | "cosmetic";
+  }) => Promise<string>;
 }
 
-export function ChatPanel({ onSend }: ChatPanelProps) {
+export function ChatPanel({ projectId, action }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [history, setHistory] = useState<Array<{ role: "user"; text: string }>>([]);
@@ -17,7 +26,7 @@ export function ChatPanel({ onSend }: ChatPanelProps) {
     setPending(true);
     setHistory((h) => [...h, { role: "user", text }]);
     try {
-      await onSend(text);
+      await action({ projectId, userTurn: text, editClass: "structural" });
       setText("");
     } finally {
       setPending(false);

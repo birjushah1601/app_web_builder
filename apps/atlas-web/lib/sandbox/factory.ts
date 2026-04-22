@@ -9,7 +9,7 @@ import {
 } from "@atlas/sandbox-e2b";
 import { SandboxSpendRepo } from "@atlas/spec-graph-data";
 import pg from "pg";
-import type { SandboxSession } from "./types.js";
+import type { SandboxSession } from "./types";
 
 interface SandboxFactoryConfig {
   lifecycle: SandboxLifecycle;

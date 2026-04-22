@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth/clerk-compat.js";
+import { auth } from "@/lib/auth/clerk-compat";
 
 export const dynamic = "force-dynamic";
 

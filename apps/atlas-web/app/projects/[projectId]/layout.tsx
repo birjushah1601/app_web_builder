@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth, currentUser } from "@/lib/auth/clerk-compat.js";
+import { auth, currentUser } from "@/lib/auth/clerk-compat";
 import { Pool } from "pg";
 import { PreferencesRepo } from "@atlas/spec-graph-data";
 

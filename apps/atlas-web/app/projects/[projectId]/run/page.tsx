@@ -1,7 +1,7 @@
 import type { HealthSummary, EndpointStat, TraceLink } from "@atlas/run-dashboard";
-import { HealthLightsAma } from "./_components/HealthLightsAma.js";
-import { EndpointTableDiego } from "./_components/EndpointTableDiego.js";
-import { TraceExplorerPriya } from "./_components/TraceExplorerPriya.js";
+import { HealthLightsAma } from "./_components/HealthLightsAma";
+import { EndpointTableDiego } from "./_components/EndpointTableDiego";
+import { TraceExplorerPriya } from "./_components/TraceExplorerPriya";
 
 type Persona = "ama" | "diego" | "priya";
 

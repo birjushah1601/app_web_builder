@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { HmrIframe } from "./HmrIframe.js";
-import { ViewportToggle, type ViewportId, VIEWPORTS } from "./ViewportToggle.js";
-import { ShareableUrlModal } from "./ShareableUrlModal.js";
+import { HmrIframe } from "./HmrIframe";
+import { ViewportToggle, type ViewportId, VIEWPORTS } from "./ViewportToggle";
+import { ShareableUrlModal } from "./ShareableUrlModal";
 
 interface CanvasPreviewClientProps {
   projectId: string;

@@ -6,7 +6,7 @@
  * Existing Server Actions migrate by changing one import line:
  *
  *   -import { auth } from "@clerk/nextjs/server";
- *   +import { auth } from "@/lib/auth/clerk-compat.js";
+ *   +import { auth } from "@/lib/auth/clerk-compat";
  *
  * Behaviour:
  * - Flag OFF (default): delegates to Clerk's real `auth()` / `currentUser()`.
@@ -14,7 +14,7 @@
  * - Flag ON: reads the Atlas session cookie, returns the same Clerk-shape
  *   values so call sites don't need to branch.
  */
-import { getCurrentUser } from "./current-user.js";
+import { getCurrentUser } from "./current-user";
 
 /** Matches the subset of Clerk's `auth()` return shape that Atlas code uses. */
 export interface AuthShape {

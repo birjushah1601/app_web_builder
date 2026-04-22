@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isFeatureEnabled } from "@/lib/feature-flags.js";
-import { ATLAS_SESSION_COOKIE } from "@/lib/auth/session-cookie.js";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { ATLAS_SESSION_COOKIE } from "@/lib/auth/session-cookie";
 
 async function handle(_req: NextRequest): Promise<NextResponse> {
   if (!isFeatureEnabled("auth-keycloak")) {

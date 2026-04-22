@@ -2,9 +2,9 @@
 
 import React, { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { FileTreeClient } from "./FileTreeClient.js";
-import { RightPane } from "./RightPane.js";
-import { openFile } from "../../lib/actions/code/openFile.js";
+import { FileTreeClient } from "./FileTreeClient";
+import { RightPane } from "./RightPane";
+import { openFile } from "../../lib/actions/code/openFile";
 
 // MonacoPane is already ssr: false internally, but CodeLayout is a Client Component
 // that orchestrates state — it imports MonacoPane directly (no additional dynamic needed).

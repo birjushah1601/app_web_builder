@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createShareableUrl, type AccessMode } from "@/lib/actions/sandbox.js";
+import { createShareableUrl, type AccessMode } from "@/lib/actions/sandbox";
 
 interface ShareableUrlModalProps {
   projectId: string;

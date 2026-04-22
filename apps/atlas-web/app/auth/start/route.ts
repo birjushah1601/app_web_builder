@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
-import { isFeatureEnabled } from "@/lib/feature-flags.js";
-import { keycloakFromEnv } from "@/lib/auth/keycloak-factory.js";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { keycloakFromEnv } from "@/lib/auth/keycloak-factory";
 import {
   STATE_COOKIE,
   NONCE_COOKIE,
   OIDC_TRANSIT_COOKIE_OPTIONS
-} from "@/lib/auth/oidc-cookies.js";
+} from "@/lib/auth/oidc-cookies";
 
 export async function GET(_req: NextRequest): Promise<NextResponse> {
   if (!isFeatureEnabled("auth-keycloak")) {

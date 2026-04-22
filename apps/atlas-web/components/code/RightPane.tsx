@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { PrPane } from "./PrPane.js";
-import { TerminalPane } from "./TerminalPane.js";
-import { TestRunnerPane } from "./TestRunnerPane.js";
+import { PrPane } from "./PrPane";
+import { TerminalPane } from "./TerminalPane";
+import { TestRunnerPane } from "./TestRunnerPane";
 
 type Tab = "pr" | "terminal" | "tests";
 

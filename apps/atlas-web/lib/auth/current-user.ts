@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
-import { isFeatureEnabled } from "@/lib/feature-flags.js";
-import { ATLAS_SESSION_COOKIE, unsealSession, SessionSealError } from "./session-cookie.js";
-import type { AuthUser } from "./types.js";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { ATLAS_SESSION_COOKIE, unsealSession, SessionSealError } from "./session-cookie";
+import type { AuthUser } from "./types";
 
 /**
  * Return the currently authenticated user, or null if the request is
@@ -18,6 +18,13 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return readClerkSession();
 }
 
+interface ClerkCurrentUserLike {
+  emailAddresses?: Array<{ emailAddress: string }>;
+  firstName?: string | null;
+  lastName?: string | null;
+  publicMetadata?: Record<string, unknown>;
+}
+
 async function readClerkSession(): Promise<AuthUser | null> {
   const clerk = await import("@clerk/nextjs/server");
   const { userId } = await clerk.auth();
@@ -26,25 +33,21 @@ async function readClerkSession(): Promise<AuthUser | null> {
   // currentUser() is separate from auth() — some call sites (and many old
   // tests) only stub auth. Tolerate a missing implementation by falling back
   // to a userId-only session rather than crashing the whole request.
-  let clerkUser: {
-    emailAddresses?: Array<{ emailAddress: string }>;
-    firstName?: string | null;
-    lastName?: string | null;
-    publicMetadata?: Record<string, unknown>;
-  } | null = null;
+  let clerkUser: ClerkCurrentUserLike | null = null;
   try {
-    clerkUser = (await clerk.currentUser()) as typeof clerkUser;
+    const raw = await clerk.currentUser();
+    clerkUser = raw as unknown as ClerkCurrentUserLike | null;
   } catch {
     clerkUser = null;
   }
 
+  const firstName = clerkUser?.firstName;
+  const lastName = clerkUser?.lastName;
   return {
     userId,
     provider: "clerk",
     email: clerkUser?.emailAddresses?.[0]?.emailAddress,
-    name: clerkUser?.firstName
-      ? `${clerkUser.firstName} ${clerkUser.lastName ?? ""}`.trim()
-      : undefined,
+    name: firstName ? `${firstName} ${lastName ?? ""}`.trim() : undefined,
     publicMetadata: clerkUser?.publicMetadata ?? {}
   };
 }

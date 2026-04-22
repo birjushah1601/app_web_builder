@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth/clerk-compat.js";
+import { auth } from "@/lib/auth/clerk-compat";
 import { writeMirroredFile } from "@atlas/spec-graph-sync";
 
 export interface SaveFileInput {
