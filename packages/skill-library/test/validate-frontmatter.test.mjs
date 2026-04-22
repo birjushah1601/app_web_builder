@@ -13,7 +13,13 @@ test("validate-frontmatter exits 0 over the real skills/ tree", () => {
     encoding: "utf8"
   });
   assert.equal(result.status, 0, `validator failed:\n${result.stdout}\n${result.stderr}`);
-  assert.match(result.stdout, /validated 40 skills/);
+  // Count floats as the library grows (C.3 added test-generators, B-7 added
+  // compliance skills, B-8 added browser-verification, B-9 added migration).
+  // Lock only the shape + a sane minimum.
+  assert.match(result.stdout, /validated \d+ skills/);
+  const match = result.stdout.match(/validated (\d+) skills/);
+  const count = match ? Number(match[1]) : 0;
+  assert.ok(count >= 40, `expected at least 40 skills, got ${count}`);
 });
 
 test("validate-frontmatter exits non-zero when a skill has no frontmatter", async () => {
