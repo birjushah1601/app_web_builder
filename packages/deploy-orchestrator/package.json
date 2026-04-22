@@ -16,6 +16,7 @@
   "dependencies": {
     "@atlas/postgres-branching": "workspace:*",
     "@atlas/spec-graph-data": "workspace:*",
+    "@kubernetes/client-node": "^0.22.0",
     "js-yaml": "4.1.0",
     "zod": "3.23.8"
   },
