@@ -83,19 +83,30 @@ const TEMPLATE_DEFAULT_PORTS: Record<TemplateId, number> = {
 let _factory: SandboxFactory | null = null;
 let _spendPool: pg.Pool | null = null;
 
-function getSpendReader(): SpendReader {
+function getSpendPool(): pg.Pool | null {
   const url = process.env.DATABASE_URL;
-  if (!url) {
+  if (!url) return null;
+  if (!_spendPool) {
+    _spendPool = new pg.Pool({ connectionString: url });
+  }
+  return _spendPool;
+}
+
+function getSpendReader(): SpendReader {
+  const pool = getSpendPool();
+  if (!pool) {
     // No DB configured (e.g., local `next build` without env) → cap never triggers.
     return {
       getAccumulatedSpend: async () => 0,
       getRollingAverageSpend: async () => 0,
     };
   }
-  if (!_spendPool) {
-    _spendPool = new pg.Pool({ connectionString: url });
-  }
-  return new SandboxSpendRepo(_spendPool);
+  return new SandboxSpendRepo(pool);
+}
+
+function getSpendRecorder(): SandboxSpendRepo | undefined {
+  const pool = getSpendPool();
+  return pool ? new SandboxSpendRepo(pool) : undefined;
 }
 
 export function getSandboxFactory(): SandboxFactory {
@@ -111,6 +122,10 @@ export function getSandboxFactory(): SandboxFactory {
           "atlas-sveltekit": process.env.E2B_TEMPLATE_SVELTEKIT_DIGEST ?? "",
           "atlas-expo": process.env.E2B_TEMPLATE_EXPO_DIGEST ?? "",
         },
+        spendRecorder: getSpendRecorder(),
+        hourlyRateUsd: process.env.SANDBOX_HOURLY_RATE_USD
+          ? Number(process.env.SANDBOX_HOURLY_RATE_USD)
+          : undefined,
       }),
       spendReader: getSpendReader(),
       spendCapConfig: {
