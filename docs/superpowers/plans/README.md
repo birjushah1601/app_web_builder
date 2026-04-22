@@ -70,7 +70,7 @@ Phase B is **in progress** (kicked off 2026-04-21). Plans are authored as each m
 Phase C is **in progress**. Per ADR-001 (2026-04-22), Atlas no longer targets Vercel/Neon/Sentry defaults — C-1 and C-2 ship as orchestrator packages + Helm chart additions over DIY-K8s + OpenTelemetry stack + GlitchTip.
 
 - [x] C-1 — Atlas Run deploy orchestrator + postgres-branching + Helm chart (`0d53754`) — plan: `2026-04-22-c1-deploy-orchestrator.md`
-- [x] C-2 — Observability packages (`@atlas/observability` + `@atlas/run-dashboard`) + persona-tiered Run page + OTel+Prom+Loki+Tempo+Grafana+GlitchTip Helm (`<SHA>`) — plan: `2026-04-22-c2-observability-dashboard.md`
+- [x] C-2 — Observability packages (`@atlas/observability` + `@atlas/run-dashboard`) + persona-tiered Run page + OTel+Prom+Loki+Tempo+Grafana+GlitchTip Helm (`d61fde1`) — plan: `2026-04-22-c2-observability-dashboard.md`
 - [x] C-3 — SLO + error-budget engine (`c789d26`)
 - [ ] C-4 — Multi-region failover (needs real multi-region cluster + Cloudflare zone — ops task)
 - [x] C-5 — Payments hardening — idempotency + webhook signature verification (`c789d26`)
