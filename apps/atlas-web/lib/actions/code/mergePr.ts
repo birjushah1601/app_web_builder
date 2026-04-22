@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth/clerk-compat.js";
 import { createOctokit, parseRepoSlug } from "../../code/octokitClient.js";
 
 export interface MergePrInput {

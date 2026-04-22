@@ -19,17 +19,33 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 }
 
 async function readClerkSession(): Promise<AuthUser | null> {
-  const { auth, currentUser } = await import("@clerk/nextjs/server");
-  const { userId } = await auth();
+  const clerk = await import("@clerk/nextjs/server");
+  const { userId } = await clerk.auth();
   if (!userId) return null;
-  const clerkUser = await currentUser();
+
+  // currentUser() is separate from auth() — some call sites (and many old
+  // tests) only stub auth. Tolerate a missing implementation by falling back
+  // to a userId-only session rather than crashing the whole request.
+  let clerkUser: {
+    emailAddresses?: Array<{ emailAddress: string }>;
+    firstName?: string | null;
+    lastName?: string | null;
+    publicMetadata?: Record<string, unknown>;
+  } | null = null;
+  try {
+    clerkUser = (await clerk.currentUser()) as typeof clerkUser;
+  } catch {
+    clerkUser = null;
+  }
+
   return {
     userId,
     provider: "clerk",
-    email: clerkUser?.emailAddresses[0]?.emailAddress,
+    email: clerkUser?.emailAddresses?.[0]?.emailAddress,
     name: clerkUser?.firstName
       ? `${clerkUser.firstName} ${clerkUser.lastName ?? ""}`.trim()
-      : undefined
+      : undefined,
+    publicMetadata: clerkUser?.publicMetadata ?? {}
   };
 }
 

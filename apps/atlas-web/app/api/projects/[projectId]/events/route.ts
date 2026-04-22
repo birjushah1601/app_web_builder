@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth/clerk-compat.js";
 
 export const dynamic = "force-dynamic";
 

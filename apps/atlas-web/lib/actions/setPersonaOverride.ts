@@ -1,5 +1,5 @@
 "use server";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth/clerk-compat.js";
 import type { PersonaTier } from "@atlas/ritual-engine";
 
 export async function setPersonaOverride({ projectId, persona }: { projectId: string; persona: PersonaTier }): Promise<void> {

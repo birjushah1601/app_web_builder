@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth/clerk-compat.js";
 
 export default async function LandingPage() {
   const { userId } = await auth();
