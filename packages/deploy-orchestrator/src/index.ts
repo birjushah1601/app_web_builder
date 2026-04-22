@@ -2,6 +2,7 @@ export * from "./types.js";
 export * from "./errors.js";
 export * from "./kubernetes-client.js";
 export * from "./cloudflare-client.js";
+export * from "./http-cloudflare-client.js";
 export * from "./manifests/knative-service.js";
 export * from "./manifests/argo-application.js";
 export * from "./manifests/cert-manager-cert.js";
