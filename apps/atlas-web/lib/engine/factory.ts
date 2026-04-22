@@ -3,6 +3,7 @@ import { Conductor, type Role } from "@atlas/conductor";
 import { RitualEngine } from "@atlas/ritual-engine";
 import { ClerkPersonaPreferences } from "./persona-prefs";
 import { SpecEventsSink } from "./event-sink";
+import { OpenAICompatProvider } from "./openai-compat-provider";
 
 /** Lazy + per-request cached. Real DB client + Conductor wiring happens here. */
 export const getRitualEngine = cache(async (projectId: string): Promise<RitualEngine> => {
@@ -12,7 +13,9 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { Registry } = await import("prom-client");
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const { AnthropicProvider, createProviderMetrics } = await import("@atlas/llm-provider");
-  const { ArchitectRole } = await import("@atlas/role-architect");
+  const { ArchitectRole, ARCHITECT_TRIAGE_MODEL, ARCHITECT_DEEP_PLAN_MODEL } = await import(
+    "@atlas/role-architect"
+  );
   const { SkillRegistry, loadSkillsFromDir } = await import("@atlas/skill-runtime");
   const { resolve } = await import("node:path");
 
@@ -23,24 +26,46 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   );
 
   const roles = new Map<string, Role>();
-  if (process.env.ANTHROPIC_API_KEY) {
+
+  // Provider precedence:
+  //   1. ATLAS_LLM_BASE_URL → OpenAI-compatible local proxy (Claude Code CLI etc.)
+  //   2. ANTHROPIC_API_KEY → official Anthropic SDK
+  //   3. Neither → architect role left unregistered, ritual.start will fail clearly
+  type LlmProvider = import("@atlas/llm-provider").LLMProvider;
+  let llm: LlmProvider | undefined;
+  let triageModel: string | undefined;
+  let deepPlanModel: string | undefined;
+
+  if (process.env.ATLAS_LLM_BASE_URL) {
+    llm = new OpenAICompatProvider({
+      baseUrl: process.env.ATLAS_LLM_BASE_URL,
+      apiKey: process.env.ATLAS_LLM_API_KEY ?? "sk-no-auth"
+    });
+    // Local CC CLI proxy uses Anthropic-rebadged model names like "claude-sonnet-4".
+    triageModel = process.env.ATLAS_LLM_TRIAGE_MODEL ?? "claude-haiku-4-5";
+    deepPlanModel = process.env.ATLAS_LLM_DEEP_MODEL ?? "claude-sonnet-4";
+  } else if (process.env.ANTHROPIC_API_KEY) {
     const promRegistry = new Registry();
     const sdk = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const llm = new AnthropicProvider({ sdk, metrics: createProviderMetrics(promRegistry) });
+    llm = new AnthropicProvider({ sdk, metrics: createProviderMetrics(promRegistry) });
+    triageModel = ARCHITECT_TRIAGE_MODEL;
+    deepPlanModel = ARCHITECT_DEEP_PLAN_MODEL;
+  } else {
+    console.warn(
+      "[atlas-web] No LLM provider configured. Set ATLAS_LLM_BASE_URL (proxy) or ANTHROPIC_API_KEY. Ritual.start will fail with 'unknown role'."
+    );
+  }
 
-    // Architect composes brainstorm + spec-graph + runnable-plan, plus its own
-    // skill set. Load enough subdirs to satisfy assembleArchitectPrompt.
+  if (llm) {
     const skillsRoot = resolve(process.cwd(), "..", "..", "packages", "skill-library", "skills");
     const skillSubdirs = ["architect", "developer", "ship", "reviewer", "debugger"];
     const allSkills = (
       await Promise.all(skillSubdirs.map((sub) => loadSkillsFromDir(resolve(skillsRoot, sub))))
     ).flat();
     const skillRegistry = new SkillRegistry(allSkills);
-
-    roles.set("architect", new ArchitectRole({ llm, skills: skillRegistry }));
-  } else {
-    console.warn(
-      "[atlas-web] ANTHROPIC_API_KEY not set — architect role unregistered. Ritual.start will fail with 'unknown role'."
+    roles.set(
+      "architect",
+      new ArchitectRole({ llm, skills: skillRegistry, triageModel, deepPlanModel })
     );
   }
 
