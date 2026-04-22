@@ -32,8 +32,15 @@ helm install atlas-cluster ./deploy/atlas-helm
 ## What this chart provides
 
 - `atlas-projects` namespace (where Knative `Service` + `Certificate` resources land)
-- `atlas-platform` namespace (where future observability + GlitchTip Helm releases land per C-2)
+- `atlas-platform` namespace (Argo CD AppProject for the observability stack)
 - `letsencrypt-cloudflare-dns01` ClusterIssuer wired to the Cloudflare token Secret
+- **Observability stack** (per C-2 / ADR-001 §4) as Argo CD `Application`s reconciling upstream charts into the `monitoring` namespace:
+  - `kube-prometheus-stack` — Prometheus + Alertmanager (Grafana disabled; we use the standalone chart for custom data sources)
+  - `loki` — log aggregation, single-binary mode
+  - `tempo` — distributed tracing backend
+  - `grafana` — dashboards, preconfigured with Prometheus/Loki/Tempo data sources
+  - `glitchtip` — Sentry-protocol-compatible error sink for user apps
+- **OpenTelemetry collector** — plain Deployment + Service + ConfigMap in `monitoring`. Accepts OTLP gRPC (`:4317`) + HTTP (`:4318`) from Atlas services and fans out to Prometheus (metrics), Loki (logs), Tempo (traces).
 
 ## What this chart does NOT provide
 

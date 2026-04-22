@@ -7,3 +7,14 @@ acme:
 namespaces:
   projects: atlas-projects
   platform: atlas-platform
+observability:
+  prometheus:
+    chartVersion: "65.0.0"
+  loki:
+    chartVersion: "6.16.0"
+  tempo:
+    chartVersion: "1.16.0"
+  grafana:
+    chartVersion: "8.5.0"
+  glitchtip:
+    chartVersion: "1.0.0"
