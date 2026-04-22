@@ -36,17 +36,9 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 
 ---
 
-## D3. ESLint warning in atlas-web for `eslint-config-next/core-web-vitals`
+## ~~D3. ESLint warning in atlas-web~~ — CLOSED 2026-04-22
 
-**What:** Cosmetic ESLint warning during atlas-web lint, originating from a config-resolution edge case in `eslint-config-next`.
-
-**Why deferred:** Cosmetic only; lint passes overall. Fix requires either a Next.js minor bump or a workaround in `.eslintrc`.
-
-**Risk if left:** None functionally. New developers may waste time chasing the warning.
-
-**Trigger to revisit:** Next time atlas-web's Next.js version is bumped, or when a developer files an issue about it.
-
-**Owner-of-revisit:** atlas-web maintainer.
+Closed by `77fc391`. `eslint.config.mjs` now uses `FlatCompat` from `@eslint/eslintrc` to bridge `eslint-config-next` 15's legacy configs into flat config, plus a `no-unused-vars` override honoring `_`-prefixed args/vars. Four real lint errors surfaced and fixed (`<a href="/">` → `<Link>`, unused `_projectId` / `_userId` params, one targeted `useEffect` deps suppression). `pnpm --filter atlas-web lint` reports clean.
 
 ---
 
@@ -132,15 +124,19 @@ Closed by `d61fde1` (C-2) + `031c696` (HttpGrafanaClient).
 
 ---
 
-## D12. Keycloak self-host auth path (alongside Clerk)
+## D12. Keycloak self-host auth path — LIBRARY SHIPPED, atlas-web integration still pending
 
-**What:** ADR-001 keeps Clerk for hosted-dev convenience but mandates Keycloak (or another OSS OIDC/SAML provider) for sovereign / self-host deployments. Need a Keycloak adapter for atlas-web's auth surface, gated by `ATLAS_FF_AUTH_KEYCLOAK`.
+**Status 2026-04-22:** library landed in `77fc391`. `@atlas/auth-keycloak` provides `KeycloakAuthProvider` with OIDC code-flow (PKCE + refresh + `jose`-backed id_token verification). 15 tests pass.
 
-**Why deferred:** Auth swap is a substantial atlas-web refactor (Clerk middleware, session helpers, user-management UI). Worth doing as a focused unit.
+**What remains:** atlas-web-side wiring to let the Clerk→Keycloak swap actually happen in self-host deployments. Specifically:
+- Middleware that reads `ATLAS_FF_AUTH_KEYCLOAK` and routes `/auth/start` + `/auth/callback` to the Keycloak provider when enabled.
+- Server helpers (`getCurrentUser`, `requireAuth`) that read from an encrypted session cookie in Keycloak mode instead of Clerk's context.
+- Sign-in / sign-out pages that trigger the flow.
+- Tests that the Clerk path still works when the flag is off (already true — default OFF).
 
-**Risk if left:** Atlas Sovereign (D-5) cannot ship without OSS auth.
+**Why this split:** the library is genuinely provider-agnostic and testable today. The atlas-web wire-up is an opinionated refactor of routing + middleware + UI, best done as a focused plan when the first sovereign customer is imminent.
 
-**Trigger to revisit:** When D-5 plan authoring begins, OR when the first sovereign customer signs.
+**Trigger to revisit:** when D-5 (Atlas Sovereign Helm) plan authoring begins, OR when the first sovereign customer signs.
 
 **Owner-of-revisit:** Whoever owns the D-5 Helm-chart plan.
 
