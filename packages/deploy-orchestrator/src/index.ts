@@ -1,6 +1,7 @@
 export * from "./types.js";
 export * from "./errors.js";
 export * from "./kubernetes-client.js";
+export * from "./k8s-client-node-client.js";
 export * from "./cloudflare-client.js";
 export * from "./http-cloudflare-client.js";
 export * from "./manifests/knative-service.js";
