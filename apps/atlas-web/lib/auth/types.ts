@@ -17,4 +17,10 @@ export interface AuthUser {
   /** Optional display info pulled from the id_token or Clerk profile. */
   email?: string;
   name?: string;
+  /**
+   * Free-form metadata from the auth backend. Clerk → `publicMetadata`;
+   * Keycloak → id_token claims minus the standard sub/email/name set.
+   * Callers must treat every field as optional.
+   */
+  publicMetadata?: Record<string, unknown>;
 }

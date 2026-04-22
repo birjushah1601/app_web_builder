@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth/clerk-compat.js";
 
 export const AccessModeSchema = z.enum(["public", "password", "auth"]);
 export type AccessMode = z.infer<typeof AccessModeSchema>;

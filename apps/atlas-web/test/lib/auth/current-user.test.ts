@@ -53,7 +53,8 @@ describe("getCurrentUser — Clerk path (flag OFF)", () => {
       userId: "clerk_abc",
       provider: "clerk",
       email: "user@atlas.app",
-      name: "Atlas User"
+      name: "Atlas User",
+      publicMetadata: {}
     });
   });
 });
