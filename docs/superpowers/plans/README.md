@@ -67,17 +67,17 @@ Phase B is **in progress** (kicked off 2026-04-21). Plans are authored as each m
 
 ## Phase C plans
 
-Phase C is **in progress** (foundations landed 2026-04-21). Per PRD entry criteria, full Phase C ship requires real production state (≥ 99.9% uptime, NPS ≥ 50). Engineering deliverables ship as foundations now; integration with managed providers waits on real credentials.
+Phase C is **in progress**. Per ADR-001 (2026-04-22), Atlas no longer targets Vercel/Neon/Sentry defaults — C-1 and C-2 ship as orchestrator packages + Helm chart additions over DIY-K8s + OpenTelemetry stack + GlitchTip.
 
-- [ ] C-1 — One-click deploy (Neon + Vercel + DNS + Stripe + Resend + Sentry — needs real provider credentials)
-- [ ] C-2 — Atlas Run observability dashboard (needs OTLP collector + Prometheus scrape target running)
+- [x] C-1 — Atlas Run deploy orchestrator + postgres-branching + Helm chart (`0d53754`) — plan: `2026-04-22-c1-deploy-orchestrator.md`
+- [x] C-2 — Observability packages (`@atlas/observability` + `@atlas/run-dashboard`) + persona-tiered Run page + OTel+Prom+Loki+Tempo+Grafana+GlitchTip Helm (`<SHA>`) — plan: `2026-04-22-c2-observability-dashboard.md`
 - [x] C-3 — SLO + error-budget engine (`c789d26`)
-- [ ] C-4 — Multi-region failover (needs Neon multi-region + Vercel edge — credentials)
+- [ ] C-4 — Multi-region failover (needs real multi-region cluster + Cloudflare zone — ops task)
 - [x] C-5 — Payments hardening — idempotency + webhook signature verification (`c789d26`)
-- [ ] C-6 — Usage telemetry + cost dashboards (depends on real telemetry stream)
+- [ ] C-6 — Usage telemetry + cost dashboards (depends on real telemetry stream in C-2 running)
 - [x] C-7 — Audit log schema + sink (`c789d26`)
 
-**Phase C status:** 3 of 7 milestones shipped (C-3 SLO engine, C-5 payments hardening, C-7 audit log). C-1/C-2/C-4/C-6 are gated on real provider credentials and are deferred until those are in hand.
+**Phase C status:** 5 of 7 milestones shipped (C-1, C-2, C-3, C-5, C-7). C-4/C-6 are ops-tasks that need a real cluster + live telemetry respectively. Real `KubernetesClient` / `CloudflareClient` / `HttpGrafanaClient` implementations pair with the contracts already shipped in C-1 + C-2 (see D10/D11 deferrals).
 
 ---
 

@@ -18,6 +18,7 @@
     "@atlas/deploy-orchestrator": "workspace:*",
     "@atlas/ritual-engine": "workspace:*",
     "@atlas/role-architect": "workspace:*",
+    "@atlas/run-dashboard": "workspace:*",
     "@atlas/sandbox-e2b": "workspace:*",
     "@atlas/skill-runtime": "workspace:*",
     "@atlas/spec-graph-data": "workspace:*",
