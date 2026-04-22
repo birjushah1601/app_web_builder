@@ -78,17 +78,9 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 
 ---
 
-## D6. SpendReader exists but no spend events are recorded yet
+## ~~D6. SpendReader exists but no spend events are recorded yet~~ — CLOSED 2026-04-22
 
-**What:** `SandboxSpendRepo.record()` is implemented and wired into atlas-web's factory, but nothing in the codebase calls `record()` after a sandbox provision. The cap check therefore always sees 0 spend.
-
-**Why deferred:** Recording spend requires either polling E2B's billing API (rate-limited, no real-time hook) or instrumenting the lifecycle.terminate path with a duration estimate. Neither was scoped into E.4.
-
-**Risk if left:** Spend cap is non-functional in practice. A runaway project could accumulate real E2B charges with no cap enforcement.
-
-**Trigger to revisit:** Before atlas-web admits real (non-internal) users, OR when E2B billing API integration is scoped.
-
-**Owner-of-revisit:** Whoever owns the next sandbox-related plan (likely a Phase B "billing + cap enforcement" unit).
+Closed by `031c696`. `E2BLifecycle` now accepts an optional `SpendRecorder`; on terminate it computes duration × hourlyRateUsd and calls `record()`. Atlas-web `getSandboxFactory` wires `SandboxSpendRepo` (same pool as the reader) as the recorder. Hourly rate defaults to $0.017, overridable via `SANDBOX_HOURLY_RATE_USD`. Recorder failures are logged and swallowed so they never break terminate.
 
 ---
 
@@ -106,61 +98,37 @@ This list is a complement to PRD §21 (which covers strategic risks); items here
 
 ---
 
-## D8. AST mapping concrete implementation (TS Compiler API)
+## ~~D8. AST mapping concrete implementation (TS Compiler API)~~ — CLOSED 2026-04-22
 
-**What:** B-3 ships the architectural skeleton for AST visual edit mode: the `@atlas/ast-mapper` package interfaces, `AstMapFile` schema, `MutationProposal` schema, and a `NullAstMapper` that returns `undefined` for every node. The Canvas UI surfaces an explicit "AST mapping not yet wired" notice in the SelectedNodePanel. The concrete `TsCompilerAstMapper` that walks `tsc` AST + maps source ranges → graph nodes is not yet built.
+Closed by `031c696`. `buildTsCompilerMap` walks TS sources with the TypeScript compiler API; covers Page nodes (App Router `page.tsx` including `src/app/` and route-group variants) and Component nodes (exported function declarations whose name matches `component:<name>`). `buildTsCompilerAstMapper` convenience returns a `FileBackedAstMapper`. 14 tests pass. The atlas-web Canvas side panel will drop its "AST mapping not yet wired" notice when it's wired to consume this mapper (separate atlas-web follow-up).
 
-**Why deferred:** Building the TS Compiler integration is a substantial task in its own right — it needs a heuristic that maps Page nodes to App Router file paths, Component nodes to JSX export sites, Endpoint nodes to route handler signatures, etc. Each language/framework gets its own concrete mapper. Doing this well requires its own plan (~15 tasks). Shipping the skeleton + Canvas selection now unblocks the UX iteration.
-
-**Risk if left:** Atlas users see "AST mapping not yet wired" in the side panel. The full B-3 promise — "edits at Agree become typed graph mutations that regenerate just the affected component" — is not yet executable.
-
-**Trigger to revisit:** When the UX validates that click-to-select is the right interaction (which we'll learn from the first 5–10 hero projects), prioritize the concrete mapper.
-
-**Owner-of-revisit:** Whoever owns the next atlas-web canvas iteration. Suggested first concrete mapper: TS + Next.js App Router (the dominant Atlas template).
+Extension points for future mappers: Endpoint nodes (route.ts method exports), Model nodes (drizzle schema declarations), other framework layouts (Remix, Astro, SvelteKit).
 
 ---
 
-## D9. Postgres-branching adapter — schema-per-branch implementation
+## ~~D9. Postgres-branching adapter — schema-per-branch implementation~~ — CLOSED 2026-04-22
 
-**What:** ADR-001 §3 (resolved 2026-04-22) chose **schema-per-branch with migration scripts**. Need a `BranchingPostgresAdapter` package that wraps `CREATE SCHEMA branch_<id>; SET search_path TO branch_<id>;` and a migrator that replays the existing drizzle migrations against each branch schema.
-
-**Why deferred:** Implementation, not decision. Three concrete pieces needed: (a) `packages/postgres-branching/` adapter, (b) extension to `@atlas/spec-graph-data` migrate script that accepts a target schema, (c) lifecycle hook in C-1 deploy orchestrator that creates/drops branch schemas on PR open/close.
-
-**Risk if left:** C-1 (one-click deploy) cannot ship preview environments.
-
-**Trigger to revisit:** Before authoring the C-1 plan.
-
-**Owner-of-revisit:** Whoever owns C-1 plan authoring.
+Closed by `0d53754` (C-1). `@atlas/postgres-branching` ships with `branchSchemaName` (deterministic hashed identifier), `PgBranchingAdapter` (ensure/drop/list, idempotent), and `replayMigrationsToSchema` (replays `.sql` files in numeric order against the branch schema's `search_path`). 9/9 tests pass.
 
 ---
 
-## D10. Deploy orchestrator — Argo CD + Knative + cert-manager (Vercel replacement)
+## ~~D10. Deploy orchestrator — real KubernetesClient + CloudflareClient~~ — CLOSED 2026-04-22
 
-**What:** ADR-001 §1 (resolved 2026-04-22) chose **DIY on K8s with Argo CD + Knative Serving + cert-manager**. Need a `packages/deploy-orchestrator/` that emits Argo CD `Application` manifests + Knative `Service` manifests + cert-manager `Certificate` manifests for each Atlas Run deployment. Cloudflare handles the edge (TLS termination, WAF, DDoS) — outside the K8s control plane.
+Closed by `0d53754` (C-1 orchestrator + manifest emitters + Helm chart) and `031c696` (real HTTP clients).
 
-**Why deferred:** Implementation work blocking C-1. Needs (a) the orchestrator package, (b) a baseline Helm chart at `deploy/atlas-helm/` for the Atlas Run target cluster, (c) Cloudflare zone-config glue for per-app DNS records.
-
-**Risk if left:** C-1 (one-click deploy) is undeliverable.
-
-**Trigger to revisit:** When C-1 plan authoring begins.
-
-**Owner-of-revisit:** Whoever owns C-1 plan authoring. Recommended ordering: build the orchestrator first against a local k3d cluster; then a real cluster deploy in a sovereign-friendly region.
+- `K8sClientNodeClient` wraps `@kubernetes/client-node`'s `CustomObjectsApi` — apply/delete/argoApplicationHealth for Service + Application + Certificate. 12 tests.
+- `HttpCloudflareClient` is a fetch-based Cloudflare v4 API wrapper for DNS record upsert/delete. 8 tests.
+- `deploy/atlas-helm/` provisions namespaces + Cloudflare DNS-01 ClusterIssuer on top of Argo CD + Knative + cert-manager.
 
 ---
 
-## D11. Own monitoring stack — two layers per ADR-001 §4 (resolved)
+## ~~D11. Own monitoring stack — two layers per ADR-001 §4~~ — CLOSED 2026-04-22
 
-**What:** ADR-001 §4 (resolved 2026-04-22) chose two layers:
-- **Platform telemetry:** OpenTelemetry collector + Prometheus + Grafana + Loki. Aligns with existing `prom-client` patterns in `role-*` packages.
-- **User-app exception capture:** GlitchTip (Sentry-protocol-compatible OSS), bundled into the Atlas Run deploy template with `SENTRY_DSN` preconfigured. Users opt out via env.
+Closed by `d61fde1` (C-2) + `031c696` (HttpGrafanaClient).
 
-**Why deferred:** Implementation work blocking C-2. Needs (a) Helm-chart values for the Grafana/Loki/Prom/OTel stack, (b) GlitchTip Helm install, (c) deploy-template patches that inject the SDK + DSN, (d) atlas-web Run dashboard widgets backed by Grafana data sources.
-
-**Risk if left:** C-2 (Atlas Run observability dashboard) is undeliverable.
-
-**Trigger to revisit:** When C-2 plan authoring begins.
-
-**Owner-of-revisit:** Whoever owns C-2 plan authoring. The `prom-client` patterns already in `role-*` packages give a starting point for the platform layer.
+- **Platform telemetry:** `@atlas/observability` exports `initOtelSdk`, `initPromRegistry`, `createAtlasLogger` (pino + auto-stamped `trace_id` / `span_id`), canonical `ATLAS_ATTRS`. `deploy/atlas-helm/` Argo-reconciles kube-prometheus-stack + Loki + Tempo + Grafana with preconfigured data sources. OTel collector Deployment receives OTLP → fans out to Prom/Tempo/Loki.
+- **User-app exception capture:** GlitchTip deployed via Argo CD; `deploy-orchestrator.orchestrator.glitchTipDsnFor(projectId)` injects `SENTRY_DSN` into the Knative Service env. Users opt out via `ATLAS_DISABLE_ERROR_TRACKING`.
+- **Run dashboard:** `HttpGrafanaClient` (9 tests) is the real `GrafanaClient` implementation; the atlas-web Run page needs to instantiate it with a configured data-source proxy URL + Grafana API token (small atlas-web follow-up to replace the placeholder HealthSummary with a real query).
 
 ---
 
