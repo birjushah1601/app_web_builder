@@ -62,6 +62,8 @@ export function TerminalPane({ projectId, sandboxId, sandboxExec, shellCommand }
       terminal?.dispose();
       termRef.current = null;
     };
+    // sandboxExec + sandboxId are handled by the separate effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   // E.4: Stream sandbox shell output when sandboxId is provided

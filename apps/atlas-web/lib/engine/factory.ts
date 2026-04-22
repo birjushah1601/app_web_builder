@@ -13,7 +13,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const prefs = new ClerkPersonaPreferences(
     new PreferencesRepo(pool),
-    async (_userId) => (await currentUser()) as never
+    async () => (await currentUser()) as never
   );
 
   // Conductor — for E.2 we instantiate with empty roles; D.3-D.5 wire real ones in their own plans.

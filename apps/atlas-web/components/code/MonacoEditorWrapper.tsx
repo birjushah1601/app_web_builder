@@ -23,7 +23,7 @@ export interface MonacoEditorWrapperProps {
  * Loaded only via next/dynamic with ssr: false from MonacoPane.tsx.
  */
 export function MonacoEditorWrapper({
-  projectId,
+  projectId: _projectId,
   filePath,
   initialContent,
   language,
