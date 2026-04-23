@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { resolveDatamodelCodegen } from "./_python-bin.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..");
@@ -22,17 +23,16 @@ if (!existsSync(schemaFile)) {
 const schemaBytes = readFileSync(schemaFile);
 const schemaHash = "sha256:" + createHash("sha256").update(schemaBytes).digest("hex");
 
-// Invoke datamodel-codegen through uv run so the version is locked to uv.lock
+const { command, prefixArgs } = resolveDatamodelCodegen(pyPackage);
 const args = [
-  "run",
-  "datamodel-codegen",
+  ...prefixArgs,
   "--input", schemaFile,
   "--input-file-type", "jsonschema",
   "--output", outFile,
   "--target-python-version", "3.11",
   "--output-model-type", "pydantic_v2.BaseModel",
   "--use-schema-description",
-  "--use-title-as-name",  // ← ADD THIS LINE
+  "--use-title-as-name",
   "--use-standard-collections",
   "--use-union-operator",
   "--disable-timestamp",
@@ -41,7 +41,7 @@ const args = [
   "--snake-case-field"
 ];
 
-const codegen = spawnSync("uv", args, { cwd: pyPackage, stdio: "inherit" });
+const codegen = spawnSync(command, args, { cwd: pyPackage, stdio: "inherit" });
 if (codegen.status !== 0) {
   process.stderr.write(`generate-pydantic: datamodel-codegen exited ${codegen.status}\n`);
   process.exit(codegen.status ?? 1);

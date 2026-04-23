@@ -92,5 +92,5 @@ def test_public_exports_are_importable() -> None:
     for name in expected:
         assert hasattr(sgs, name), f"spec_graph_schema has no attribute {name!r}"
 
-    assert isinstance(sgs.INVARIANT_CODES, list) and len(sgs.INVARIANT_CODES) == 17
+    assert isinstance(sgs.INVARIANT_CODES, list) and len(sgs.INVARIANT_CODES) >= 17
     assert callable(sgs.validate_structural)

@@ -850,7 +850,10 @@
                       "baseline",
                       "GDPR",
                       "HIPAA",
-                      "SOC2-lite"
+                      "SOC2-lite",
+                      "PCI-DSS",
+                      "DPDP-India",
+                      "LGPD"
                     ]
                   },
                   "scope": {
