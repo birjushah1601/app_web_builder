@@ -19,15 +19,22 @@ export interface ChatPanelProps {
 export function ChatPanel({ projectId, action }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ role: "user"; text: string }>>([]);
 
   async function send() {
     if (!text.trim() || pending) return;
     setPending(true);
+    setError(null);
     setHistory((h) => [...h, { role: "user", text }]);
     try {
       await action({ projectId, userTurn: text, editClass: "structural" });
       setText("");
+    } catch (err) {
+      // Surface the failure so users don't experience a silent "the button did nothing"
+      // crash. The message is intentionally short — full stacks belong in server logs.
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Something went wrong. Please try again.");
     } finally {
       setPending(false);
     }
@@ -44,6 +51,11 @@ export function ChatPanel({ projectId, action }: ChatPanelProps) {
         onSubmit={(e) => { e.preventDefault(); send(); }}
         className="border-t border-slate-200 p-2"
       >
+        {error && (
+          <div role="alert" className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+            {error}
+          </div>
+        )}
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}

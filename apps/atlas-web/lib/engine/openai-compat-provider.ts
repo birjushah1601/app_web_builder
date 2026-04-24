@@ -105,12 +105,17 @@ export class OpenAICompatProvider implements LLMProvider {
       );
     }
     let input: unknown = {};
-    try {
-      input = JSON.parse(toolCall.function.arguments ?? "{}");
-    } catch (err) {
-      throw new Error(
-        `OpenAICompatProvider: tool arguments not JSON: ${(err as Error).message}`
-      );
+    const rawArgs = toolCall.function.arguments;
+    // Treat null/undefined/empty as "no arguments" — some proxies omit args
+    // for no-parameter tools, or emit the literal empty string.
+    if (rawArgs != null && rawArgs.trim() !== "") {
+      try {
+        input = JSON.parse(rawArgs);
+      } catch (err) {
+        throw new Error(
+          `OpenAICompatProvider: tool arguments not JSON: ${(err as Error).message}`
+        );
+      }
     }
     return {
       toolName: toolCall.function.name,
