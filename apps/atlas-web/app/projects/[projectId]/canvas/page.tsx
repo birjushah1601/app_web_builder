@@ -13,13 +13,17 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // E.4: Lazy-provision sandbox and get preview URL for the HMR iframe.
   let previewUrl: string | undefined;
   let sandboxId = "";
+  let previewError: string | undefined;
   try {
     const session = await getSandboxFactory().getOrProvision(projectId);
     previewUrl = session.previewUrl;
     sandboxId = session.record.sandboxId;
-  } catch {
-    // Sandbox provision failed (spend cap, missing API key, etc.) — degrade gracefully.
+  } catch (err) {
+    // Sandbox provision failed (spend cap, missing API key, etc.) — degrade
+    // gracefully and surface the reason to the client so users don't stare
+    // at a forever-loading skeleton.
     previewUrl = undefined;
+    previewError = err instanceof Error ? err.message : String(err);
   }
 
   return (
@@ -29,6 +33,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
           projectId={projectId}
           sandboxId={sandboxId}
           previewUrl={previewUrl}
+          previewError={previewError}
         />
         <CanvasClient graph={graph} projectId={projectId} />
       </section>
