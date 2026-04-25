@@ -9,9 +9,11 @@ interface CanvasPreviewClientProps {
   projectId: string;
   sandboxId: string;
   previewUrl: string | undefined;
+  /** Reason the sandbox provision failed, if any. Drives the error panel. */
+  previewError?: string;
 }
 
-export function CanvasPreviewClient({ projectId, sandboxId, previewUrl }: CanvasPreviewClientProps) {
+export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewError }: CanvasPreviewClientProps) {
   const [viewport, setViewport] = useState<ViewportId>("desktop");
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -31,7 +33,21 @@ export function CanvasPreviewClient({ projectId, sandboxId, previewUrl }: Canvas
         className="flex-1 overflow-auto flex justify-center"
         style={{ maxWidth: VIEWPORTS[viewport].width }}
       >
-        <HmrIframe src={previewUrl} title="Live preview" />
+        {previewError ? (
+          <div
+            role="alert"
+            data-testid="canvas-preview-error"
+            className="m-4 max-w-md self-start rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+          >
+            <strong className="mb-1 block">Preview unavailable</strong>
+            <span className="block break-words">{previewError}</span>
+            <span className="mt-2 block text-xs text-red-500">
+              Refresh once the cause (spend cap, API key, sandbox quota…) is resolved.
+            </span>
+          </div>
+        ) : (
+          <HmrIframe src={previewUrl} title="Live preview" />
+        )}
       </div>
       <ShareableUrlModal
         projectId={projectId}
