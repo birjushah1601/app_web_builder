@@ -16,9 +16,12 @@ autonomous loop.
 | `ChatPanel` failure UX | Silent "button did nothing" on action rejection | `role="alert"` surface with the error message |
 | `ChatPanel` tests | 1 test | 9 tests (history, pending, double-submit, error display) |
 | `factory.ts` provider precedence | 1 smoke test | 7 tests covering both provider paths + the unconfigured warn |
-| atlas-web suite | 37 files / 141 tests | 38 files / 171 tests |
+| Playwright E2E | Setup crashed on missing secrets; CI filter typo (`@atlas/web`); zero auth-free coverage | globalSetup no-ops cleanly when secrets unset; CI filter fixed; 3 auth-free smoke specs (`/sign-in` renders, `/` redirects, screenshot capture) |
+| Canvas sandbox-provision failure UX | Silent — `} catch {}` → forever-pulsing skeleton | `previewError` forwarded to client; `role="alert"` panel with recovery hint replaces skeleton |
+| `CanvasPreviewClient` | 0 tests | 4 tests (iframe path, skeleton path, error panel path, recovery hint) |
+| atlas-web suite | 37 files / 141 tests | 39 files / 175 tests |
 
-8 commits to `main`, all behind merge commits, no force-pushes, no destructive ops.
+10 commits to `main`, all behind merge commits, no force-pushes, no destructive ops.
 
 ## Baseline of the monorepo (post-changes)
 
@@ -43,11 +46,11 @@ autonomous loop.
 - **Why deferred:** Genuinely a design call — eager checks add startup latency and may flap under transient outages. The new error surface gives users the diagnostic; that may be enough.
 - **Suggested next step:** Add a `pnpm -F atlas-web smoke:proxy` script that pings the proxy. Run it in dev start-up checklists, not in production.
 
-### 3. No Playwright / visual tests
+### 3. Playwright auth-free smoke landed; persona suite still aspirational
 
-- **Symptom:** Zero E2E coverage of the canvas → ChatPanel → ritual.start golden path. UI regressions ship silently until someone clicks Send.
-- **Why deferred:** Playwright setup for atlas-web requires a running dev server + Postgres + a stubbed LLM. Worth a dedicated session — too much scaffolding for a hardening pass.
-- **Suggested next step:** Add `apps/atlas-web/e2e/` with `playwright.config.ts`. The `packages/role-browser-verification` package already has Playwright deps figured out — copy the pattern. First spec: open `/projects/<id>/canvas`, type "add login", click Send, assert spinner clears within 30s and either the user turn or an alert appears.
+- **Status:** Fixed for the smoke layer. `apps/atlas-web/e2e/tests/smoke-public.spec.ts` runs in 28s without secrets.
+- **Still open:** The 10 existing persona specs (`diego-happy.spec.ts` etc.) reference UI test IDs that **don't exist in the codebase yet** — `intent-input`, `ritual-step-indicator`, `agree-artifact-card`, `preview-iframe`. Repairing them is feature work (build the canvas ritual stepper UI), not hardening.
+- **Suggested next step:** Either (a) build the missing UI surfaces with the test IDs the persona specs already assert against, or (b) move the aspirational specs out of `e2e/tests/` into `e2e/aspirational/` so CI doesn't try to run them until they're realistic.
 
 ### 4. `factory.ts` dynamic-import code path isn't covered when env is set
 
