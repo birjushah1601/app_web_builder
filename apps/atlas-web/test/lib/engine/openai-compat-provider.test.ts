@@ -29,7 +29,7 @@ describe("OpenAICompatProvider — URL normalization", () => {
       apiKey: "sk-no-auth",
       fetchFn: fetchFn as unknown as typeof fetch
     });
-    await p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4" });
+    await p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4", maxTokens: 100 });
     const [url] = fetchFn.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://127.0.0.1:3456/v1/chat/completions");
   });
@@ -42,7 +42,7 @@ describe("OpenAICompatProvider — URL normalization", () => {
       baseUrl: "http://127.0.0.1:3456/v1",
       fetchFn: fetchFn as unknown as typeof fetch
     });
-    await p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4" });
+    await p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4", maxTokens: 100 });
     const [url] = fetchFn.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://127.0.0.1:3456/v1/chat/completions");
   });
@@ -58,7 +58,7 @@ describe("OpenAICompatProvider — auth + fetch wiring", () => {
       apiKey: "sk-custom-key",
       fetchFn: fetchFn as unknown as typeof fetch
     });
-    await p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4" });
+    await p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4", maxTokens: 100 });
     const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer sk-custom-key");
@@ -75,7 +75,7 @@ describe("OpenAICompatProvider — auth + fetch wiring", () => {
       baseUrl: "http://localhost:3456",
       fetchFn: fetchFn as unknown as typeof fetch
     });
-    await p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4" });
+    await p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4", maxTokens: 100 });
     const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer sk-no-auth");
@@ -90,7 +90,7 @@ describe("OpenAICompatProvider — auth + fetch wiring", () => {
       fetchFn: fetchFn as unknown as typeof fetch
     });
     await expect(
-      p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4" })
+      p.complete([{ role: "user", content: "hi" }], { model: "claude-sonnet-4", maxTokens: 100 })
     ).rejects.toThrow(/HTTP 503/);
   });
 });
@@ -141,7 +141,7 @@ describe("OpenAICompatProvider — complete()", () => {
       });
       const res = await p.complete(
         [{ role: "user", content: "x" }],
-        { model: "claude-sonnet-4" }
+        { model: "claude-sonnet-4", maxTokens: 100 }
       );
       expect(res.stopReason, `finish_reason=${input}`).toBe(expected);
     }
@@ -155,7 +155,7 @@ describe("OpenAICompatProvider — complete()", () => {
       baseUrl: "http://localhost:3456",
       fetchFn: fetchFn as unknown as typeof fetch
     });
-    const res = await p.complete([{ role: "user", content: "x" }], { model: "claude-sonnet-4" });
+    const res = await p.complete([{ role: "user", content: "x" }], { model: "claude-sonnet-4", maxTokens: 100 });
     expect(res.content).toBe("");
     expect(res.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
   });
@@ -189,6 +189,7 @@ describe("OpenAICompatProvider — completeWithToolUse()", () => {
       [{ role: "user", content: "plan it" }],
       {
         model: "claude-sonnet-4",
+        maxTokens: 100,
         tools: [TOOL],
         toolChoice: { type: "tool", name: "propose_plan" }
       }
@@ -238,7 +239,7 @@ describe("OpenAICompatProvider — completeWithToolUse()", () => {
     });
     await p.completeWithToolUse(
       [{ role: "user", content: "x" }],
-      { model: "claude-sonnet-4", tools: [TOOL], toolChoice: { type: "any" } }
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "any" } }
     );
     const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string) as { tool_choice: unknown };
@@ -267,7 +268,7 @@ describe("OpenAICompatProvider — completeWithToolUse()", () => {
     });
     await p.completeWithToolUse(
       [{ role: "user", content: "x" }],
-      { model: "claude-sonnet-4", tools: [TOOL], toolChoice: { type: "auto" } }
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "auto" } }
     );
     const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string) as { tool_choice: unknown };
@@ -292,6 +293,7 @@ describe("OpenAICompatProvider — completeWithToolUse()", () => {
         [{ role: "user", content: "x" }],
         {
           model: "claude-sonnet-4",
+          maxTokens: 100,
           tools: [TOOL],
           toolChoice: { type: "tool", name: "propose_plan" }
         }
@@ -324,6 +326,7 @@ describe("OpenAICompatProvider — completeWithToolUse()", () => {
         [{ role: "user", content: "x" }],
         {
           model: "claude-sonnet-4",
+          maxTokens: 100,
           tools: [TOOL],
           toolChoice: { type: "tool", name: "propose_plan" }
         }
@@ -353,7 +356,7 @@ describe("OpenAICompatProvider — completeWithToolUse()", () => {
     });
     const res = await p.completeWithToolUse(
       [{ role: "user", content: "x" }],
-      { model: "claude-sonnet-4", tools: [TOOL], toolChoice: { type: "tool", name: "propose_plan" } }
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "tool", name: "propose_plan" } }
     );
     expect(res.input).toEqual({});
   });
@@ -365,7 +368,7 @@ describe("OpenAICompatProvider — stream()", () => {
       baseUrl: "http://localhost:3456",
       fetchFn: vi.fn() as unknown as typeof fetch
     });
-    const iter = p.stream([{ role: "user", content: "x" }], { model: "claude-sonnet-4" });
+    const iter = p.stream([{ role: "user", content: "x" }], { model: "claude-sonnet-4", maxTokens: 100 });
     // Attempting to pull the first chunk should reject with the unimplemented error.
     await expect((async () => {
       for await (const _chunk of iter) break;
