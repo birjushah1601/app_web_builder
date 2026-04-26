@@ -123,15 +123,11 @@ export function getSandboxFactory(): SandboxFactory {
     // Allow operators to point at any E2B template they actually have on
     // their account — including raw template IDs (alphanumeric, e.g.
     // "6f5mwsacoiiqt0qj1bgx") — without forking this file. The atlas-*
-    // names below are aspirational; the codebase doesn't ship the
-    // Dockerfiles for them, so a real deployment must either build them
-    // or set ATLAS_DEFAULT_SANDBOX_TEMPLATE to an existing template ID.
-    //
-    // The cast through `unknown` is intentional: TemplateId is a strict
-    // 6-name enum upstream, but at runtime E2B's SDK accepts any string
-    // (name or ID). Loosening the type would touch the @atlas/sandbox-e2b
-    // public API; keeping the lie local is the smaller blast radius.
-    const defaultTemplate = (process.env.ATLAS_DEFAULT_SANDBOX_TEMPLATE ?? "atlas-next-ts") as unknown as TemplateId;
+    // names listed in @atlas/sandbox-e2b's KNOWN_ATLAS_TEMPLATES are
+    // aspirational; the codebase doesn't ship the Dockerfiles for them,
+    // so a real deployment must either build them or set
+    // ATLAS_DEFAULT_SANDBOX_TEMPLATE to an existing template ID.
+    const defaultTemplate: TemplateId = process.env.ATLAS_DEFAULT_SANDBOX_TEMPLATE ?? "atlas-next-ts";
     const defaultPort = process.env.ATLAS_DEFAULT_SANDBOX_PORT
       ? Number(process.env.ATLAS_DEFAULT_SANDBOX_PORT)
       : undefined;
