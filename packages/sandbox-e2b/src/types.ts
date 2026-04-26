@@ -4,15 +4,29 @@ import { z } from "zod";
 export const SandboxIdSchema = z.string().min(1).brand("SandboxId");
 export type SandboxId = z.infer<typeof SandboxIdSchema>;
 
-/** Atlas prebuilt E2B templates. v1.0 shipped 2; v1.1 (B-4) adds 4 more. */
-export const TemplateIdSchema = z.enum([
+/**
+ * Aspirational Atlas-managed template names. The repo doesn't ship the
+ * Dockerfiles for these — they are the names this codebase would use IF
+ * an operator built and registered them on their E2B account. Listed
+ * here for documentation; runtime is permissive.
+ */
+export const KNOWN_ATLAS_TEMPLATES = [
   "atlas-next-ts",
   "atlas-python-fastapi",
   "atlas-react-vite",
   "atlas-astro",
   "atlas-sveltekit",
   "atlas-expo"
-]);
+] as const;
+export type KnownAtlasTemplate = (typeof KNOWN_ATLAS_TEMPLATES)[number];
+
+/**
+ * E2B template reference — name OR raw template ID (alphanumeric, e.g.
+ * "6f5mwsacoiiqt0qj1bgx"). E2B's SDK accepts either at runtime, so this
+ * schema is permissive: any non-empty string. Tools that want the strict
+ * known-name list use {@link KNOWN_ATLAS_TEMPLATES}.
+ */
+export const TemplateIdSchema = z.string().min(1);
 export type TemplateId = z.infer<typeof TemplateIdSchema>;
 
 export const SandboxStatusSchema = z.enum(["provisioning", "running", "terminated", "error"]);
