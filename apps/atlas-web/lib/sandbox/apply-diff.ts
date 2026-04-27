@@ -164,7 +164,17 @@ function reconstructFromChunks(
   original: string,
   chunks: Chunk[]
 ): { ok: true; content: string } | { ok: false; reason: string } {
+  // Preserve the original's trailing-newline state explicitly. split/join
+  // happens to round-trip on pure no-op modifies, but a splice that
+  // touches the last line of a no-trailing-newline file can drift —
+  // detect-and-restore is the safe pattern.
+  const hadTrailingNewline = original.endsWith("\n");
   const lines = original.split("\n");
+  // If the input ended with \n, split produces a trailing empty string.
+  // Pop it so the splice indices operate uniformly on real content lines;
+  // we re-add the newline at the end via hadTrailingNewline.
+  if (hadTrailingNewline && lines[lines.length - 1] === "") lines.pop();
+
   // parse-diff gives offsets in 1-based line numbers. We work in a
   // mutable copy and edit per-hunk; sort hunks by oldStart descending
   // so earlier indices remain valid as we splice.
@@ -204,5 +214,5 @@ function reconstructFromChunks(
     }
     lines.splice(offset, cursor, ...replaced);
   }
-  return { ok: true, content: lines.join("\n") };
+  return { ok: true, content: lines.join("\n") + (hadTrailingNewline ? "\n" : "") };
 }

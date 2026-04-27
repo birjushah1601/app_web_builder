@@ -270,4 +270,61 @@ describe("applyFileOp — modify", () => {
     expect(result.status).toBe("written");
     expect(fs._store.get("/code/src/foo.ts")).toBe("A\nb\nc\nd\ne\nf\nG\nh\n");
   });
+
+  it("preserves the original's lack-of-trailing-newline (does NOT add one)", async () => {
+    const fs = memoryFs({ "/code/src/foo.ts": "line1\nline2\nline3" }); // NO trailing \n
+    const diff =
+      "diff --git a/src/foo.ts b/src/foo.ts\n" +
+      "--- a/src/foo.ts\n" +
+      "+++ b/src/foo.ts\n" +
+      "@@ -1,3 +1,3 @@\n" +
+      " line1\n" +
+      "-line2\n" +
+      "+line2-modified\n" +
+      " line3\n";
+    const { ops } = parseDiff(diff);
+    const result = await applyFileOp(fs, ops[0]!, "/code");
+    expect(result.status).toBe("written");
+    // Critical: result must NOT have a trailing newline
+    expect(fs._store.get("/code/src/foo.ts")).toBe("line1\nline2-modified\nline3");
+  });
+
+  it("preserves trailing newline when original had one", async () => {
+    const fs = memoryFs({ "/code/src/foo.ts": "line1\nline2\nline3\n" });
+    const diff =
+      "diff --git a/src/foo.ts b/src/foo.ts\n" +
+      "--- a/src/foo.ts\n" +
+      "+++ b/src/foo.ts\n" +
+      "@@ -1,3 +1,3 @@\n" +
+      " line1\n" +
+      "-line2\n" +
+      "+line2-mod\n" +
+      " line3\n";
+    const { ops } = parseDiff(diff);
+    const result = await applyFileOp(fs, ops[0]!, "/code");
+    expect(result.status).toBe("written");
+    expect(fs._store.get("/code/src/foo.ts")).toBe("line1\nline2-mod\nline3\n");
+  });
+
+  it("applies a pure-insertion hunk (oldLines: 0) at the correct position", async () => {
+    const fs = memoryFs({ "/code/src/foo.ts": "line1\nline2\nline3\n" });
+    // Diff inserts 2 new lines AFTER line 2 (between line 2 and line 3).
+    // Hunk header @@ -1,3 +1,5 @@: 3 old lines (line1, line2, line3) become 5
+    // new lines (line1, line2, inserted-A, inserted-B, line3) — context lines
+    // sandwich the +adds, exercising the cursor-doesn't-advance-on-add path.
+    const diff =
+      "diff --git a/src/foo.ts b/src/foo.ts\n" +
+      "--- a/src/foo.ts\n" +
+      "+++ b/src/foo.ts\n" +
+      "@@ -1,3 +1,5 @@\n" +
+      " line1\n" +
+      " line2\n" +
+      "+inserted-A\n" +
+      "+inserted-B\n" +
+      " line3\n";
+    const { ops } = parseDiff(diff);
+    const result = await applyFileOp(fs, ops[0]!, "/code");
+    expect(result.status).toBe("written");
+    expect(fs._store.get("/code/src/foo.ts")).toBe("line1\nline2\ninserted-A\ninserted-B\nline3\n");
+  });
 });
