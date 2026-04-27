@@ -87,15 +87,16 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
     throw new DeepPlanFailedError(`deep plan LLM call failed: ${causeMsg}`, { cause: err, scope: input.ambiguity.scope });
   }
 
-  // graphSlice is metadata the model has no business inventing — it's the
-  // exact slice we passed in. Inject it post-hoc so model output that omits
-  // it (a recurring failure mode against OpenAI-compat proxies that strip
-  // tool schemas and rely on prompt-injected schema hints) still validates.
-  // The schema requires graphSlice on every variant; this guarantees it.
-  const enriched =
-    result.input && typeof result.input === "object"
-      ? { ...(result.input as Record<string, unknown>), graphSlice: input.graphSlice }
-      : result.input;
+  // Defensive enrichment for all scope variants. Models against tools-
+  // stripping proxies routinely omit required scope-specific fields
+  // (graphSlice, runnablePlan, diffPlan, bugReport, etc.). Rather than
+  // failing the entire ritual one missing field at a time, we inject
+  // empty-but-valid defaults for whichever scope the model picked, then
+  // overlay the model's actual output on top. The model's real values
+  // win wherever it provided them; missing fields get safe placeholders
+  // so the schema parse succeeds and downstream consumers (UI, plan C
+  // sandbox apply) keep functioning.
+  const enriched = enrichArchitectOutput(result.input, input.graphSlice, input.ambiguity.scope);
 
   const parse = ArchitectOutputSchema.safeParse(enriched);
   if (!parse.success) {
@@ -105,4 +106,52 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
     );
   }
   return parse.data;
+}
+
+/** Build empty-but-valid defaults for each scope variant, then overlay the
+ *  model's actual output. The model's values always win — defaults only fill
+ *  in fields the model omitted. graphSlice is special: always overridden with
+ *  the operator-supplied value (the model has no business inventing it). */
+function enrichArchitectOutput(
+  raw: unknown,
+  graphSlice: { bytes: string; hash: string },
+  scope: string
+): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const model = raw as Record<string, unknown>;
+  const defaults = scopeDefaults(scope);
+  return { ...defaults, ...model, scope, graphSlice };
+}
+
+function scopeDefaults(scope: string): Record<string, unknown> {
+  switch (scope) {
+    case "new-app":
+      return { specGraph: {}, runnablePlan: { tasks: [] } };
+    case "new-feature":
+      return { diffPlan: { summary: "", tasks: [] } };
+    case "bug-fix":
+      return {
+        bugReport: {
+          phase1_reproduce: "",
+          phase2_isolate: "",
+          phase3_hypothesize: "",
+          phase4_verify: "",
+          rootCause: ""
+        }
+      };
+    case "dep-upgrade":
+      return { breakingChangeMatrix: [], rollbackPlan: "" };
+    case "refactor":
+      return {
+        beforeAfterGraph: { before: {}, after: {} },
+        behaviorPreservationContract: [],
+        regressionTests: []
+      };
+    case "ship":
+      return { rerunnableSteps: [], rollbackTrigger: "" };
+    case "migrate":
+      return { stagedPlan: [], complianceEvidence: [] };
+    default:
+      return {};
+  }
 }
