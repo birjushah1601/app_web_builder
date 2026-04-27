@@ -1,6 +1,6 @@
 # Plan B — Developer Role Chained Into the Ritual
 
-> **Status:** ~70% landed. This doc is being written DURING execution because the previous "scope decisions" were a paragraph, not a plan, and trial-and-error testing is causing churn. Goal: enumerate every remaining failure mode the user will hit before they hit it.
+> **Status: SHIPPED to `main`** as of commits `9c6744e` (finalize) + `<plan-b-close-gaps merge>` (close-out). Pending one user sign-off click to verify the chain end-to-end against the live local proxy. This doc was originally written DURING execution after the user pushed back on trial-and-error; sections below are now historical except where marked **[Final]**.
 
 **Goal:** ChatPanel → architect → developer end-to-end, with the developer's diff visible to the user. Diff is NOT applied to the live preview sandbox (that's plan C).
 
@@ -121,3 +121,72 @@ Reply with one of:
 - **"go but skip 1"** / **"skip 2"** / **"skip 3"** — subset.
 - **"defer F1"** / **"defer F2"** — keep current behavior, click first, see what fails.
 - **Specific objection** — change scope before I touch anything.
+
+---
+
+## [Final] What actually shipped — close-out audit
+
+User said "go." Three commits landed (commit hashes accurate at time of writing):
+
+| # | Commit | What |
+|---|---|---|
+| 1 | `9c6744e` | Chain test (7) + sequential mode (3 tests) + post-hoc defaults (8 tests) |
+| 2 | `<close-gaps merge>` | 6 new factory.test.ts cases + this doc update + audit doc refresh |
+
+### F1 — Sequential developer passes
+
+**Status:** ✅ DONE.
+
+- `DeveloperRoleOptions.parallelMode?: "parallel" | "sequential"` (default `"parallel"`)
+- `factory.ts` reads `process.env.ATLAS_DEVELOPER_SEQUENTIAL === "true"` (strict opt-in) and passes through
+- `apps/atlas-web/.env.local` set `ATLAS_DEVELOPER_SEQUENTIAL=true` for the user's single-proxy setup
+- Tests:
+  - `packages/role-developer/test/role-sequential-mode.test.ts` (3 cases) — proves concurrency vs strict-order, functional equivalence
+  - `apps/atlas-web/test/lib/engine/factory.test.ts` (3 new cases) — env wiring through to constructor option
+
+### F2 — Post-hoc defaults for `testsAdded` + `filesModified`
+
+**Status:** ✅ DONE.
+
+- `withDefaults()` exported from `anthropic-pass.ts`, re-used by `google-pass.ts`
+- Defaults `testsAdded: []` when missing
+- For `filesModified` (schema requires `.min(1)`), parses file paths from `diff --git a/X b/X` and `+++ b/X` headers; falls back to `["unspecified"]` only when the diff has no recognizable paths; deduplicates
+- Doesn't overwrite when the model supplied the field
+- Tests: `packages/role-developer/test/with-defaults.test.ts` (8 cases) covering pass-through, defaults, parsing, dedupe, fallback, type-safety
+
+### Decision 2 (simulation test)
+
+**Status:** ✅ DONE.
+
+- `packages/ritual-engine/test/engine-developer-chain.test.ts` (7 cases) covers:
+  - architect→developer handoff routes `priorArtifact` correctly
+  - `developerOutput` captured in snapshot
+  - `roleEvents` concatenates from both dispatches
+  - developer dispatch failure → `developer.dispatch.failed` event, ritual still returns 200
+  - cosmetic editClass skips developer dispatch entirely
+  - architect with no artifact (triage blocked) skips developer
+  - `diff.kind="none"` leaves `developerOutput` unset
+
+### Final test counts (across affected packages)
+
+| Package | Before plan B | After plan B |
+|---|---|---|
+| `@atlas/conductor` | 30 | 32 |
+| `@atlas/ritual-engine` | 42 | 49 |
+| `@atlas/role-developer` | 19 | 30 |
+| `@atlas/role-architect` | 29 | 30 |
+| `apps/atlas-web` (vitest) | 175 | 198 |
+| `apps/atlas-web` (Playwright smoke) | 3 | 3 |
+
+`pnpm typecheck` clean across the workspace.
+
+### Residual unknowns (require the live click)
+
+The sim test proves wiring. It does NOT prove:
+
+1. The proxy survives 5 LLM hops (architect-triage + architect-deepplan + dev-anthropic + dev-google + reviewer) without crashing.
+2. The model actually emits parseable JSON matching `DeveloperOutputSchema` once it sees the prompt-injected schema.
+3. End-to-end wall time stays bounded (estimate 45–60 s; haven't measured).
+4. The reviewer model picks `winner ∈ ["anthropic","google"]` in lowercase as the schema requires (could fall through to `developer.reviewer.failed_defaulting_anthropic` and still work; tested at unit level).
+
+If any of those fail, the user will see one of the predicted error panels (red `developer-failed` card, indigo developer card with diff, or amber needs-input). All three rendering paths are covered in `ChatPanel.test.tsx`.

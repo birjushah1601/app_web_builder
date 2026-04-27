@@ -23,6 +23,29 @@ autonomous loop.
 
 10 commits to `main`, all behind merge commits, no force-pushes, no destructive ops.
 
+### 2026-04-27 update — Plan B (architect → developer chain)
+
+| Area | Before | After |
+|------|--------|-------|
+| ArchitectOutput render in ChatPanel | None | 3 panel variants (needs-input / plan / no-output), 5 tests |
+| `RitualEngine.start()` chains architect → developer | Architect-only, returned ritualId | Optional `developerOutput` snapshot, `getRitual()` getter |
+| `RitualSnapshot.developerOutput` | n/a | Captured + surfaced through Server Action + ChatPanel |
+| Developer dispatch failure handling | Would crash whole ritual | Caught into `developer.dispatch.failed` event; ritual still 200 |
+| `Conductor.dispatch` options | retry only | `forceRoleId` + `priorArtifact` (for chained roles) |
+| `RoleInvocation.priorArtifact` | n/a | Optional, read by DeveloperRole |
+| `DeveloperRole.parallelMode` | n/a | `"parallel"` (default) or `"sequential"` (single-proxy setups) |
+| Post-hoc defaults for `testsAdded`/`filesModified` | n/a (model omission → 500) | `withDefaults()` recovers paths from diff; falls back gracefully |
+| Architect's `graphSlice` echo requirement | Required model to repeat input metadata | Injected post-hoc; model only emits scope-specific fields |
+| OpenAICompatProvider schema-injection prompt | "respond with this schema" | Now also enumerates required fields per discriminated-union variant |
+| `factory.ts` registers DeveloperRole | No | Yes; `ATLAS_DEVELOPER_SEQUENTIAL` env opt-in for parallelMode |
+| atlas-web vitest suite | 39 files / 175 tests | 41 files / 198 tests |
+| @atlas/ritual-engine | 12 files / 42 tests | 13 files / 49 tests |
+| @atlas/conductor | 11 files / 30 tests | 11 files / 32 tests |
+| @atlas/role-developer | 12 files / 19 tests | 14 files / 30 tests |
+| @atlas/role-architect | 13 files / 29 tests | 13 files / 30 tests |
+
+5 additional commits on `main`. See `docs/superpowers/plans/2026-04-27-plan-b-developer-chain.md` for the full plan B record.
+
 ## Baseline of the monorepo (post-changes)
 
 - `pnpm --no-bail -r typecheck`: 33 / 33 packages green
