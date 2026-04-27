@@ -67,11 +67,22 @@ export default async function globalSetup() {
   const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
   for (const p of PERSONAS) {
     const page = await browser.newPage();
-    await page.goto(baseUrl);
-    await page.getByLabel("Email address").fill(p.email);
-    await page.getByRole("button", { name: /continue/i }).click();
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: /sign in/i }).click();
+    // Go straight to /sign-in to skip middleware redirect.
+    await page.goto(`${baseUrl}/sign-in`);
+    // Clerk renders both a "Continue" social-OAuth button AND the
+    // email-continue button. Use exact-match to disambiguate.
+    // Wait for Clerk widget to mount (it loads client-side via JS).
+    // We target the form by class — Clerk wraps everything in cl-rootBox.
+    await page.waitForSelector("[class*='cl-rootBox'], [class*='cl-formButtonPrimary']", { timeout: 30_000 });
+    // The email input is reliably the first textbox on the sign-in form.
+    await page.getByRole("textbox").first().fill(p.email);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    // After clicking Continue, Clerk swaps to the password step. Wait for
+    // the password input to appear, then fill — first textbox now is password.
+    const pwd = page.getByRole("textbox").first();
+    await pwd.waitFor({ state: "visible", timeout: 15_000 });
+    await pwd.fill(password);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.waitForURL("**/");
     await page.context().storageState({ path: path.join(authDir, p.file) });
     await page.close();
