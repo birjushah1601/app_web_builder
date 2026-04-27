@@ -19,6 +19,9 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { DeveloperRole } = await import("@atlas/role-developer");
   const { SkillRegistry, loadSkillsFromDir } = await import("@atlas/skill-runtime");
   const { resolve } = await import("node:path");
+  const { applyDiff } = await import("../sandbox/apply-diff.js");
+  const { createSandboxFsAdapter } = await import("../sandbox/sandbox-fs-adapter.js");
+  const { getSandboxFactory } = await import("../sandbox/factory.js");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const prefs = new ClerkPersonaPreferences(
@@ -118,6 +121,40 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   return new RitualEngine({
     conductor,
     eventSink: new SpecEventsSink(new SpecEventRepo(pool), projectId),
-    personaPreferences: prefs
+    personaPreferences: prefs,
+    // Plan C: when the developer role lands a diff, the engine writes it
+    // into the project's E2B sandbox. The applier resolves the live
+    // sandbox session via SandboxFactory, reattaches to the running E2B
+    // sandbox handle by ID (the SandboxSession only carries metadata,
+    // not the SDK handle), wraps its `files` API in our adapter, and
+    // delegates to applyDiff. Wrapped in try/catch so any failure
+    // surfaces as a structured ApplyDiffResult — never throws into the
+    // engine's start() loop.
+    sandboxApplier: {
+      apply: async (sandboxProjectId, diff) => {
+        try {
+          const session = await getSandboxFactory().getOrProvision(sandboxProjectId);
+          const { Sandbox } = await import("@e2b/sdk");
+          const sdk = await Sandbox.connect(session.record.sandboxId, {
+            apiKey: process.env.E2B_API_KEY ?? ""
+          });
+          // E2B's `files.write` returns `Promise<WriteInfo>`; the adapter's
+          // SandboxSessionLike expects `Promise<void>`. The return value is
+          // unused by applyDiff — narrow via cast rather than wrap each call.
+          const fs = createSandboxFsAdapter(sdk as never);
+          return await applyDiff(fs, diff);
+        } catch (err) {
+          return {
+            ok: false,
+            parsed: 0,
+            written: 0,
+            failed: 0,
+            skipped: 0,
+            files: [],
+            parseError: `sandbox unavailable: ${err instanceof Error ? err.message : String(err)}`
+          };
+        }
+      }
+    }
   });
 });
