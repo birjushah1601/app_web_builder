@@ -358,3 +358,67 @@ describe("applyFileOp — modify", () => {
     expect(fs._store.get("/code/src/foo.ts")).toBe("line1\nline2\ninserted-A\ninserted-B\nline3\n");
   });
 });
+
+import { applyDiff } from "@/lib/sandbox/apply-diff";
+
+describe("applyDiff orchestrator", () => {
+  it("returns ok=false with parseError for unparseable input (not throwing)", async () => {
+    const fs = memoryFs();
+    const r = await applyDiff(fs, "");
+    expect(r.ok).toBe(true); // empty diff → no-op, ok per contract
+    expect(r.parsed).toBe(0);
+    expect(r.files).toEqual([]);
+  });
+
+  it("aggregates per-file results across mixed create/modify/delete", async () => {
+    const fs = memoryFs({ "/code/src/foo.ts": "line1\nline2\n" });
+    const diff =
+      "diff --git a/src/login.tsx b/src/login.tsx\n" +
+      "--- /dev/null\n+++ b/src/login.tsx\n@@ -0,0 +1,1 @@\n+export {}\n" +
+      "diff --git a/src/foo.ts b/src/foo.ts\n" +
+      "--- a/src/foo.ts\n+++ b/src/foo.ts\n@@ -1,2 +1,2 @@\n line1\n-line2\n+line2X\n";
+    const r = await applyDiff(fs, diff);
+    expect(r.parsed).toBe(2);
+    expect(r.written).toBe(2);
+    expect(r.failed).toBe(0);
+    expect(r.skipped).toBe(0);
+    expect(r.ok).toBe(true);
+    expect(r.files.map((f) => `${f.path}:${f.status}`)).toEqual([
+      "src/login.tsx:written",
+      "src/foo.ts:written"
+    ]);
+  });
+
+  it("ok=false when any file fails (path escape)", async () => {
+    const fs = memoryFs();
+    const diff =
+      "diff --git a/src/ok.ts b/src/ok.ts\n" +
+      "--- /dev/null\n+++ b/src/ok.ts\n@@ -0,0 +1,1 @@\n+x\n" +
+      "diff --git a/../etc/passwd b/../etc/passwd\n" +
+      "--- /dev/null\n+++ b/../etc/passwd\n@@ -0,0 +1,1 @@\n+evil\n";
+    const r = await applyDiff(fs, diff);
+    expect(r.parsed).toBe(2);
+    expect(r.written).toBe(1);
+    expect(r.failed).toBe(1);
+    expect(r.ok).toBe(false);
+  });
+
+  it("ok stays true when files are skipped but none failed", async () => {
+    const fs = memoryFs();
+    const diff =
+      "diff --git a/src/missing.ts b/src/missing.ts\n" +
+      "--- a/src/missing.ts\n+++ b/src/missing.ts\n@@ -1,1 +1,1 @@\n-old\n+new\n";
+    const r = await applyDiff(fs, diff);
+    expect(r.skipped).toBe(1);
+    expect(r.failed).toBe(0);
+    expect(r.ok).toBe(true);
+  });
+
+  it("respects custom rootDir option", async () => {
+    const fs = memoryFs();
+    const diff = "diff --git a/x.ts b/x.ts\n--- /dev/null\n+++ b/x.ts\n@@ -0,0 +1,1 @@\n+a\n";
+    const r = await applyDiff(fs, diff, { rootDir: "/sandbox/code" });
+    expect(r.written).toBe(1);
+    expect(fs._store.has("/sandbox/code/x.ts")).toBe(true);
+  });
+});

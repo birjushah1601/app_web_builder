@@ -1,5 +1,7 @@
 import parseDiffLib from "parse-diff";
-import type { FileOp, FileApplyResult, SandboxFileSystemLike } from "./apply-diff-types";
+import type { FileOp, FileApplyResult, SandboxFileSystemLike, ApplyDiffResult } from "./apply-diff-types";
+
+const DEFAULT_ROOT = "/code";
 
 /** Parses a unified diff into per-file operations. Wraps the parse-diff
  *  npm library with our internal FileOp shape (which sanitizes paths
@@ -163,6 +165,42 @@ export async function applyFileOp(
 function byteLen(s: string): number {
   // Use Buffer for accurate UTF-8 byte length; fallback to char count.
   return typeof Buffer !== "undefined" ? Buffer.byteLength(s, "utf8") : s.length;
+}
+
+export async function applyDiff(
+  fs: SandboxFileSystemLike,
+  diff: string,
+  opts: { rootDir?: string } = {}
+): Promise<ApplyDiffResult> {
+  const rootDir = opts.rootDir ?? DEFAULT_ROOT;
+  const { ops, error } = parseDiff(diff);
+
+  if (error) {
+    return { ok: false, parsed: 0, written: 0, failed: 0, skipped: 0, files: [], parseError: error };
+  }
+  if (ops.length === 0) {
+    // Empty / whitespace / no-op diff. ok per contract — caller writes
+    // nothing but doesn't see this as a failure.
+    return { ok: true, parsed: 0, written: 0, failed: 0, skipped: 0, files: [] };
+  }
+
+  const files: FileApplyResult[] = [];
+  for (const op of ops) {
+    files.push(await applyFileOp(fs, op, rootDir));
+  }
+
+  const written = files.filter((f) => f.status === "written").length;
+  const failed = files.filter((f) => f.status === "failed").length;
+  const skipped = files.filter((f) => f.status === "skipped").length;
+
+  return {
+    ok: failed === 0,
+    parsed: ops.length,
+    written,
+    failed,
+    skipped,
+    files
+  };
 }
 
 import type { Chunk } from "parse-diff";
