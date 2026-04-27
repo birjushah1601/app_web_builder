@@ -11,15 +11,19 @@ export interface StartRitualInput {
 }
 
 /** Plain JSON-serializable shape returned to the client. ChatPanel renders
- *  the artifact + roleEvents inline so users see the architect's output
- *  instead of a silent success. */
+ *  the artifact + roleEvents + developerOutput inline so users see what
+ *  the ritual actually produced instead of a silent success. */
 export interface StartRitualResult {
   ritualId: string;
   /** Final architect plan when triage passed and pass2 ran. */
   artifact?: unknown;
-  /** Every event the role emitted in this dispatch — pass1.completed,
-   *  triage.needs_input (when triage blocks), pass2.started/completed. */
+  /** Every event each role emitted in this ritual chain — architect's
+   *  pass1/pass2/needs_input, developer's anthropic/google/reviewer/completed,
+   *  plus any failure events. */
   roleEvents: Array<{ eventType: string; payload: unknown }>;
+  /** Developer role's diff + summary when the chain reached the developer
+   *  step (architect produced an artifact AND editClass !== "cosmetic"). */
+  developerOutput?: { diff: string; summary?: string };
 }
 
 export async function startRitual(input: StartRitualInput): Promise<StartRitualResult> {
@@ -39,6 +43,7 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
   return {
     ritualId,
     artifact: snapshot?.artifact,
-    roleEvents: snapshot?.roleEvents ?? []
+    roleEvents: snapshot?.roleEvents ?? [],
+    developerOutput: snapshot?.developerOutput
   };
 }

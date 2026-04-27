@@ -202,6 +202,62 @@ describe("ChatPanel — architect output rendering", () => {
     expect(panel).toHaveTextContent(/Architect ran but produced no plan or questions/);
   });
 
+  it("renders the developer output card with diff + summary when developerOutput is present", async () => {
+    const action = vi.fn(async () => okResult({
+      artifact: { scope: "feature", summary: "Add login", plan: { steps: [{ title: "auth UI" }] } },
+      developerOutput: {
+        diff: "diff --git a/src/login.tsx b/src/login.tsx\n--- a/src/login.tsx\n+++ b/src/login.tsx\n@@ -0,0 +1,3 @@\n+export function Login() {\n+  return <form />;\n+}\n",
+        summary: "Added a Login component"
+      },
+      roleEvents: [
+        { eventType: "developer.completed", payload: { summary: "Added a Login component" } }
+      ]
+    }));
+    render(<ChatPanel projectId="p-1" action={action} />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "add login");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    const dev = await screen.findByTestId("developer-output");
+    expect(dev).toHaveTextContent(/Developer wrote code/);
+    expect(dev).toHaveTextContent(/Added a Login component/);
+    expect(dev).toHaveTextContent(/1 file changed/);
+    expect(dev).toHaveTextContent(/View diff/);
+    // Architect plan still rendered above
+    expect(screen.getByTestId("architect-plan")).toBeInTheDocument();
+  });
+
+  it("renders the developer-failed card when chain hit developer.dispatch.failed", async () => {
+    const action = vi.fn(async () => okResult({
+      artifact: { scope: "feature", summary: "do x", plan: { steps: [{ title: "step" }] } },
+      roleEvents: [
+        { eventType: "developer.dispatch.failed", payload: { error: "unknown role: developer" } }
+      ]
+    }));
+    render(<ChatPanel projectId="p-1" action={action} />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "x");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    const fail = await screen.findByTestId("developer-failed");
+    expect(fail).toHaveTextContent(/Developer step failed/);
+    expect(fail).toHaveTextContent(/unknown role: developer/);
+    // Architect plan still shows
+    expect(screen.getByTestId("architect-plan")).toBeInTheDocument();
+  });
+
+  it("does NOT render developer card when chain didn't reach developer (e.g. cosmetic edit, or no artifact)", async () => {
+    const action = vi.fn(async () => okResult({
+      artifact: { scope: "feature", summary: "x", plan: { steps: [{ title: "step" }] } },
+      roleEvents: []
+    }));
+    render(<ChatPanel projectId="p-1" action={action} />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "x");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    await screen.findByTestId("architect-plan");
+    expect(screen.queryByTestId("developer-output")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("developer-failed")).not.toBeInTheDocument();
+  });
+
   it("multiple sends accumulate independent architect outputs in history", async () => {
     const action = vi.fn()
       .mockResolvedValueOnce(okResult({

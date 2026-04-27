@@ -21,6 +21,7 @@
     "@atlas/llm-provider": "workspace:*",
     "@atlas/ritual-engine": "workspace:*",
     "@atlas/role-architect": "workspace:*",
+    "@atlas/role-developer": "workspace:*",
     "@atlas/run-dashboard": "workspace:*",
     "@atlas/sandbox-e2b": "workspace:*",
     "@atlas/skill-runtime": "workspace:*",

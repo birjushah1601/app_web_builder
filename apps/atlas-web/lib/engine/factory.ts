@@ -16,6 +16,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { ArchitectRole, ARCHITECT_TRIAGE_MODEL, ARCHITECT_DEEP_PLAN_MODEL } = await import(
     "@atlas/role-architect"
   );
+  const { DeveloperRole } = await import("@atlas/role-developer");
   const { SkillRegistry, loadSkillsFromDir } = await import("@atlas/skill-runtime");
   const { resolve } = await import("node:path");
 
@@ -66,6 +67,24 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     roles.set(
       "architect",
       new ArchitectRole({ llm, skills: skillRegistry, triageModel, deepPlanModel })
+    );
+    // Developer role normally takes two distinct providers (Anthropic +
+    // Google) for parallel dispatch + reviewer vote. In single-provider
+    // setups (the local OpenAI-compat proxy is the only LLM), point both
+    // slots at the same provider — the parallel dispatch becomes redundant
+    // but the role still functions and the reviewer pass still picks a
+    // winner via the same model.
+    roles.set(
+      "developer",
+      new DeveloperRole({
+        anthropic: llm,
+        google: llm,
+        reviewer: llm,
+        skills: skillRegistry,
+        anthropicModel: deepPlanModel,
+        googleModel: deepPlanModel,
+        reviewerModel: deepPlanModel
+      })
     );
   }
 

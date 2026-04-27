@@ -26,6 +26,15 @@ export interface RoleEventRecord {
   payload: unknown;
 }
 
+/** What the developer role produced when the architect handoff chained into
+ *  it. The diff is a unified-diff patch the developer wants applied to the
+ *  project's source tree; summary is the developer's plain-language description.
+ *  Plan C (not yet built) will apply the diff to the running E2B sandbox. */
+export interface DeveloperOutputRecord {
+  diff: string;
+  summary?: string;
+}
+
 interface RitualRecord {
   state: RitualState;
   projectId: string;
@@ -36,6 +45,8 @@ interface RitualRecord {
    *  Used by callers (UI) that need to surface what the role produced beyond
    *  just the final artifact (e.g. blocking questions from triage). */
   roleEvents?: RoleEventRecord[];
+  /** Set when the developer role chained successfully after architect. */
+  developerOutput?: DeveloperOutputRecord;
 }
 
 /** Read-only view of a ritual's persisted state. Returned by getRitual(). */
@@ -45,6 +56,7 @@ export interface RitualSnapshot {
   userId: string;
   artifact?: unknown;
   roleEvents: RoleEventRecord[];
+  developerOutput?: DeveloperOutputRecord;
 }
 
 export class RitualEngine {
@@ -98,6 +110,45 @@ export class RitualEngine {
       payload: e.payload as unknown
     }));
 
+    // Plan B: chain into the developer role when:
+    //   - architect produced an artifact (triage passed + pass2 ran)
+    //   - the conductor has a "developer" role registered
+    //   - the edit class isn't cosmetic (cosmetic edits skip code-gen)
+    // Failures inside the developer dispatch are caught and recorded into
+    // roleEvents but do NOT throw — we still want to surface the architect
+    // plan + the developer-failure reason to the user, not a 500.
+    if (artifact && input.editClass !== "cosmetic") {
+      try {
+        const devResult = await this.conductor.dispatch(
+          {
+            ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+            graphVersion: 0,
+            userTurn: input.userTurn,
+            projectId: input.projectId
+          },
+          { forceRoleId: "developer", priorArtifact: artifact }
+        );
+        record.developerOutput = (devResult.output.diff.kind === "patch")
+          ? { diff: devResult.output.diff.body ?? "", summary: extractDeveloperSummary(devResult.output.events) }
+          : undefined;
+        record.roleEvents = [
+          ...(record.roleEvents ?? []),
+          ...devResult.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
+        ];
+      } catch (err) {
+        // unknown-role (developer not registered) or BothProvidersFailedError
+        // etc. Record a synthetic event so the UI can show what went wrong
+        // without the whole ritual erroring.
+        record.roleEvents = [
+          ...(record.roleEvents ?? []),
+          {
+            eventType: "developer.dispatch.failed",
+            payload: { error: err instanceof Error ? err.message : String(err) }
+          }
+        ];
+      }
+    }
+
     await this.emit({
       type: "ritual.artifact_emitted",
       ritualId,
@@ -112,6 +163,10 @@ export class RitualEngine {
     return ritualId;
   }
 
+  // Pulls the developer's summary (and ergo signals success) from its
+  // emitted events. The .completed event always carries summary; if it's
+  // missing, the role didn't reach a winner, and we return undefined.
+
   /** Read-only snapshot of a ritual's persisted state. Returns undefined if
    *  the ritualId is unknown to this engine instance (engine state is
    *  in-memory; rituals from a previous process are not reachable). */
@@ -123,7 +178,8 @@ export class RitualEngine {
       projectId: r.projectId,
       userId: r.userId,
       artifact: r.artifact,
-      roleEvents: r.roleEvents ?? []
+      roleEvents: r.roleEvents ?? [],
+      developerOutput: r.developerOutput
     };
   }
 
@@ -212,4 +268,17 @@ export class RitualEngine {
   private async emit(event: RitualEvent): Promise<void> {
     await this.sink.emit(event);
   }
+}
+
+/** Pulls the developer's plain-text summary from its emitted events.
+ *  The .completed event carries the winner's summary; if neither completed
+ *  nor walkover landed (both providers failed), returns undefined. */
+function extractDeveloperSummary(events: ReadonlyArray<{ eventType: string; payload: unknown }>): string | undefined {
+  for (const evt of events) {
+    if (evt.eventType === "developer.completed") {
+      const p = evt.payload as { summary?: unknown };
+      if (typeof p.summary === "string") return p.summary;
+    }
+  }
+  return undefined;
 }

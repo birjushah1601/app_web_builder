@@ -20,6 +20,10 @@ export interface RoleInvocation {
   intent: string;
   graphSlice: { bytes: string; hash: string };
   userTurn: string;
+  /** Optional artifact produced by an earlier role in the same ritual.
+   *  Architect ignores it; Developer reads it as architectArtifact for its
+   *  prompt context. Multi-role ritual chains pipe artifacts through here. */
+  priorArtifact?: unknown;
 }
 
 export interface Role {

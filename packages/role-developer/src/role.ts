@@ -26,16 +26,22 @@ export class DeveloperRole implements Role {
     const events: RoleOutput["events"] = [];
     events.push({ eventType: "developer.dispatch.started", payload: { ritualId: inv.ritualId } });
 
+    // Read the architect artifact from RoleInvocation.priorArtifact (set by
+    // the conductor when this role is dispatched as the second step in a
+    // ritual chain). Unit tests that invoke the role directly without
+    // priorArtifact still work — both passes treat null as "no prior context".
+    const architectArtifact = inv.priorArtifact ?? null;
+
     const anthropicTask = anthropicPass({
       llm: this.opts.anthropic, skills: this.opts.skills,
-      userTurn: inv.userTurn, architectArtifact: null, graphSlice: inv.graphSlice,
+      userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
       model: this.opts.anthropicModel ?? DEVELOPER_ANTHROPIC_MODEL
     }).then((output): { provider: "anthropic"; status: "ok"; output: DeveloperOutput } => ({ provider: "anthropic", status: "ok", output }))
       .catch((err: Error): { provider: "anthropic"; status: "error"; error: Error } => ({ provider: "anthropic", status: "error", error: err }));
 
     const googleTask = googlePass({
       llm: this.opts.google, skills: this.opts.skills,
-      userTurn: inv.userTurn, architectArtifact: null, graphSlice: inv.graphSlice,
+      userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
       model: this.opts.googleModel ?? DEVELOPER_GOOGLE_MODEL
     }).then((output): { provider: "google"; status: "ok"; output: DeveloperOutput } => ({ provider: "google", status: "ok", output }))
       .catch((err: Error): { provider: "google"; status: "error"; error: Error } => ({ provider: "google", status: "error", error: err }));

@@ -43,6 +43,13 @@ export interface DispatchResult {
 
 export interface DispatchOptions {
   retry?: DispatchRetryPolicy;
+  /** Bypass the classifier and force dispatch to this role. Used when the
+   *  caller already knows which role should run (e.g. a ritual chain that
+   *  has just finished architect and is now invoking developer). */
+  forceRoleId?: string;
+  /** Pass-through to RoleInvocation.priorArtifact — the artifact produced
+   *  by a previous role in the same ritual. Optional. */
+  priorArtifact?: unknown;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -64,7 +71,12 @@ export class Conductor {
 
   async dispatch(ctx: DispatchContext, options: DispatchOptions = {}): Promise<DispatchResult> {
     const policy = options.retry ?? DEFAULT_DISPATCH_RETRY;
-    const classification = await this.classifier.classify(ctx.userTurn);
+    // forceRoleId bypasses the classifier (used when chaining roles in a
+    // multi-step ritual — e.g. RitualEngine.start dispatches architect via
+    // the classifier, then dispatches developer with forceRoleId="developer").
+    const classification = options.forceRoleId
+      ? { roleId: options.forceRoleId, confidence: 1, source: "forced" as const }
+      : { ...(await this.classifier.classify(ctx.userTurn)), source: "classified" as const };
     await this.emit({ eventType: "dispatch.classified", ctx, payload: { ...classification } });
     const role = this.roles.get(classification.roleId);
     if (!role) {
@@ -77,7 +89,8 @@ export class Conductor {
       ritualId: ctx.ritualId as string,
       intent: classification.roleId,
       graphSlice: slice,
-      userTurn: ctx.userTurn
+      userTurn: ctx.userTurn,
+      priorArtifact: options.priorArtifact
     };
 
     let lastError: unknown;
