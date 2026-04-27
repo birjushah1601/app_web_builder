@@ -1,3 +1,5 @@
+import type { Chunk } from "parse-diff";
+
 /** A single file-level operation extracted from a unified diff. */
 export interface FileOp {
   kind: "create" | "modify" | "delete";
@@ -7,6 +9,9 @@ export interface FileOp {
   /** For "create" and "modify": the full new content of the file.
    *  For "delete": absent. */
   newContent?: string;
+  /** Internal — hunks needed for modify reconstruction. Populated by
+   *  parseDiff for kind="modify"; ignored for create/delete. */
+  _chunks?: Chunk[];
 }
 
 /** Outcome of applying one FileOp to the sandbox. */

@@ -28,9 +28,8 @@ export function parseDiff(diff: string): { ops: FileOp[]; error?: string } {
     } else if (kind === "delete") {
       ops.push({ kind, path });
     } else {
-      // modify: newContent is reconstructed in applyFileOp using the
-      // existing file's content + the parsed hunks
-      ops.push({ kind, path });
+      // modify: keep the parsed chunks for applyFileOp to reconstruct against
+      ops.push({ kind, path, _chunks: file.chunks });
     }
   }
 
@@ -122,11 +121,88 @@ export async function applyFileOp(
     }
   }
 
-  // modify and delete branches added in subsequent tasks
+  if (op.kind === "modify") {
+    if (!op._chunks || op._chunks.length === 0) {
+      return { path: op.path, status: "skipped", reason: "no hunks attached to modify op" };
+    }
+    let existing: string;
+    try {
+      existing = await fs.read(safePath);
+    } catch (err) {
+      return { path: op.path, status: "skipped", reason: `read failed: ${(err as Error).message}` };
+    }
+    const reconstructed = reconstructFromChunks(existing, op._chunks);
+    if (!reconstructed.ok) {
+      return { path: op.path, status: "skipped", reason: reconstructed.reason };
+    }
+    try {
+      await fs.write(safePath, reconstructed.content);
+      return { path: op.path, status: "written", bytesWritten: byteLen(reconstructed.content) };
+    } catch (err) {
+      return { path: op.path, status: "failed", reason: (err as Error).message };
+    }
+  }
+
+  // delete branch added in subsequent task
   return { path: op.path, status: "skipped", reason: `kind not yet supported: ${op.kind}` };
 }
 
 function byteLen(s: string): number {
   // Use Buffer for accurate UTF-8 byte length; fallback to char count.
   return typeof Buffer !== "undefined" ? Buffer.byteLength(s, "utf8") : s.length;
+}
+
+import type { Chunk } from "parse-diff";
+
+/** Apply parsed hunks to existing file content. Each hunk specifies
+ *  `oldStart` / `oldLines` / a sequence of `add | del | normal` changes.
+ *  We walk the original file line-by-line, splice in the hunks at the
+ *  declared offsets, and fail loudly if a hunk's "context" lines don't
+ *  match what's actually at that offset (no fuzzy matching — this is
+ *  the MVP; Plan E will need leniency for multi-turn edits). */
+function reconstructFromChunks(
+  original: string,
+  chunks: Chunk[]
+): { ok: true; content: string } | { ok: false; reason: string } {
+  const lines = original.split("\n");
+  // parse-diff gives offsets in 1-based line numbers. We work in a
+  // mutable copy and edit per-hunk; sort hunks by oldStart descending
+  // so earlier indices remain valid as we splice.
+  const sortedChunks = [...chunks].sort((a, b) => b.oldStart - a.oldStart);
+  for (const chunk of sortedChunks) {
+    const offset = chunk.oldStart - 1; // 0-based slice index
+    const replaced: string[] = [];
+    let cursor = 0; // walks the original "old" lines for this chunk
+    for (const change of chunk.changes) {
+      if (change.type === "normal") {
+        const expected = change.content.slice(1); // strip leading " "
+        const actual = lines[offset + cursor];
+        if (actual !== expected) {
+          return {
+            ok: false,
+            reason: `hunk mismatch at line ${offset + cursor + 1}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`
+          };
+        }
+        replaced.push(expected);
+        cursor++;
+      } else if (change.type === "del") {
+        const expected = change.content.slice(1); // strip leading "-"
+        const actual = lines[offset + cursor];
+        if (actual !== expected) {
+          return {
+            ok: false,
+            reason: `hunk mismatch at line ${offset + cursor + 1}: expected to delete ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`
+          };
+        }
+        cursor++;
+        // Don't push — this line is removed in the new content
+      } else {
+        // type === "add"
+        replaced.push(change.content.slice(1)); // strip leading "+"
+        // Don't advance cursor — this is a brand-new line
+      }
+    }
+    lines.splice(offset, cursor, ...replaced);
+  }
+  return { ok: true, content: lines.join("\n") };
 }

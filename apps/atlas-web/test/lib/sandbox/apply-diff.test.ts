@@ -194,3 +194,80 @@ describe("applyFileOp — create", () => {
     expect(result.reason).toContain("disk full");
   });
 });
+
+describe("applyFileOp — modify", () => {
+  it("reconstructs new content from existing + hunks and writes", async () => {
+    const fs = memoryFs({ "/code/src/foo.ts": "line1\nline2\nline3\n" });
+    // Need to drive applyFileOp via parseDiff so we get the parsed hunks
+    // attached. parseDiff tags modify ops with their chunks via a private
+    // _chunks field (added in this task).
+    const diff =
+      "diff --git a/src/foo.ts b/src/foo.ts\n" +
+      "--- a/src/foo.ts\n" +
+      "+++ b/src/foo.ts\n" +
+      "@@ -1,3 +1,3 @@\n" +
+      " line1\n" +
+      "-line2\n" +
+      "+line2-modified\n" +
+      " line3\n";
+    const { ops } = parseDiff(diff);
+    expect(ops).toHaveLength(1);
+    const result = await applyFileOp(fs, ops[0]!, "/code");
+    expect(result.status).toBe("written");
+    expect(fs._store.get("/code/src/foo.ts")).toBe("line1\nline2-modified\nline3\n");
+  });
+
+  it("skips with hunk-mismatch reason when existing line doesn't match expected context", async () => {
+    const fs = memoryFs({ "/code/src/foo.ts": "totally different\n" });
+    const diff =
+      "diff --git a/src/foo.ts b/src/foo.ts\n" +
+      "--- a/src/foo.ts\n" +
+      "+++ b/src/foo.ts\n" +
+      "@@ -1,3 +1,3 @@\n" +
+      " line1\n" +
+      "-line2\n" +
+      "+line2-mod\n" +
+      " line3\n";
+    const { ops } = parseDiff(diff);
+    const result = await applyFileOp(fs, ops[0]!, "/code");
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toMatch(/hunk/i);
+  });
+
+  it("skips with file-not-found reason when modify targets a non-existent file", async () => {
+    const fs = memoryFs(); // empty
+    const diff =
+      "diff --git a/src/missing.ts b/src/missing.ts\n" +
+      "--- a/src/missing.ts\n" +
+      "+++ b/src/missing.ts\n" +
+      "@@ -1,1 +1,1 @@\n" +
+      "-old\n" +
+      "+new\n";
+    const { ops } = parseDiff(diff);
+    const result = await applyFileOp(fs, ops[0]!, "/code");
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toMatch(/not found|ENOENT/i);
+  });
+
+  it("handles multi-hunk modify (two hunks in the same file)", async () => {
+    const fs = memoryFs({ "/code/src/foo.ts": "a\nb\nc\nd\ne\nf\ng\nh\n" });
+    const diff =
+      "diff --git a/src/foo.ts b/src/foo.ts\n" +
+      "--- a/src/foo.ts\n" +
+      "+++ b/src/foo.ts\n" +
+      "@@ -1,3 +1,3 @@\n" +
+      "-a\n" +
+      "+A\n" +
+      " b\n" +
+      " c\n" +
+      "@@ -6,3 +6,3 @@\n" +
+      " f\n" +
+      "-g\n" +
+      "+G\n" +
+      " h\n";
+    const { ops } = parseDiff(diff);
+    const result = await applyFileOp(fs, ops[0]!, "/code");
+    expect(result.status).toBe("written");
+    expect(fs._store.get("/code/src/foo.ts")).toBe("A\nb\nc\nd\ne\nf\nG\nh\n");
+  });
+});
