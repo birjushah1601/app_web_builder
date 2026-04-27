@@ -1,0 +1,72 @@
+import parseDiffLib from "parse-diff";
+import type { FileOp } from "./apply-diff-types";
+
+/** Parses a unified diff into per-file operations. Wraps the parse-diff
+ *  npm library with our internal FileOp shape (which sanitizes paths
+ *  and normalizes the create/modify/delete kind classification). */
+export function parseDiff(diff: string): { ops: FileOp[]; error?: string } {
+  if (!diff || !diff.trim()) {
+    return { ops: [] };
+  }
+
+  let parsed: ReturnType<typeof parseDiffLib>;
+  try {
+    parsed = parseDiffLib(diff);
+  } catch (err) {
+    return { ops: [], error: `parse-diff threw: ${(err as Error).message}` };
+  }
+
+  const ops: FileOp[] = [];
+  for (const file of parsed) {
+    const kind = classifyKind(file);
+    const rawPath = pickPath(file, kind);
+    if (!rawPath) continue; // skip files we can't identify (rare; malformed input)
+    const path = stripGitPrefix(rawPath);
+    if (kind === "create") {
+      const newContent = collectAddedLines(file);
+      ops.push({ kind, path, newContent });
+    } else if (kind === "delete") {
+      ops.push({ kind, path });
+    } else {
+      // modify: newContent is reconstructed in applyFileOp using the
+      // existing file's content + the parsed hunks
+      ops.push({ kind, path });
+    }
+  }
+
+  return { ops };
+}
+
+function classifyKind(file: parseDiffLib.File): FileOp["kind"] {
+  if (file.new) return "create";
+  if (file.deleted) return "delete";
+  // Fallback: if `from` is /dev/null it's create; if `to` is /dev/null it's delete
+  if (file.from === "/dev/null") return "create";
+  if (file.to === "/dev/null") return "delete";
+  return "modify";
+}
+
+function pickPath(file: parseDiffLib.File, kind: FileOp["kind"]): string | undefined {
+  // For create: only `to` is meaningful. For delete: only `from`. For modify:
+  // either works (they're the same) — prefer `to` since that's the post-image.
+  if (kind === "delete") return file.from;
+  return file.to;
+}
+
+function stripGitPrefix(p: string): string {
+  if (p.startsWith("a/") || p.startsWith("b/")) return p.slice(2);
+  return p;
+}
+
+function collectAddedLines(file: parseDiffLib.File): string {
+  const lines: string[] = [];
+  for (const chunk of file.chunks) {
+    for (const change of chunk.changes) {
+      if (change.type === "add") lines.push(change.content.slice(1)); // strip leading "+"
+    }
+  }
+  // Preserve a trailing newline if the diff's last hunk doesn't end with
+  // the "no newline" sentinel (parse-diff doesn't expose this directly,
+  // but trailing \n is the safe default for source files)
+  return lines.join("\n") + (lines.length > 0 ? "\n" : "");
+}
