@@ -167,6 +167,22 @@ export class RitualEngine {
           ...(record.roleEvents ?? []),
           ...devResult.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
         ];
+
+        // Plan C: write the diff into the live preview sandbox if an
+        // applier is configured. Failures inside apply are captured into
+        // the snapshot — never re-thrown — so the architect plan and
+        // developer diff still surface to the user.
+        if (this.applier && devResult.output.diff.kind === "patch" && devResult.output.diff.body) {
+          try {
+            const applyResult = await this.applier.apply(input.projectId, devResult.output.diff.body);
+            record.sandboxApplyResult = applyResult;
+          } catch (err) {
+            record.sandboxApplyResult = {
+              ok: false, parsed: 0, written: 0, failed: 0, skipped: 0,
+              files: [], parseError: `applier threw: ${err instanceof Error ? err.message : String(err)}`
+            };
+          }
+        }
       } catch (err) {
         // unknown-role (developer not registered) or BothProvidersFailedError
         // etc. Record a synthetic event so the UI can show what went wrong
