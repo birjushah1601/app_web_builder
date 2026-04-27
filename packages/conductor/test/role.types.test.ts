@@ -41,4 +41,24 @@ describe("Role + DispatchContext types", () => {
     expect(err.name).toBe("RitualEscalatedError");
     expect(err.ritualId).toBe("r-1");
   });
+
+  it("RitualEscalatedError surfaces lastError.message inline so callers that only forward .message still see the cause", () => {
+    // This is the regression for the user-reported "ritual ... failed 3 times"
+    // alert that hid "fetch failed" from the architect→proxy call. Server
+    // Actions and ChatPanel only forward .message; the inner cause must
+    // ride along inside the message text itself.
+    const cause = new Error("triage LLM call failed: fetch failed");
+    const err = new RitualEscalatedError("r-1" as RitualId, "role architect failed 3 times", cause);
+    expect(err.message).toBe(
+      "ritual r-1 escalated: role architect failed 3 times: triage LLM call failed: fetch failed"
+    );
+    expect(err.lastError).toBe(cause);
+    expect((err as Error & { cause?: unknown }).cause).toBe(cause);
+  });
+
+  it("RitualEscalatedError without lastError keeps the legacy short message (back-compat)", () => {
+    const err = new RitualEscalatedError("r-1" as RitualId, "3 consecutive failures");
+    expect(err.message).toBe("ritual r-1 escalated: 3 consecutive failures");
+    expect(err.lastError).toBeUndefined();
+  });
 });
