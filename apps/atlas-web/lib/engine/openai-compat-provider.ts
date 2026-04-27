@@ -87,42 +87,73 @@ export class OpenAICompatProvider implements LLMProvider {
           ? "required"
           : "auto";
 
+    // Some OpenAI-compatible proxies (notably claude-max-api-proxy that wraps
+    // the Claude CLI) silently DROP the `tools` array when forwarding to the
+    // underlying model. The model never sees the tool schema and replies with
+    // free-form text, so there's no `tool_calls` in the response and forced
+    // toolChoice has no effect. To survive that, we ALSO inline the schema
+    // into a synthetic system message — the model then knows what JSON shape
+    // to emit, and we parse it from `content` when `tool_calls` is absent.
+    // Native-tools-supporting proxies see the duplicate hint as redundant
+    // (still works) and use the structured tool_calls path as before.
+    const augmentedMessages = options.toolChoice.type === "tool"
+      ? prependSchemaInstruction(messages, options.tools, options.toolChoice.name)
+      : toOpenAiMessages(messages);
+
     const res = await this.post({
       model: options.model,
       max_tokens: options.maxTokens,
       temperature: options.temperature,
       stop: options.stopSequences,
-      messages: toOpenAiMessages(messages),
+      messages: options.toolChoice.type === "tool" ? augmentedMessages : toOpenAiMessages(messages),
       tools,
       tool_choice: toolChoice
     });
 
     const choice = res.choices?.[0];
     const toolCall = choice?.message?.tool_calls?.[0];
-    if (!toolCall || toolCall.type !== "function") {
-      throw new Error(
-        `OpenAICompatProvider: expected a tool_call in the response (forced toolChoice), got ${JSON.stringify(choice?.message)}`
-      );
+
+    // Native tool_calls path (proxies that DO support OpenAI tools).
+    if (toolCall && toolCall.type === "function") {
+      let input: unknown = {};
+      const rawArgs = toolCall.function.arguments;
+      if (rawArgs != null && rawArgs.trim() !== "") {
+        try {
+          input = JSON.parse(rawArgs);
+        } catch (err) {
+          throw new Error(
+            `OpenAICompatProvider: tool arguments not JSON: ${(err as Error).message}`
+          );
+        }
+      }
+      return {
+        toolName: toolCall.function.name,
+        input,
+        stopReason: mapStopReason(choice?.finish_reason),
+        usage: extractUsage(res)
+      };
     }
-    let input: unknown = {};
-    const rawArgs = toolCall.function.arguments;
-    // Treat null/undefined/empty as "no arguments" — some proxies omit args
-    // for no-parameter tools, or emit the literal empty string.
-    if (rawArgs != null && rawArgs.trim() !== "") {
-      try {
-        input = JSON.parse(rawArgs);
-      } catch (err) {
-        throw new Error(
-          `OpenAICompatProvider: tool arguments not JSON: ${(err as Error).message}`
-        );
+
+    // Fallback: parse JSON out of the content for proxies that drop tools.
+    // Only viable when toolChoice forced a specific tool — that's how we
+    // know which tool name to attribute and (via its input_schema) what
+    // shape was instructed.
+    if (options.toolChoice.type === "tool") {
+      const content = typeof choice?.message?.content === "string" ? choice.message.content : "";
+      const parsed = extractJsonFromContent(content);
+      if (parsed !== undefined) {
+        return {
+          toolName: options.toolChoice.name,
+          input: parsed,
+          stopReason: mapStopReason(choice?.finish_reason),
+          usage: extractUsage(res)
+        };
       }
     }
-    return {
-      toolName: toolCall.function.name,
-      input,
-      stopReason: mapStopReason(choice?.finish_reason),
-      usage: extractUsage(res)
-    };
+
+    throw new Error(
+      `OpenAICompatProvider: expected a tool_call in the response (forced toolChoice), got ${JSON.stringify(choice?.message)}`
+    );
   }
 
   private async post(body: Record<string, unknown>): Promise<OpenAiChatResponse> {
@@ -188,4 +219,87 @@ function extractUsage(res: OpenAiChatResponse): LLMCompletion["usage"] {
     inputTokens: res.usage?.prompt_tokens ?? 0,
     outputTokens: res.usage?.completion_tokens ?? 0
   };
+}
+
+/** Inject a synthetic system message instructing the model to respond with
+ *  ONLY a JSON object matching the given tool's input_schema. Used as a
+ *  fallback for OpenAI-compatible proxies that don't propagate the `tools`
+ *  array to the underlying model. The instruction is prepended so it
+ *  survives even when the caller's own messages include a `system` entry. */
+function prependSchemaInstruction(
+  messages: LLMMessage[],
+  tools: ToolDefinition[],
+  toolName: string
+): Array<{ role: "system" | "user" | "assistant"; content: string }> {
+  const tool = tools.find((t) => t.name === toolName);
+  if (!tool) return toOpenAiMessages(messages);
+  const schemaJson = JSON.stringify(tool.input_schema, null, 2);
+  const instruction =
+    `You MUST respond with ONLY a single JSON object matching this exact JSON Schema, ` +
+    `with no surrounding prose, no markdown code fences, no commentary. ` +
+    `The schema describes the required structure of your response (this is the ` +
+    `'${toolName}' tool's input). Schema:\n\n${schemaJson}\n\n` +
+    `Respond with the JSON object alone. The first character of your response must be '{'.`;
+  return [
+    { role: "system", content: instruction },
+    ...toOpenAiMessages(messages)
+  ];
+}
+
+/** Try to extract a JSON object from free-form content. Handles three forms
+ *  the model commonly emits when asked for structured output:
+ *    1. Bare JSON ({"foo": ...})
+ *    2. Fenced ```json ... ``` block
+ *    3. JSON embedded inside surrounding prose
+ *  Returns undefined when no parseable JSON object is present. */
+function extractJsonFromContent(content: string): unknown {
+  if (!content) return undefined;
+  const trimmed = content.trim();
+
+  // Form 1: bare JSON object that starts with `{`
+  if (trimmed.startsWith("{")) {
+    const result = tryParse(trimmed);
+    if (result !== undefined) return result;
+  }
+
+  // Form 2: fenced ```json or ``` block
+  const fenceMatch = content.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
+  if (fenceMatch && fenceMatch[1]) {
+    const result = tryParse(fenceMatch[1].trim());
+    if (result !== undefined) return result;
+  }
+
+  // Form 3: first {...} object substring (prose-then-JSON or JSON-then-prose).
+  // Use a balanced-brace scan rather than greedy regex so nested objects parse.
+  const start = content.indexOf("{");
+  if (start === -1) return undefined;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < content.length; i++) {
+    const c = content[i];
+    if (escape) { escape = false; continue; }
+    if (c === "\\") { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        const candidate = content.slice(start, i + 1);
+        const result = tryParse(candidate);
+        if (result !== undefined) return result;
+        break;
+      }
+    }
+  }
+  return undefined;
+}
+
+function tryParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }

@@ -385,3 +385,201 @@ describe("OpenAICompatProvider — name", () => {
     expect(p.name).toBe("openai-compat");
   });
 });
+
+describe("OpenAICompatProvider — fallback for proxies that drop tools[]", () => {
+  it("injects the tool's input_schema into a system message when toolChoice forces a specific tool", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            message: {
+              tool_calls: [
+                { type: "function", function: { name: "propose_plan", arguments: '{"summary":"x"}' } }
+              ]
+            }
+          }
+        ],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({
+      baseUrl: "http://localhost:3456",
+      fetchFn: fetchFn as unknown as typeof fetch
+    });
+    await p.completeWithToolUse(
+      [{ role: "user", content: "plan it" }],
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "tool", name: "propose_plan" } }
+    );
+
+    const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    // First message is the synthetic system message with the schema
+    expect(body.messages[0]!.role).toBe("system");
+    expect(body.messages[0]!.content).toContain("propose_plan");
+    expect(body.messages[0]!.content).toContain("JSON Schema");
+    expect(body.messages[0]!.content).toContain('"summary"'); // schema property bleeds in
+    // User message follows
+    expect(body.messages[1]!.role).toBe("user");
+    expect(body.messages[1]!.content).toBe("plan it");
+  });
+
+  it("does NOT inject the schema instruction when toolChoice is 'auto' or 'any'", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            message: { tool_calls: [{ type: "function", function: { name: "propose_plan", arguments: "{}" } }] }
+          }
+        ],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({
+      baseUrl: "http://localhost:3456",
+      fetchFn: fetchFn as unknown as typeof fetch
+    });
+    await p.completeWithToolUse(
+      [{ role: "user", content: "plan" }],
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "auto" } }
+    );
+    const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { messages: Array<{ role: string; content: string }> };
+    // No injected system message — only the user message survives
+    expect(body.messages.length).toBe(1);
+    expect(body.messages[0]!.role).toBe("user");
+  });
+
+  it("falls back to bare-JSON content parsing when tool_calls is absent (proxy stripped tools)", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              // model emitted bare JSON because the proxy didn't pass `tools` through
+              content: '{"summary":"add a forgot-password page"}'
+            }
+          }
+        ],
+        usage: { prompt_tokens: 200, completion_tokens: 10 }
+      })
+    );
+    const p = new OpenAICompatProvider({
+      baseUrl: "http://localhost:3456",
+      fetchFn: fetchFn as unknown as typeof fetch
+    });
+    const res = await p.completeWithToolUse(
+      [{ role: "user", content: "do it" }],
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "tool", name: "propose_plan" } }
+    );
+    expect(res.toolName).toBe("propose_plan");
+    expect(res.input).toEqual({ summary: "add a forgot-password page" });
+    expect(res.usage.inputTokens).toBe(200);
+    expect(res.usage.outputTokens).toBe(10);
+  });
+
+  it("falls back to fenced ```json``` block parsing", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content:
+                "Sure, here is the triage:\n\n```json\n{\"summary\":\"add login\"}\n```\n\nLet me know if you need anything else."
+            }
+          }
+        ],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({
+      baseUrl: "http://localhost:3456",
+      fetchFn: fetchFn as unknown as typeof fetch
+    });
+    const res = await p.completeWithToolUse(
+      [{ role: "user", content: "do it" }],
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "tool", name: "propose_plan" } }
+    );
+    expect(res.input).toEqual({ summary: "add login" });
+  });
+
+  it("falls back to balanced-brace JSON extraction inside surrounding prose", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content:
+                'My triage report:\n{"summary":"some {nested} braces work","items":[{"id":1}]}\nDone.'
+            }
+          }
+        ],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({
+      baseUrl: "http://localhost:3456",
+      fetchFn: fetchFn as unknown as typeof fetch
+    });
+    const res = await p.completeWithToolUse(
+      [{ role: "user", content: "do it" }],
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "tool", name: "propose_plan" } }
+    );
+    expect(res.input).toEqual({ summary: "some {nested} braces work", items: [{ id: 1 }] });
+  });
+
+  it("still throws the clear error when no tool_calls AND no parseable JSON in content", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [{ finish_reason: "stop", message: { content: "I refuse to do that." } }],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({
+      baseUrl: "http://localhost:3456",
+      fetchFn: fetchFn as unknown as typeof fetch
+    });
+    await expect(
+      p.completeWithToolUse(
+        [{ role: "user", content: "x" }],
+        { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "tool", name: "propose_plan" } }
+      )
+    ).rejects.toThrow(/expected a tool_call/);
+  });
+
+  it("native tool_calls still take precedence over the content-fallback path", async () => {
+    // When BOTH are present (proxy supports tools AND echoes JSON in content),
+    // the native tool_calls value wins — that's the contract.
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            message: {
+              content: '{"summary":"from-content"}',
+              tool_calls: [
+                { type: "function", function: { name: "propose_plan", arguments: '{"summary":"from-tool-call"}' } }
+              ]
+            }
+          }
+        ],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({
+      baseUrl: "http://localhost:3456",
+      fetchFn: fetchFn as unknown as typeof fetch
+    });
+    const res = await p.completeWithToolUse(
+      [{ role: "user", content: "x" }],
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TOOL], toolChoice: { type: "tool", name: "propose_plan" } }
+    );
+    expect(res.input).toEqual({ summary: "from-tool-call" });
+  });
+});
