@@ -19,11 +19,32 @@ export interface StartInput {
   userId: string;
 }
 
+/** Events emitted by the role during dispatch. Plain JSON-serializable; safe
+ *  to return across the RSC boundary so client code can render them. */
+export interface RoleEventRecord {
+  eventType: string;
+  payload: unknown;
+}
+
 interface RitualRecord {
   state: RitualState;
   projectId: string;
   userId: string;
   artifact?: unknown;
+  /** Full list of role events from the most recent dispatch on this ritual.
+   *  Populated by start(); preserved for the lifetime of the in-memory record.
+   *  Used by callers (UI) that need to surface what the role produced beyond
+   *  just the final artifact (e.g. blocking questions from triage). */
+  roleEvents?: RoleEventRecord[];
+}
+
+/** Read-only view of a ritual's persisted state. Returned by getRitual(). */
+export interface RitualSnapshot {
+  state: RitualState;
+  projectId: string;
+  userId: string;
+  artifact?: unknown;
+  roleEvents: RoleEventRecord[];
 }
 
 export class RitualEngine {
@@ -67,7 +88,15 @@ export class RitualEngine {
     // Pull the artifact from the role's pass2.completed event (D.2 contract)
     const completed = result.output.events.find((e) => e.eventType.endsWith(".pass2.completed"));
     const artifact = (completed?.payload as { artifact?: unknown } | undefined)?.artifact;
-    this.rituals.get(ritualId)!.artifact = artifact;
+    const record = this.rituals.get(ritualId)!;
+    record.artifact = artifact;
+    // Capture every role event so callers can introspect what the role
+    // produced (e.g. ambiguity questions when triage blocked, intermediate
+    // started/failed events for diagnostic UIs).
+    record.roleEvents = result.output.events.map((e) => ({
+      eventType: e.eventType,
+      payload: e.payload as unknown
+    }));
 
     await this.emit({
       type: "ritual.artifact_emitted",
@@ -81,6 +110,21 @@ export class RitualEngine {
       : { kind: "artifact_emitted" };
     await this.transition(ritualId, tx);
     return ritualId;
+  }
+
+  /** Read-only snapshot of a ritual's persisted state. Returns undefined if
+   *  the ritualId is unknown to this engine instance (engine state is
+   *  in-memory; rituals from a previous process are not reachable). */
+  getRitual(ritualId: string): RitualSnapshot | undefined {
+    const r = this.rituals.get(ritualId);
+    if (!r) return undefined;
+    return {
+      state: r.state,
+      projectId: r.projectId,
+      userId: r.userId,
+      artifact: r.artifact,
+      roleEvents: r.roleEvents ?? []
+    };
   }
 
   async approve(ritualId: string, decision: ApprovalDecision): Promise<void> {

@@ -2,6 +2,17 @@
 
 import { useState } from "react";
 
+export interface RoleEvent {
+  eventType: string;
+  payload: unknown;
+}
+
+export interface StartRitualResult {
+  ritualId: string;
+  artifact?: unknown;
+  roleEvents: RoleEvent[];
+}
+
 export interface ChatPanelProps {
   projectId: string;
   /**
@@ -13,14 +24,20 @@ export interface ChatPanelProps {
     projectId: string;
     userTurn: string;
     editClass: "structural" | "cosmetic";
-  }) => Promise<string>;
+  }) => Promise<StartRitualResult>;
+}
+
+interface HistoryEntry {
+  role: "user" | "architect";
+  text?: string;
+  result?: StartRitualResult;
 }
 
 export function ChatPanel({ projectId, action }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<Array<{ role: "user"; text: string }>>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   async function send() {
     if (!text.trim() || pending) return;
@@ -28,7 +45,8 @@ export function ChatPanel({ projectId, action }: ChatPanelProps) {
     setError(null);
     setHistory((h) => [...h, { role: "user", text }]);
     try {
-      await action({ projectId, userTurn: text, editClass: "structural" });
+      const result = await action({ projectId, userTurn: text, editClass: "structural" });
+      setHistory((h) => [...h, { role: "architect", result }]);
       setText("");
     } catch (err) {
       // Surface the failure so users don't experience a silent "the button did nothing"
@@ -44,7 +62,11 @@ export function ChatPanel({ projectId, action }: ChatPanelProps) {
     <aside className="flex h-full w-80 flex-col border-l border-slate-200">
       <div className="flex-1 overflow-y-auto p-3">
         {history.map((m, i) => (
-          <div key={i} className="mb-2 text-sm"><strong>You:</strong> {m.text}</div>
+          m.role === "user" ? (
+            <div key={i} className="mb-2 text-sm"><strong>You:</strong> {m.text}</div>
+          ) : (
+            <ArchitectOutput key={i} result={m.result!} />
+          )
         ))}
       </div>
       <form
@@ -67,5 +89,75 @@ export function ChatPanel({ projectId, action }: ChatPanelProps) {
         <button type="submit" disabled={pending || !text.trim()} className="mt-2 rounded-md bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-50">Send</button>
       </form>
     </aside>
+  );
+}
+
+/** Renders the architect's output for one ritual. Three cases:
+ *   1. Triage blocked (architect.triage.needs_input events present) → show questions
+ *   2. Pass2 completed (artifact present) → show scope + plan summary
+ *   3. Neither (rare; role threw mid-pass1) → show "no output" diagnostic
+ */
+function ArchitectOutput({ result }: { result: StartRitualResult }) {
+  const blockingQuestions = result.roleEvents.filter(
+    (e) => e.eventType === "architect.triage.needs_input"
+  );
+
+  if (blockingQuestions.length > 0) {
+    return (
+      <div data-testid="architect-needs-input" className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs">
+        <div className="mb-1 font-semibold text-amber-900">Architect needs more info:</div>
+        <ul className="list-disc space-y-1 pl-4 text-amber-900">
+          {blockingQuestions.map((q, i) => {
+            const p = q.payload as { question?: string; reason?: string };
+            return (
+              <li key={i}>
+                <span className="font-medium">{p.question}</span>
+                {p.reason ? <span className="text-amber-700"> — {p.reason}</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
+
+  if (result.artifact) {
+    const a = result.artifact as {
+      scope?: string;
+      plan?: { steps?: Array<{ title?: string; description?: string }> };
+      summary?: string;
+    };
+    return (
+      <div data-testid="architect-plan" className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs">
+        <div className="mb-1 font-semibold text-emerald-900">
+          Architect plan{a.scope ? ` (${a.scope})` : ""}
+        </div>
+        {a.summary ? <p className="mb-2 text-emerald-900">{a.summary}</p> : null}
+        {a.plan?.steps && a.plan.steps.length > 0 ? (
+          <ol className="list-decimal space-y-1 pl-4 text-emerald-900">
+            {a.plan.steps.map((s, i) => (
+              <li key={i}>
+                <span className="font-medium">{s.title ?? "(untitled)"}</span>
+                {s.description ? <span className="text-emerald-700"> — {s.description}</span> : null}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          // No structured plan steps — show raw JSON so something is visible
+          <details>
+            <summary className="cursor-pointer text-emerald-900">Raw plan</summary>
+            <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all text-[10px] text-emerald-900">
+              {JSON.stringify(a, null, 2)}
+            </pre>
+          </details>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="architect-no-output" className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+      Architect ran but produced no plan or questions.
+    </div>
   );
 }
