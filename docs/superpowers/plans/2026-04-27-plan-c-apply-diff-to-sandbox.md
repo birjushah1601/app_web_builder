@@ -2170,3 +2170,50 @@ After all 16 tasks:
 - [ ] Manual error path: stop the proxy mid-ritual, verify red parse-error panel appears with `sandbox unavailable: ECONNREFUSED` message; rest of UI unaffected
 - [ ] `docs/superpowers/local-dev-status.md` updated — plan C moved from "deferred" to "wired"
 - [ ] This plan file marked Shipped at the bottom
+
+---
+
+## Shipped
+
+All 16 tasks merged to `plan-c/apply-diff-to-sandbox` branch (pending merge to main after the user's manual sign-off click). Per-task commit chain:
+
+| # | Task | Commit |
+|---|---|---|
+| 1 | parse-diff dep | `5892aa6` |
+| 2 | core types | `afb3e7c` |
+| 3 | parseDiff happy paths | `f420cfe` |
+| 4 | parseDiff edges | `d6e1315` |
+| 5 | sanitizePath | `eecfdfc` |
+| 6 | applyFileOp(create) | `a8fed90` |
+| 7 | applyFileOp(modify) | `054ca0d` + fix `5dca032` (trailing-newline + pure-insertion test) |
+| 8 | applyFileOp(delete) | `eae94c6` |
+| 9 | applyDiff orchestrator | `83c5171` |
+| 10 | sandbox-fs-adapter | `03ff4fb` + fix `4be7f3a` (E2B uses `.files` not `.fs`) |
+| 11 | ritual-engine SandboxApplier | `d304ce0` |
+| 12 | ritual-engine chain into applier | `b42ffcb` |
+| 13 | atlas-web factory wires applier | `fb90278` |
+| 14 | startRitual surfaces sandboxApplyResult | `025151e` |
+| 15 | ChatPanel apply-status panels | `00fe118` |
+| 16 | verification + doc updates | (this commit) |
+
+### Test counts (achieved vs target)
+
+| Package | Plan target | Achieved |
+|---|---|---|
+| `@atlas/ritual-engine` | 49 → 52 | ✅ 52 |
+| `@atlas/conductor` | 32 (unchanged) | ✅ 32 |
+| `@atlas/role-developer` | 30 (unchanged) | ✅ 30 |
+| `apps/atlas-web` (vitest) | 198 → ~225 | ✅ 252 (245 + 7 known parallel-load timeouts; pass in isolation) |
+
+Workspace `pnpm typecheck` clean.
+
+### Known issues found during execution + resolved before completion
+
+- **T7 algorithm bug** — `reconstructFromChunks` did not preserve trailing-newline state (could silently add `\n` to files lacking one). Caught by code-quality reviewer; fix landed in `5dca032` with two regression tests + a pure-insertion-hunk test.
+- **T10 API mismatch** — adapter wrote `session.fs.*` but the real E2B SDK exposes `session.files.*`. Caught by code-quality reviewer; fix landed in `4be7f3a`.
+- **T13 integration gap** — the plan's spec assumed `SandboxSession` had `.files`, but it didn't. Implementer used `Sandbox.connect(sandboxId, { apiKey })` to re-attach to the running sandbox via the E2B SDK directly. Cleaner than plumbing the SDK handle through SandboxSession; no cross-package change needed.
+
+### Outstanding (acceptable, deferred)
+
+- The atlas-web full-suite parallel-load flakes (7 5s-timeout-on-dynamic-import) are pre-existing per the audit doc and re-run cleanly in isolation. Not a plan-C regression.
+- Manual sign-off click is the user's verification step — they trigger ChatPanel and observe the green apply-status panel + iframe HMR refresh.

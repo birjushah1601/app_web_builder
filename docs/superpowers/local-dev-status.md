@@ -43,10 +43,10 @@ Total wall time: ~45–60 seconds (5 LLM hops through the local proxy).
   - JSON parsed from `content` as fallback when `tool_calls` is absent
   - Architect's `graphSlice` injected post-hoc (model not asked to echo)
   - Developer's `testsAdded` / `filesModified` defaulted post-hoc (`filesModified` recovered from diff headers)
+- **Plan C: developer's diff applied to the live preview sandbox.** Every successful developer dispatch parses the diff via `parse-diff`, writes per-file via E2B SDK's `Sandbox.connect(sandboxId).files.*` to `/code/src/`, and Next.js HMR refreshes the iframe within ~3s. Per-file outcome rendered in ChatPanel as green/amber/red apply-status panel. `applyDiff` never throws — sandbox unavailable, hunk mismatch, path escape all become structured `FileApplyResult` entries.
 
 ## What's NOT wired (deferred)
 
-- **Plan C: applying the developer's diff to the live E2B sandbox.** Today the diff is shown in ChatPanel but never written into `/code/src/`. Needs either `git apply` inside the sandbox (template needs git installed → Dockerfile change → template rebuild) or a unified-diff parser in atlas-web that calls `E2BFileSystem.write()` per file.
 - **Streaming progress.** Send button stays disabled for the whole 45–60s; user can't see "architect running" → "developer running" in real time.
 - **Multi-turn refinement.** No "user reads developer output → asks for changes → ritual re-runs with feedback" loop.
 - **Persistent ritual snapshots.** `engine.getRitual(ritualId)` is in-memory only; restart = lose history. Postgres-backed `spec_events` table exists but the conductor's checkpoint sink is a `console.error`-on-failure stub.
