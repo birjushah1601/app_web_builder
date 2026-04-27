@@ -15,6 +15,13 @@ export interface DeveloperRoleOptions {
   anthropicModel?: string;
   googleModel?: string;
   reviewerModel?: string;
+  /** "parallel" (default) fires both passes via Promise.all — best with two
+   *  distinct providers (real Anthropic + real Google) where doubling load
+   *  is fine. "sequential" runs anthropic, then google, then reviewer —
+   *  recommended when both slots point at the same provider (e.g. local
+   *  proxy) to avoid hammering one endpoint with concurrent requests.
+   *  Default: "parallel". */
+  parallelMode?: "parallel" | "sequential";
 }
 
 export class DeveloperRole implements Role {
@@ -32,21 +39,26 @@ export class DeveloperRole implements Role {
     // priorArtifact still work — both passes treat null as "no prior context".
     const architectArtifact = inv.priorArtifact ?? null;
 
-    const anthropicTask = anthropicPass({
+    const runAnthropic = () => anthropicPass({
       llm: this.opts.anthropic, skills: this.opts.skills,
       userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
       model: this.opts.anthropicModel ?? DEVELOPER_ANTHROPIC_MODEL
     }).then((output): { provider: "anthropic"; status: "ok"; output: DeveloperOutput } => ({ provider: "anthropic", status: "ok", output }))
       .catch((err: Error): { provider: "anthropic"; status: "error"; error: Error } => ({ provider: "anthropic", status: "error", error: err }));
 
-    const googleTask = googlePass({
+    const runGoogle = () => googlePass({
       llm: this.opts.google, skills: this.opts.skills,
       userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
       model: this.opts.googleModel ?? DEVELOPER_GOOGLE_MODEL
     }).then((output): { provider: "google"; status: "ok"; output: DeveloperOutput } => ({ provider: "google", status: "ok", output }))
       .catch((err: Error): { provider: "google"; status: "error"; error: Error } => ({ provider: "google", status: "error", error: err }));
 
-    const [anthropicResult, googleResult] = await Promise.all([anthropicTask, googleTask]);
+    // parallel: both passes fire concurrently (best with distinct providers).
+    // sequential: anthropic finishes before google starts (best with a single
+    // local proxy that crashes under concurrent load — the user's setup).
+    const [anthropicResult, googleResult] = this.opts.parallelMode === "sequential"
+      ? [await runAnthropic(), await runGoogle()]
+      : await Promise.all([runAnthropic(), runGoogle()]);
 
     if (anthropicResult.status === "ok") {
       events.push({ eventType: "developer.anthropic.completed", payload: { summary: anthropicResult.output.summary } });

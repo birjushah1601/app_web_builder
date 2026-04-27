@@ -1,6 +1,7 @@
 import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { assembleDeveloperPrompt } from "./assemble-prompt.js";
+import { withDefaults } from "./anthropic-pass.js";
 import { DeveloperOutputSchema, type DeveloperOutput } from "./types.js";
 
 export const DEVELOPER_GOOGLE_MODEL = "gemini-2.5-flash";
@@ -41,5 +42,7 @@ export async function googlePass(input: GooglePassInput): Promise<DeveloperOutpu
     tools: [{ name: "emit_developer_output", description: "Emit the diff + summary + tests", input_schema: DEVELOPER_TOOL_SCHEMA }],
     toolChoice: { type: "tool", name: "emit_developer_output" }
   });
-  return DeveloperOutputSchema.parse(result.input);
+  // Same defensive defaults as anthropicPass — see withDefaults() in
+  // anthropic-pass.ts for the rationale.
+  return DeveloperOutputSchema.parse(withDefaults(result.input));
 }

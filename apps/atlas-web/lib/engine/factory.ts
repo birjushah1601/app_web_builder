@@ -83,7 +83,12 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
         skills: skillRegistry,
         anthropicModel: deepPlanModel,
         googleModel: deepPlanModel,
-        reviewerModel: deepPlanModel
+        reviewerModel: deepPlanModel,
+        // Sequential mode is recommended when both slots point at the same
+        // provider (e.g. local proxy) — avoids hammering one endpoint with
+        // concurrent tool-use requests. Set ATLAS_DEVELOPER_SEQUENTIAL=true
+        // to enable; defaults off (preserves parallel for multi-provider).
+        parallelMode: process.env.ATLAS_DEVELOPER_SEQUENTIAL === "true" ? "sequential" : "parallel"
       })
     );
   }
