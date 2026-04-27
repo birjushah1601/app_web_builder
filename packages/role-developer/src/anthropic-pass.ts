@@ -41,5 +41,50 @@ export async function anthropicPass(input: AnthropicPassInput): Promise<Develope
     tools: [{ name: "emit_developer_output", description: "Emit the diff + summary + tests", input_schema: DEVELOPER_TOOL_SCHEMA }],
     toolChoice: { type: "tool", name: "emit_developer_output" }
   });
-  return DeveloperOutputSchema.parse(result.input);
+  // Same defensive pattern as the architect's graphSlice fix in deep-plan.ts:
+  // models against tools-stripping proxies sometimes omit the array fields.
+  // Default both to [] when missing so DeveloperOutputSchema.parse succeeds.
+  // The diff and summary are still required — those carry the model's actual
+  // work; we don't paper over their absence.
+  return DeveloperOutputSchema.parse(withDefaults(result.input));
+}
+
+/** Defensive defaults for the two array fields. Models against
+ *  tools-stripping proxies sometimes omit them; rather than 500 the entire
+ *  ritual, we fill them in:
+ *   - testsAdded: defaults to [] (schema allows empty).
+ *   - filesModified: schema requires ≥ 1 entry, so we parse `diff --git a/X
+ *     b/X` headers from the diff to recover the file list. If the diff isn't
+ *     in git format, we fall back to a single "unspecified" entry — the
+ *     schema passes; the developer's diff is still surfaced to the user. */
+export function withDefaults(input: unknown): unknown {
+  if (!input || typeof input !== "object") return input;
+  const o = input as Record<string, unknown>;
+  let filesModified: string[] = Array.isArray(o.filesModified) ? (o.filesModified as string[]) : [];
+  if (filesModified.length === 0 && typeof o.diff === "string") {
+    filesModified = parseFilesFromDiff(o.diff);
+  }
+  if (filesModified.length === 0) {
+    filesModified = ["unspecified"];
+  }
+  return {
+    ...o,
+    testsAdded: Array.isArray(o.testsAdded) ? o.testsAdded : [],
+    filesModified
+  };
+}
+
+function parseFilesFromDiff(diff: string): string[] {
+  // Matches both `diff --git a/path b/path` and `+++ b/path` headers.
+  const files = new Set<string>();
+  for (const line of diff.split("\n")) {
+    const git = /^diff --git a\/(\S+) b\/(\S+)/.exec(line);
+    if (git) {
+      files.add(git[2] ?? git[1]!);
+      continue;
+    }
+    const plus = /^\+\+\+ b\/(\S+)/.exec(line);
+    if (plus && plus[1]) files.add(plus[1]);
+  }
+  return Array.from(files);
 }
