@@ -60,6 +60,50 @@ describe("deepPlan (Pass 2 core)", () => {
     expect(joined).toContain("Skill: runnable-plan");
   });
 
+  it("injects graphSlice post-hoc when the model omits it (resilience for tools-stripping proxies)", async () => {
+    const validHash = "sha256:" + "a".repeat(64);
+    // Model returns valid scope-specific fields but DROPS graphSlice — a
+    // recurring failure mode against OpenAI-compat proxies that strip the
+    // tools[] array. We inject the original graphSlice post-hoc so the
+    // ArchitectOutputSchema parse still succeeds.
+    const sdkCreate = vi.fn(async () => ({
+      content: [
+        {
+          type: "tool_use",
+          id: "tu_plan",
+          name: "emit_architect_output",
+          input: {
+            scope: "new-feature",
+            diffPlan: { summary: "add password reset", tasks: [{ title: "form" }] }
+            // graphSlice deliberately omitted by the (mocked) model
+          }
+        }
+      ],
+      model: ARCHITECT_DEEP_PLAN_MODEL,
+      stop_reason: "tool_use",
+      usage: { input_tokens: 100, output_tokens: 50 }
+    }));
+    const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
+    const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
+
+    const inputGraphSlice = { bytes: '{"k":"v"}', hash: validHash };
+    const out = await deepPlan({
+      userTurn: "add forgot-password",
+      graphSlice: inputGraphSlice,
+      ambiguity: { passed: true, scope: "new-feature", questions: [] },
+      skills: fixtureRegistry(),
+      llm: provider
+    });
+
+    expect(out.scope).toBe("new-feature");
+    // The injected graphSlice from the input survives into the parsed output
+    expect(out.graphSlice).toEqual(inputGraphSlice);
+    // Scope-specific field came from the model untouched
+    if (out.scope === "new-feature") {
+      expect(out.diffPlan.summary).toBe("add password reset");
+    }
+  });
+
   it("throws DeepPlanFailedError when skills are missing", async () => {
     const emptyRegistry = createRegistryWithOverrides([], []);
     const sdk = { messages: { create: vi.fn(), stream: vi.fn() } } as never;

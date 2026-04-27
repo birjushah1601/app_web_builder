@@ -234,16 +234,76 @@ function prependSchemaInstruction(
   const tool = tools.find((t) => t.name === toolName);
   if (!tool) return toOpenAiMessages(messages);
   const schemaJson = JSON.stringify(tool.input_schema, null, 2);
+
+  // Walk one level (and one level into discriminated-union variants under
+  // anyOf/oneOf) to surface the required fields by name. Models against
+  // proxies that strip the tools[] array tend to drop required fields when
+  // the schema only LIVES in JSON; calling them out explicitly improves
+  // compliance dramatically.
+  const requiredHints = listRequiredFieldHints(tool.input_schema);
+
   const instruction =
     `You MUST respond with ONLY a single JSON object matching this exact JSON Schema, ` +
     `with no surrounding prose, no markdown code fences, no commentary. ` +
     `The schema describes the required structure of your response (this is the ` +
-    `'${toolName}' tool's input). Schema:\n\n${schemaJson}\n\n` +
-    `Respond with the JSON object alone. The first character of your response must be '{'.`;
+    `'${toolName}' tool's input).\n\n` +
+    (requiredHints ? `REQUIRED FIELDS — your response MUST include all of these:\n${requiredHints}\n\n` : "") +
+    `Full JSON Schema:\n\n${schemaJson}\n\n` +
+    `Respond with the JSON object alone. The first character of your response must be '{'. ` +
+    `If the schema is a discriminated union, pick exactly one variant (by its discriminator value) ` +
+    `and include EVERY field that variant requires. Do not omit any required field.`;
   return [
     { role: "system", content: instruction },
     ...toOpenAiMessages(messages)
   ];
+}
+
+/** Best-effort traversal of a JSON Schema to produce a human-readable list of
+ *  required field paths. Handles top-level required[] and one level of
+ *  discriminated-union variants under anyOf/oneOf. Returns "" when the schema
+ *  doesn't have a required-field signal we can extract. */
+function listRequiredFieldHints(schema: unknown): string {
+  if (!schema || typeof schema !== "object") return "";
+  const lines: string[] = [];
+
+  const s = schema as { required?: string[]; properties?: Record<string, unknown>; anyOf?: unknown[]; oneOf?: unknown[] };
+
+  // Top-level required
+  if (Array.isArray(s.required) && s.required.length > 0) {
+    lines.push(`- Top level: ${s.required.join(", ")}`);
+  }
+
+  // Discriminated-union variants
+  const variants = (Array.isArray(s.anyOf) ? s.anyOf : Array.isArray(s.oneOf) ? s.oneOf : []) as Array<{
+    properties?: Record<string, unknown>;
+    required?: string[];
+  }>;
+  for (const v of variants) {
+    if (!v || typeof v !== "object") continue;
+    const variantTag = pickVariantDiscriminatorLabel(v);
+    if (Array.isArray(v.required) && v.required.length > 0) {
+      lines.push(`- When ${variantTag}: ${v.required.join(", ")}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/** For a discriminated-union variant like { properties: { scope: { const: "new-app" } } },
+ *  return a string like 'scope = "new-app"'. Falls back to "this variant" when no
+ *  recognizable discriminator. */
+function pickVariantDiscriminatorLabel(variant: { properties?: Record<string, unknown> }): string {
+  const props = variant.properties ?? {};
+  for (const [key, value] of Object.entries(props)) {
+    if (value && typeof value === "object") {
+      const v = value as { const?: unknown; enum?: unknown[] };
+      if (typeof v.const === "string") return `${key} = "${v.const}"`;
+      if (Array.isArray(v.enum) && v.enum.length === 1 && typeof v.enum[0] === "string") {
+        return `${key} = "${v.enum[0]}"`;
+      }
+    }
+  }
+  return "this variant";
 }
 
 /** Try to extract a JSON object from free-form content. Handles three forms

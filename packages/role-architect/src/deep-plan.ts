@@ -87,7 +87,17 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
     throw new DeepPlanFailedError(`deep plan LLM call failed: ${causeMsg}`, { cause: err, scope: input.ambiguity.scope });
   }
 
-  const parse = ArchitectOutputSchema.safeParse(result.input);
+  // graphSlice is metadata the model has no business inventing — it's the
+  // exact slice we passed in. Inject it post-hoc so model output that omits
+  // it (a recurring failure mode against OpenAI-compat proxies that strip
+  // tool schemas and rely on prompt-injected schema hints) still validates.
+  // The schema requires graphSlice on every variant; this guarantees it.
+  const enriched =
+    result.input && typeof result.input === "object"
+      ? { ...(result.input as Record<string, unknown>), graphSlice: input.graphSlice }
+      : result.input;
+
+  const parse = ArchitectOutputSchema.safeParse(enriched);
   if (!parse.success) {
     throw new DeepPlanFailedError(
       `deep plan tool_use payload failed ArchitectOutputSchema: ${parse.error.message}`,

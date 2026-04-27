@@ -426,6 +426,75 @@ describe("OpenAICompatProvider — fallback for proxies that drop tools[]", () =
     expect(body.messages[1]!.content).toBe("plan it");
   });
 
+  it("enumerates required fields by name in the injected instruction (top level)", async () => {
+    const TWO_REQUIRED: typeof TOOL = {
+      name: "propose_plan",
+      description: "Architect's deep-plan output.",
+      input_schema: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          scope: { type: "string" },
+          diffPlan: { type: "object" }
+        },
+        required: ["summary", "scope", "diffPlan"]
+      }
+    };
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [{ finish_reason: "tool_calls", message: { tool_calls: [{ type: "function", function: { name: "propose_plan", arguments: '{"summary":"x","scope":"y","diffPlan":{}}' } }] } }],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({ baseUrl: "http://localhost:3456", fetchFn: fetchFn as unknown as typeof fetch });
+    await p.completeWithToolUse(
+      [{ role: "user", content: "x" }],
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [TWO_REQUIRED], toolChoice: { type: "tool", name: "propose_plan" } }
+    );
+    const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { messages: Array<{ role: string; content: string }> };
+    const sysMsg = body.messages[0]!.content;
+    expect(sysMsg).toContain("REQUIRED FIELDS");
+    expect(sysMsg).toContain("Top level: summary, scope, diffPlan");
+  });
+
+  it("enumerates per-variant required fields for discriminated unions (anyOf with const discriminator)", async () => {
+    const UNION_TOOL: typeof TOOL = {
+      name: "emit_architect_output",
+      description: "Discriminated by scope",
+      input_schema: {
+        type: "object",
+        anyOf: [
+          {
+            properties: { scope: { const: "new-feature" }, diffPlan: { type: "object" }, graphSlice: { type: "object" } },
+            required: ["scope", "diffPlan", "graphSlice"]
+          },
+          {
+            properties: { scope: { const: "bug-fix" }, bugReport: { type: "object" }, graphSlice: { type: "object" } },
+            required: ["scope", "bugReport", "graphSlice"]
+          }
+        ]
+      }
+    };
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [{ finish_reason: "tool_calls", message: { tool_calls: [{ type: "function", function: { name: "emit_architect_output", arguments: '{"scope":"new-feature","diffPlan":{},"graphSlice":{}}' } }] } }],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({ baseUrl: "http://localhost:3456", fetchFn: fetchFn as unknown as typeof fetch });
+    await p.completeWithToolUse(
+      [{ role: "user", content: "do it" }],
+      { model: "claude-sonnet-4", maxTokens: 100, tools: [UNION_TOOL], toolChoice: { type: "tool", name: "emit_architect_output" } }
+    );
+    const [, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { messages: Array<{ role: string; content: string }> };
+    const sysMsg = body.messages[0]!.content;
+    expect(sysMsg).toContain('When scope = "new-feature": scope, diffPlan, graphSlice');
+    expect(sysMsg).toContain('When scope = "bug-fix": scope, bugReport, graphSlice');
+    expect(sysMsg).toContain("discriminated union");
+  });
+
   it("does NOT inject the schema instruction when toolChoice is 'auto' or 'any'", async () => {
     const fetchFn = vi.fn().mockResolvedValue(
       jsonResponse({
