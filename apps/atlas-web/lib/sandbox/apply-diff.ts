@@ -1,5 +1,5 @@
 import parseDiffLib from "parse-diff";
-import type { FileOp } from "./apply-diff-types";
+import type { FileOp, FileApplyResult, SandboxFileSystemLike } from "./apply-diff-types";
 
 /** Parses a unified diff into per-file operations. Wraps the parse-diff
  *  npm library with our internal FileOp shape (which sanitizes paths
@@ -96,4 +96,37 @@ export function sanitizePath(rawPath: string, rootDir: string): string | null {
   }
   if (segments.length === 0) return null;
   return `${rootDir.replace(/\/$/, "")}/${segments.join("/")}`;
+}
+
+/** Apply a single FileOp to the sandbox filesystem. Never throws —
+ *  every error becomes status="failed" with a human-readable reason. */
+export async function applyFileOp(
+  fs: SandboxFileSystemLike,
+  op: FileOp,
+  rootDir: string
+): Promise<FileApplyResult> {
+  const safePath = sanitizePath(op.path, rootDir);
+  if (!safePath) {
+    return { path: op.path, status: "failed", reason: `path escape blocked: ${op.path}` };
+  }
+
+  if (op.kind === "create") {
+    if (op.newContent === undefined) {
+      return { path: op.path, status: "failed", reason: "no newContent on create op" };
+    }
+    try {
+      await fs.write(safePath, op.newContent);
+      return { path: op.path, status: "written", bytesWritten: byteLen(op.newContent) };
+    } catch (err) {
+      return { path: op.path, status: "failed", reason: (err as Error).message };
+    }
+  }
+
+  // modify and delete branches added in subsequent tasks
+  return { path: op.path, status: "skipped", reason: `kind not yet supported: ${op.kind}` };
+}
+
+function byteLen(s: string): number {
+  // Use Buffer for accurate UTF-8 byte length; fallback to char count.
+  return typeof Buffer !== "undefined" ? Buffer.byteLength(s, "utf8") : s.length;
 }

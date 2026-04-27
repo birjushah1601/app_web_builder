@@ -127,3 +127,70 @@ describe("sanitizePath — security boundary", () => {
     expect(sanitizePath("src/utils/../foo.ts", ROOT)).toBe("/code/src/foo.ts");
   });
 });
+
+import { applyFileOp } from "@/lib/sandbox/apply-diff";
+import type { SandboxFileSystemLike } from "@/lib/sandbox/apply-diff-types";
+
+/** In-memory fs used by every applyFileOp / applyDiff test. */
+function memoryFs(initial: Record<string, string> = {}): SandboxFileSystemLike & { _store: Map<string, string> } {
+  const store = new Map(Object.entries(initial));
+  return {
+    _store: store,
+    async read(path) {
+      const v = store.get(path);
+      if (v === undefined) throw new Error(`ENOENT: ${path}`);
+      return v;
+    },
+    async write(path, content) { store.set(path, content); },
+    async exists(path) { return store.has(path); }
+  };
+}
+
+describe("applyFileOp — create", () => {
+  it("writes new file content and reports written status", async () => {
+    const fs = memoryFs();
+    const result = await applyFileOp(fs, {
+      kind: "create",
+      path: "src/login.tsx",
+      newContent: "export function Login() {}\n"
+    }, "/code");
+    expect(result.status).toBe("written");
+    expect(result.path).toBe("src/login.tsx");
+    expect(result.bytesWritten).toBe(27);
+    expect(fs._store.get("/code/src/login.tsx")).toBe("export function Login() {}\n");
+  });
+
+  it("rejects a create with no newContent (parse bug); status=failed", async () => {
+    const fs = memoryFs();
+    const result = await applyFileOp(fs, { kind: "create", path: "src/x.ts" }, "/code");
+    expect(result.status).toBe("failed");
+    expect(result.reason).toMatch(/no newContent/i);
+  });
+
+  it("rejects path-escape; never touches the fs", async () => {
+    const fs = memoryFs();
+    const result = await applyFileOp(fs, {
+      kind: "create",
+      path: "../etc/passwd",
+      newContent: "evil"
+    }, "/code");
+    expect(result.status).toBe("failed");
+    expect(result.reason).toMatch(/path/i);
+    expect(fs._store.size).toBe(0);
+  });
+
+  it("propagates fs.write errors as status=failed", async () => {
+    const fs: SandboxFileSystemLike = {
+      async read() { throw new Error("no"); },
+      async write() { throw new Error("disk full"); },
+      async exists() { return false; }
+    };
+    const result = await applyFileOp(fs, {
+      kind: "create",
+      path: "src/x.ts",
+      newContent: "x"
+    }, "/code");
+    expect(result.status).toBe("failed");
+    expect(result.reason).toContain("disk full");
+  });
+});
