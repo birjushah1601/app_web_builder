@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDiff } from "@/lib/sandbox/apply-diff";
+import { parseDiff, sanitizePath } from "@/lib/sandbox/apply-diff";
 
 describe("parseDiff — create operation", () => {
   it("extracts a new file from a create-only diff", () => {
@@ -90,5 +90,40 @@ describe("parseDiff — empty/edge", () => {
     // ops, but it should never throw. This is the contract.
     expect(() => parseDiff("\\x00\\x01\\x02 not a diff")).not.toThrow();
     expect(() => parseDiff("--- a/x\n+++ b/x\n@@ malformed @@\n")).not.toThrow();
+  });
+});
+
+describe("sanitizePath — security boundary", () => {
+  const ROOT = "/code";
+
+  it("returns the joined path for a valid relative input", () => {
+    expect(sanitizePath("src/login.tsx", ROOT)).toBe("/code/src/login.tsx");
+  });
+
+  it("strips a leading a/ or b/ git prefix", () => {
+    expect(sanitizePath("a/src/foo.ts", ROOT)).toBe("/code/src/foo.ts");
+    expect(sanitizePath("b/src/foo.ts", ROOT)).toBe("/code/src/foo.ts");
+  });
+
+  it("rejects paths starting with / (absolute)", () => {
+    expect(sanitizePath("/etc/passwd", ROOT)).toBeNull();
+  });
+
+  it("rejects paths containing .. that escape the root", () => {
+    expect(sanitizePath("../etc/passwd", ROOT)).toBeNull();
+    expect(sanitizePath("src/../../etc/passwd", ROOT)).toBeNull();
+  });
+
+  it("rejects paths with embedded null bytes", () => {
+    expect(sanitizePath("src/foo\u0000.ts", ROOT)).toBeNull();
+  });
+
+  it("normalizes redundant ./ segments", () => {
+    expect(sanitizePath("src/./foo.ts", ROOT)).toBe("/code/src/foo.ts");
+    expect(sanitizePath("./src/foo.ts", ROOT)).toBe("/code/src/foo.ts");
+  });
+
+  it("allows internal .. as long as the result stays under root", () => {
+    expect(sanitizePath("src/utils/../foo.ts", ROOT)).toBe("/code/src/foo.ts");
   });
 });

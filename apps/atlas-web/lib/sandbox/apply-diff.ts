@@ -70,3 +70,30 @@ function collectAddedLines(file: parseDiffLib.File): string {
   // but trailing \n is the safe default for source files)
   return lines.join("\n") + (lines.length > 0 ? "\n" : "");
 }
+
+/** Sanitize a diff-supplied path against the apply rootDir.
+ *  Returns the absolute (rooted) path on success, or null when the
+ *  input is unsafe (absolute, escapes root, contains null bytes, etc.).
+ *
+ *  Posix-style paths only — sandbox files live in a Linux container.
+ */
+export function sanitizePath(rawPath: string, rootDir: string): string | null {
+  if (!rawPath || rawPath.includes("\0")) return null;
+  // Strip git's a/ or b/ prefix (parse-diff sometimes leaves it)
+  let p = rawPath;
+  if (p.startsWith("a/") || p.startsWith("b/")) p = p.slice(2);
+  if (p.startsWith("/")) return null;
+  // Posix-normalize: collapse ./ and resolve internal .. segments
+  const segments: string[] = [];
+  for (const seg of p.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") {
+      if (segments.length === 0) return null; // escape attempt
+      segments.pop();
+      continue;
+    }
+    segments.push(seg);
+  }
+  if (segments.length === 0) return null;
+  return `${rootDir.replace(/\/$/, "")}/${segments.join("/")}`;
+}
