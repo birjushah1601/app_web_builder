@@ -1,0 +1,113 @@
+# Atlas local dev — what's wired today
+
+Quick reference for "what does the app actually do when I click Send?" Last updated **2026-04-27** with plan B close-out.
+
+## End-to-end flow
+
+```
+ChatPanel.send (browser)
+  → startRitual (Server Action)
+    → getRitualEngine(projectId) [cached per-request via React cache()]
+      → RitualEngine.start
+        → Conductor.dispatch (architect, classified)
+          → ArchitectRole.run
+            → triage (Pass 1)   — emits architect.pass1.completed OR triage.needs_input
+            → deepPlan (Pass 2) — emits architect.pass2.completed { artifact }
+        → if artifact && editClass !== "cosmetic":
+          → Conductor.dispatch (developer, forceRoleId + priorArtifact = artifact)
+            → DeveloperRole.run
+              → anthropicPass | googlePass (parallel OR sequential per env)
+              → reviewerVote (picks winner)
+              → emits developer.completed { summary }, returns diff: { kind: "patch", body }
+      → snapshot { artifact, developerOutput, roleEvents }
+    → returns StartRitualResult to ChatPanel
+  → ChatPanel renders ArchitectPlanCard + DeveloperOutputCard
+```
+
+Total wall time: ~45–60 seconds (5 LLM hops through the local proxy).
+
+## What's wired
+
+- **Architect role** — triage (claude-haiku-4-5) + deep plan (claude-sonnet-4). Emits a scope-specific artifact (new-app, new-feature, bug-fix, etc.). Plan + blocking questions surface in ChatPanel.
+- **Developer role** — anthropic pass + google pass + reviewer vote. Emits a unified diff + summary + filesModified list. Diff renders in ChatPanel as a collapsible `<details>`.
+- **Cosmetic edit shortcut** — `editClass: "cosmetic"` skips the developer step (no diff generated).
+- **Failure surfacing** — every layer catches and renders the cause:
+  - LLM provider HTTP errors → `triage LLM call failed: <cause>` → red `role="alert"` in ChatPanel
+  - Architect LLM failure → ritual still escalates with cause inline
+  - Developer dispatch failure → red `developer-failed` panel; architect plan still shown
+  - Sandbox provision failure → red "Preview unavailable" in canvas; rest of canvas works
+- **Provider precedence** — `ATLAS_LLM_BASE_URL` (proxy) wins over `ANTHROPIC_API_KEY` (real API) when both set.
+- **OpenAICompatProvider hardening** for proxies that strip the `tools[]` array (claude-max-api-proxy):
+  - Schema injected into a system message so the model knows what JSON shape to emit
+  - Required fields enumerated explicitly (top level + per discriminated-union variant)
+  - JSON parsed from `content` as fallback when `tool_calls` is absent
+  - Architect's `graphSlice` injected post-hoc (model not asked to echo)
+  - Developer's `testsAdded` / `filesModified` defaulted post-hoc (`filesModified` recovered from diff headers)
+
+## What's NOT wired (deferred)
+
+- **Plan C: applying the developer's diff to the live E2B sandbox.** Today the diff is shown in ChatPanel but never written into `/code/src/`. Needs either `git apply` inside the sandbox (template needs git installed → Dockerfile change → template rebuild) or a unified-diff parser in atlas-web that calls `E2BFileSystem.write()` per file.
+- **Streaming progress.** Send button stays disabled for the whole 45–60s; user can't see "architect running" → "developer running" in real time.
+- **Multi-turn refinement.** No "user reads developer output → asks for changes → ritual re-runs with feedback" loop.
+- **Persistent ritual snapshots.** `engine.getRitual(ritualId)` is in-memory only; restart = lose history. Postgres-backed `spec_events` table exists but the conductor's checkpoint sink is a `console.error`-on-failure stub.
+- **Dynamic UI for blocking questions** (architect.triage.needs_input). Today they render as a bullet list; agent could emit a structured form (RJSF / AG-UI / Anthropic tool-use → React form). Research note in `docs/superpowers/research/a2ui-2026-04-27.md` (TBD if formalized).
+- **Multi-role orchestration beyond architect → developer.** Reviewer is invoked inline by DeveloperRole, not as its own Conductor role. Ship / security / accessibility roles exist as packages but aren't registered in the factory.
+
+## Running the stack locally
+
+```bash
+# 1. Postgres (atlas-postgres on host port 5440)
+docker compose up -d postgres
+
+# 2. Local Claude proxy on :3456 (claude-max-api-proxy or equivalent)
+# — manage in a separate terminal; restart manually if it crashes
+
+# 3. atlas-web
+cd apps/atlas-web && pnpm dev
+# → http://localhost:3000
+```
+
+## Required environment (`apps/atlas-web/.env.local`)
+
+```
+# Auth (Clerk dev keys)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+
+# Postgres
+DATABASE_URL=postgres://atlas:atlas@localhost:5440/atlas_dev
+
+# LLM provider (the local proxy)
+ATLAS_LLM_BASE_URL=http://127.0.0.1:3456
+ATLAS_LLM_API_KEY=sk-no-auth
+ATLAS_LLM_TRIAGE_MODEL=claude-haiku-4-5
+ATLAS_LLM_DEEP_MODEL=claude-sonnet-4
+
+# Developer role: sequential ON for single-provider proxy setups
+# (avoids hammering the proxy with concurrent tool-use requests)
+ATLAS_DEVELOPER_SEQUENTIAL=true
+
+# E2B sandbox for live preview
+E2B_API_KEY=e2b_...
+ATLAS_DEFAULT_SANDBOX_TEMPLATE=atlas-next-ts   # or any template you've built
+ATLAS_DEFAULT_SANDBOX_PORT=3000
+```
+
+## Common failure modes + what to look for
+
+| Symptom | Likely cause | What I see in dev log / UI |
+|---|---|---|
+| ChatPanel red alert: "fetch failed" | Proxy at :3456 is down | `ECONNREFUSED 127.0.0.1:3456` in stderr; restart proxy |
+| ChatPanel red alert: "triage LLM call failed: HTTP 503" | Proxy alive but model returned non-2xx | `[conductor] role.failed` with the specific HTTP code |
+| ChatPanel red alert: "...payload failed AmbiguityReportSchema" | Model output didn't match the schema | Look for the Zod issue list in the alert message |
+| Canvas shows "Preview unavailable" | Sandbox provision failed | The error message in the panel tells you which (E2B key, spend cap, template not found) |
+| `developer-failed` red card after architect plan | Developer chain failed; architect output preserved | `developer.dispatch.failed` event in roleEvents; check the cause string |
+
+## Test surface (verifies the wiring without clicks)
+
+- **`@atlas/ritual-engine`** — 49 tests. `engine-developer-chain.test.ts` simulates architect → developer with stubbed roles, covers all branch paths.
+- **`@atlas/conductor`** — 32 tests. Includes back-compat case for the new `forceRoleId` opt-in.
+- **`@atlas/role-developer`** — 30 tests. Includes parallelMode mode (3) and `withDefaults` (8) coverage.
+- **`@atlas/role-architect`** — 30 tests. Includes the post-hoc graphSlice injection case.
+- **`apps/atlas-web` vitest** — 198 tests across 41 files. ChatPanel rendering of architect + developer + failure cards; OpenAICompatProvider tool-use translation + content fallback; factory.ts provider precedence + DeveloperRole registration + env-driven parallelMode.
+- **`apps/atlas-web` Playwright** — 3 auth-free smoke specs (`/sign-in` renders, `/` redirects, screenshot capture). Persona suite (10 specs) is aspirational — references UI test IDs that don't exist yet.

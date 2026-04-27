@@ -29,6 +29,20 @@ vi.mock("@atlas/role-architect", () => ({
   ARCHITECT_DEEP_PLAN_MODEL: "claude-opus-4-7"
 }));
 
+const developerCtor = vi.fn();
+vi.mock("@atlas/role-developer", () => ({
+  DeveloperRole: class {
+    constructor(opts: {
+      anthropic: { name: string };
+      google: { name: string };
+      reviewer: { name: string };
+      parallelMode?: "parallel" | "sequential";
+    }) {
+      developerCtor(opts);
+    }
+  }
+}));
+
 vi.mock("@atlas/skill-runtime", () => ({
   SkillRegistry: class { constructor(_skills: unknown[]) {} },
   loadSkillsFromDir: async () => []
@@ -67,7 +81,8 @@ const ENV_KEYS = [
   "ATLAS_LLM_API_KEY",
   "ATLAS_LLM_TRIAGE_MODEL",
   "ATLAS_LLM_DEEP_MODEL",
-  "ANTHROPIC_API_KEY"
+  "ANTHROPIC_API_KEY",
+  "ATLAS_DEVELOPER_SEQUENTIAL"
 ] as const;
 
 describe("getRitualEngine — provider precedence", () => {
@@ -79,6 +94,7 @@ describe("getRitualEngine — provider precedence", () => {
       delete process.env[k];
     }
     architectCtor.mockClear();
+    developerCtor.mockClear();
     vi.resetModules();
   });
 
@@ -185,6 +201,105 @@ describe("getRitualEngine — provider precedence", () => {
     // cover the default itself. This verifies factory wiring doesn't crash
     // when the auth var is missing.
     await expect(getRitualEngine("p-1")).resolves.toBeDefined();
+  });
+});
+
+describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const k of ENV_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+    architectCtor.mockClear();
+    developerCtor.mockClear();
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("registers BOTH architect and developer roles when an LLM is configured", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const engine = (await getRitualEngine("p-1")) as unknown as {
+      conductor: { roles: Map<string, unknown> };
+    };
+
+    expect(engine.conductor.roles.has("architect")).toBe(true);
+    expect(engine.conductor.roles.has("developer")).toBe(true);
+    expect(developerCtor).toHaveBeenCalledOnce();
+  });
+
+  it("registers no developer role when no LLM is configured (parity with architect)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const engine = (await getRitualEngine("p-1")) as unknown as {
+      conductor: { roles: Map<string, unknown> };
+    };
+
+    expect(engine.conductor.roles.has("developer")).toBe(false);
+    expect(developerCtor).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("DeveloperRole receives the same provider in all three slots in single-provider setup", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    await getRitualEngine("p-1");
+
+    const opts = developerCtor.mock.calls[0]![0] as {
+      anthropic: { name: string };
+      google: { name: string };
+      reviewer: { name: string };
+    };
+    // All three slots point at the same OpenAICompatProvider instance.
+    expect(opts.anthropic.name).toBe("openai-compat");
+    expect(opts.google.name).toBe("openai-compat");
+    expect(opts.reviewer.name).toBe("openai-compat");
+    expect(opts.anthropic).toBe(opts.google);
+    expect(opts.anthropic).toBe(opts.reviewer);
+  });
+
+  it("ATLAS_DEVELOPER_SEQUENTIAL=true wires DeveloperRole.parallelMode='sequential'", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    process.env.ATLAS_DEVELOPER_SEQUENTIAL = "true";
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    await getRitualEngine("p-1");
+
+    const opts = developerCtor.mock.calls[0]![0] as { parallelMode?: string };
+    expect(opts.parallelMode).toBe("sequential");
+  });
+
+  it("DeveloperRole.parallelMode defaults to 'parallel' when ATLAS_DEVELOPER_SEQUENTIAL unset", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    // ATLAS_DEVELOPER_SEQUENTIAL deliberately unset
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    await getRitualEngine("p-1");
+
+    const opts = developerCtor.mock.calls[0]![0] as { parallelMode?: string };
+    expect(opts.parallelMode).toBe("parallel");
+  });
+
+  it("ATLAS_DEVELOPER_SEQUENTIAL=anything-other-than-'true' is treated as parallel (strict opt-in)", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    process.env.ATLAS_DEVELOPER_SEQUENTIAL = "1"; // truthy-ish, but not the literal "true"
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    await getRitualEngine("p-1");
+
+    const opts = developerCtor.mock.calls[0]![0] as { parallelMode?: string };
+    expect(opts.parallelMode).toBe("parallel");
   });
 });
 
