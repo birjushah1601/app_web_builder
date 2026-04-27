@@ -142,7 +142,8 @@ function memoryFs(initial: Record<string, string> = {}): SandboxFileSystemLike &
       return v;
     },
     async write(path, content) { store.set(path, content); },
-    async exists(path) { return store.has(path); }
+    async exists(path) { return store.has(path); },
+    async remove(path) { store.delete(path); }
   };
 }
 
@@ -183,7 +184,8 @@ describe("applyFileOp — create", () => {
     const fs: SandboxFileSystemLike = {
       async read() { throw new Error("no"); },
       async write() { throw new Error("disk full"); },
-      async exists() { return false; }
+      async exists() { return false; },
+      async remove() {}
     };
     const result = await applyFileOp(fs, {
       kind: "create",
@@ -192,6 +194,34 @@ describe("applyFileOp — create", () => {
     }, "/code");
     expect(result.status).toBe("failed");
     expect(result.reason).toContain("disk full");
+  });
+});
+
+describe("applyFileOp — delete", () => {
+  it("removes existing file and reports written status", async () => {
+    const fs = memoryFs({ "/code/src/old.ts": "x" });
+    const result = await applyFileOp(fs, { kind: "delete", path: "src/old.ts" }, "/code");
+    expect(result.status).toBe("written");
+    expect(fs._store.has("/code/src/old.ts")).toBe(false);
+  });
+
+  it("skips with reason when target is already absent (idempotent)", async () => {
+    const fs = memoryFs();
+    const result = await applyFileOp(fs, { kind: "delete", path: "src/gone.ts" }, "/code");
+    expect(result.status).toBe("skipped");
+    expect(result.reason).toMatch(/already absent/i);
+  });
+
+  it("propagates fs.remove errors as status=failed", async () => {
+    const fs: SandboxFileSystemLike = {
+      async read() { throw new Error("no"); },
+      async write() {},
+      async exists() { return true; },
+      async remove() { throw new Error("permission denied"); }
+    };
+    const result = await applyFileOp(fs, { kind: "delete", path: "src/x.ts" }, "/code");
+    expect(result.status).toBe("failed");
+    expect(result.reason).toContain("permission denied");
   });
 });
 

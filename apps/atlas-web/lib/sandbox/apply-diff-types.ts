@@ -51,4 +51,6 @@ export interface SandboxFileSystemLike {
   write(path: string, content: string): Promise<void>;
   /** Returns true iff the path exists (file or directory). Never throws. */
   exists(path: string): Promise<boolean>;
+  /** Removes a file. No-op if absent. Throws on I/O error other than ENOENT. */
+  remove(path: string): Promise<void>;
 }

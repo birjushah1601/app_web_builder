@@ -143,8 +143,21 @@ export async function applyFileOp(
     }
   }
 
-  // delete branch added in subsequent task
-  return { path: op.path, status: "skipped", reason: `kind not yet supported: ${op.kind}` };
+  if (op.kind === "delete") {
+    const present = await fs.exists(safePath);
+    if (!present) {
+      return { path: op.path, status: "skipped", reason: "already absent" };
+    }
+    try {
+      await fs.remove(safePath);
+      return { path: op.path, status: "written" };
+    } catch (err) {
+      return { path: op.path, status: "failed", reason: (err as Error).message };
+    }
+  }
+
+  // Defensive: should be unreachable if FileOp.kind union stays at 3.
+  return { path: op.path, status: "failed", reason: `unknown op kind: ${(op as { kind: string }).kind}` };
 }
 
 function byteLen(s: string): number {
