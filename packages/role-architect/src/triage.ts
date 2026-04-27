@@ -72,12 +72,19 @@ export async function triage(input: TriageInput): Promise<AmbiguityReport> {
       toolChoice: { type: "tool", name: "emit_ambiguity_report" }
     });
   } catch (err) {
-    throw new TriageFailedError("triage LLM call failed", { cause: err });
+    // Preserve the cause's message inline so consumers (Conductor's
+    // role.failed payload, RitualEscalatedError) that only forward
+    // .message still see *what* failed, not just *that* triage failed.
+    const causeMsg = err instanceof Error ? err.message : String(err);
+    throw new TriageFailedError(`triage LLM call failed: ${causeMsg}`, { cause: err });
   }
 
   const parse = AmbiguityReportSchema.safeParse(result.input);
   if (!parse.success) {
-    throw new TriageFailedError("triage tool_use payload failed AmbiguityReportSchema", { cause: parse.error });
+    throw new TriageFailedError(
+      `triage tool_use payload failed AmbiguityReportSchema: ${parse.error.message}`,
+      { cause: parse.error }
+    );
   }
   return parse.data;
 }
