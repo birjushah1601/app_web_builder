@@ -59,4 +59,31 @@ describe("startRitual action", () => {
     const { startRitual } = await import("@/lib/actions/startRitual.js");
     await expect(startRitual({ projectId: "p-1", userTurn: "x", editClass: "cosmetic" })).rejects.toThrow(/unauth/i);
   });
+
+  it("returns sandboxApplyResult from the engine snapshot when present", async () => {
+    const start = vi.fn(async () => "r-789");
+    const sandboxApplyResult = {
+      ok: true, parsed: 2, written: 2, failed: 0, skipped: 0,
+      files: [
+        { path: "src/login.tsx", status: "written", bytesWritten: 50 },
+        { path: "src/auth.ts", status: "written", bytesWritten: 30 }
+      ]
+    };
+    const getRitual = vi.fn(() => ({
+      state: "agree",
+      projectId: "p-1",
+      userId: "u-1",
+      artifact: { plan: "x" },
+      roleEvents: [],
+      developerOutput: { diff: "diff --git ...", summary: "did it" },
+      sandboxApplyResult
+    }));
+    vi.doMock("@/lib/engine/factory.js", () => ({
+      getRitualEngine: async () => ({ start, getRitual })
+    }));
+    vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    const { startRitual } = await import("@/lib/actions/startRitual.js");
+    const r = await startRitual({ projectId: "p-1", userTurn: "add login", editClass: "structural" });
+    expect(r.sandboxApplyResult).toEqual(sandboxApplyResult);
+  });
 });

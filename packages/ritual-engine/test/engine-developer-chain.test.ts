@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { RitualEngine } from "../src/engine.js";
 import { InMemoryEventSink } from "../src/events.js";
 import type { Conductor, DispatchOptions, DispatchContext } from "@atlas/conductor";
+import type { SandboxApplier, SandboxApplyResult } from "../src/engine.js";
 
 const VALID_HASH = "sha256:" + "0".repeat(64);
 const PROJECT_ID = "11111111-1111-4111-8111-111111111111";
@@ -214,5 +215,90 @@ describe("RitualEngine — architect → developer chain (plan B)", () => {
     expect(snapshot?.developerOutput).toBeUndefined();
     // Events still flow through for diagnostics
     expect(snapshot?.roleEvents.find((e) => e.eventType === "developer.completed")).toBeDefined();
+  });
+});
+
+const VALID_APPLY: SandboxApplyResult = {
+  ok: true,
+  parsed: 2,
+  written: 2,
+  failed: 0,
+  skipped: 0,
+  files: [
+    { path: "src/login.tsx", status: "written", bytesWritten: 50 },
+    { path: "src/auth.ts", status: "written", bytesWritten: 30 }
+  ]
+};
+
+function applierThat(behaviour: () => Promise<SandboxApplyResult>): SandboxApplier {
+  return { apply: vi.fn(async () => behaviour()) };
+}
+
+function makeEngineWithApplier(conductor: Conductor, applier: SandboxApplier) {
+  return new RitualEngine({
+    conductor,
+    eventSink: new InMemoryEventSink(),
+    personaPreferences: { async getPersona() { return "diego"; } },
+    sandboxApplier: applier
+  });
+}
+
+describe("RitualEngine — sandbox apply (plan C)", () => {
+  it("calls applier.apply(projectId, diff) when developer produced a diff", async () => {
+    const conductor = chainConductor({});
+    const apply = vi.fn(async () => VALID_APPLY);
+    const engine = makeEngineWithApplier(conductor, { apply });
+
+    const ritualId = await engine.start({
+      userTurn: "add login",
+      editClass: "structural",
+      projectId: PROJECT_ID,
+      userId: "u-1"
+    });
+
+    expect(apply).toHaveBeenCalledOnce();
+    expect(apply).toHaveBeenCalledWith(PROJECT_ID, DEVELOPER_DIFF);
+    const snapshot = engine.getRitual(ritualId);
+    expect(snapshot?.sandboxApplyResult).toEqual(VALID_APPLY);
+  });
+
+  it("does NOT call applier when developer produced no diff (diff.kind=none)", async () => {
+    const conductor = chainConductor({
+      developerOutput: {
+        events: [{ eventType: "developer.completed", payload: { summary: "no changes" } }],
+        diff: { kind: "none" as const }
+      }
+    });
+    const apply = vi.fn();
+    const engine = makeEngineWithApplier(conductor, { apply: apply as never });
+
+    await engine.start({
+      userTurn: "x",
+      editClass: "structural",
+      projectId: PROJECT_ID,
+      userId: "u-1"
+    });
+
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("ritual still completes when applier returns ok:false (no throw, snapshot captures the failure)", async () => {
+    const failApply: SandboxApplyResult = {
+      ok: false, parsed: 1, written: 0, failed: 0, skipped: 0,
+      files: [], parseError: "sandbox unavailable: ECONNREFUSED"
+    };
+    const conductor = chainConductor({});
+    const engine = makeEngineWithApplier(conductor, applierThat(async () => failApply));
+
+    const ritualId = await engine.start({
+      userTurn: "x",
+      editClass: "structural",
+      projectId: PROJECT_ID,
+      userId: "u-1"
+    });
+
+    const snapshot = engine.getRitual(ritualId);
+    expect(snapshot?.sandboxApplyResult).toEqual(failApply);
+    expect(snapshot?.developerOutput?.diff).toBe(DEVELOPER_DIFF);
   });
 });

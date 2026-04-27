@@ -12,6 +12,20 @@ export interface StartRitualResult {
   artifact?: unknown;
   roleEvents: RoleEvent[];
   developerOutput?: { diff: string; summary?: string };
+  sandboxApplyResult?: {
+    ok: boolean;
+    parsed: number;
+    written: number;
+    failed: number;
+    skipped: number;
+    files: Array<{
+      path: string;
+      status: "written" | "skipped" | "failed";
+      reason?: string;
+      bytesWritten?: number;
+    }>;
+    parseError?: string;
+  };
 }
 
 export interface ChatPanelProps {
@@ -134,7 +148,10 @@ function ArchitectOutput({ result }: { result: StartRitualResult }) {
       )}
 
       {result.developerOutput ? (
-        <DeveloperOutputCard output={result.developerOutput} />
+        <DeveloperOutputCard
+          output={result.developerOutput}
+          applyResult={result.sandboxApplyResult}
+        />
       ) : developerFailedEvent ? (
         <div data-testid="developer-failed" className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
           <div className="mb-1 font-semibold">Developer step failed</div>
@@ -181,7 +198,13 @@ function ArchitectPlanCard({ artifact }: { artifact: unknown }) {
   );
 }
 
-function DeveloperOutputCard({ output }: { output: { diff: string; summary?: string } }) {
+function DeveloperOutputCard({
+  output,
+  applyResult
+}: {
+  output: { diff: string; summary?: string };
+  applyResult?: StartRitualResult["sandboxApplyResult"];
+}) {
   // Heuristic: count "diff --git" headers as files changed in the patch.
   // Falls back to "lines changed" when the patch isn't in git format.
   const fileMatches = output.diff.match(/^diff --git /gm);
@@ -201,9 +224,54 @@ function DeveloperOutputCard({ output }: { output: { diff: string; summary?: str
           {output.diff}
         </pre>
       </details>
-      <p className="mt-2 text-[10px] italic text-indigo-600">
-        Note: diff not yet applied to the live preview sandbox.
-      </p>
+      {applyResult ? <SandboxApplyStatus result={applyResult} /> : (
+        <p className="mt-2 text-[10px] italic text-indigo-600">
+          Note: diff not yet applied to the live preview sandbox.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Plan C status panel: shows the per-file outcome of writing the developer's
+ *  diff into the project's E2B sandbox. Three variants:
+ *   - Red:    parseError set → entire diff couldn't be parsed/applied
+ *   - Green:  ok && failed===0 && skipped===0 → all files written
+ *   - Amber:  partial success → list non-written entries with reason
+ */
+function SandboxApplyStatus({ result }: { result: NonNullable<StartRitualResult["sandboxApplyResult"]> }) {
+  if (result.parseError) {
+    return (
+      <div data-testid="sandbox-apply-status" className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+        <strong className="block">Could not apply to live preview</strong>
+        <span className="block break-words">{result.parseError}</span>
+      </div>
+    );
+  }
+  if (result.ok && result.failed === 0 && result.skipped === 0) {
+    return (
+      <div data-testid="sandbox-apply-status" className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
+        ✓ Wrote {result.written} file{result.written === 1 ? "" : "s"} to live preview — refresh the iframe if it doesn't update automatically.
+      </div>
+    );
+  }
+  return (
+    <div data-testid="sandbox-apply-status" className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+      <strong className="block">
+        Wrote {result.written} of {result.parsed} files
+        {result.skipped > 0 ? `; skipped ${result.skipped}` : ""}
+        {result.failed > 0 ? `; failed ${result.failed}` : ""}
+      </strong>
+      <ul className="mt-1 list-disc space-y-0.5 pl-4">
+        {result.files
+          .filter((f) => f.status !== "written")
+          .map((f, i) => (
+            <li key={i}>
+              <code>{f.path}</code> — {f.status}
+              {f.reason ? `: ${f.reason}` : ""}
+            </li>
+          ))}
+      </ul>
     </div>
   );
 }

@@ -67,11 +67,19 @@ vi.mock("@atlas/conductor", () => ({
   }
 }));
 
+const ritualEngineCtor = vi.fn();
+
 vi.mock("@atlas/ritual-engine", () => ({
   RitualEngine: class {
     conductor: { roles: Map<string, unknown> };
-    constructor(opts: { conductor: { roles: Map<string, unknown> } }) {
+    sandboxApplier?: { apply: unknown };
+    constructor(opts: {
+      conductor: { roles: Map<string, unknown> };
+      sandboxApplier?: { apply: unknown };
+    }) {
+      ritualEngineCtor(opts);
       this.conductor = opts.conductor;
+      this.sandboxApplier = opts.sandboxApplier;
     }
   }
 }));
@@ -95,6 +103,7 @@ describe("getRitualEngine — provider precedence", () => {
     }
     architectCtor.mockClear();
     developerCtor.mockClear();
+    ritualEngineCtor.mockClear();
     vi.resetModules();
   });
 
@@ -214,6 +223,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
     }
     architectCtor.mockClear();
     developerCtor.mockClear();
+    ritualEngineCtor.mockClear();
     vi.resetModules();
   });
 
@@ -300,6 +310,19 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
 
     const opts = developerCtor.mock.calls[0]![0] as { parallelMode?: string };
     expect(opts.parallelMode).toBe("parallel");
+  });
+
+  it("wires a sandboxApplier into RitualEngineOptions when llm is configured (plan C)", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    await getRitualEngine("p-1");
+
+    const opts = ritualEngineCtor.mock.calls.at(-1)?.[0] as {
+      sandboxApplier?: { apply: unknown };
+    };
+    expect(opts.sandboxApplier).toBeDefined();
+    expect(typeof opts.sandboxApplier?.apply).toBe("function");
   });
 });
 

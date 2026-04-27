@@ -10,6 +10,7 @@ export interface RitualEngineOptions {
   conductor: Conductor;
   eventSink: EventSink;
   personaPreferences: PersonaPreferences;
+  sandboxApplier?: SandboxApplier;
 }
 
 export interface StartInput {
@@ -35,6 +36,33 @@ export interface DeveloperOutputRecord {
   summary?: string;
 }
 
+/** Aggregate result of writing a developer's diff into the project's
+ *  sandbox. Mirrors apps/atlas-web/lib/sandbox/apply-diff-types.ts so
+ *  that snapshot consumers (Server Action, ChatPanel) get the same
+ *  shape on both sides without round-tripping through `unknown`. */
+export interface SandboxApplyResult {
+  ok: boolean;
+  parsed: number;
+  written: number;
+  failed: number;
+  skipped: number;
+  files: Array<{
+    path: string;
+    status: "written" | "skipped" | "failed";
+    reason?: string;
+    bytesWritten?: number;
+  }>;
+  parseError?: string;
+}
+
+/** Optional injection on RitualEngineOptions. Implementations live
+ *  outside the engine package (atlas-web wires the real adapter via
+ *  E2B; engine tests can stub or omit). When omitted, start() skips
+ *  the apply step entirely — backward-compatible with existing tests. */
+export interface SandboxApplier {
+  apply(projectId: string, diff: string): Promise<SandboxApplyResult>;
+}
+
 interface RitualRecord {
   state: RitualState;
   projectId: string;
@@ -47,6 +75,7 @@ interface RitualRecord {
   roleEvents?: RoleEventRecord[];
   /** Set when the developer role chained successfully after architect. */
   developerOutput?: DeveloperOutputRecord;
+  sandboxApplyResult?: SandboxApplyResult;
 }
 
 /** Read-only view of a ritual's persisted state. Returned by getRitual(). */
@@ -57,18 +86,21 @@ export interface RitualSnapshot {
   artifact?: unknown;
   roleEvents: RoleEventRecord[];
   developerOutput?: DeveloperOutputRecord;
+  sandboxApplyResult?: SandboxApplyResult;
 }
 
 export class RitualEngine {
   private readonly conductor: Conductor;
   private readonly sink: EventSink;
   private readonly prefs: PersonaPreferences;
+  private readonly applier?: SandboxApplier;
   private readonly rituals = new Map<string, RitualRecord>();
 
   constructor(opts: RitualEngineOptions) {
     this.conductor = opts.conductor;
     this.sink = opts.eventSink;
     this.prefs = opts.personaPreferences;
+    this.applier = opts.sandboxApplier;
   }
 
   async start(input: StartInput): Promise<string> {
@@ -135,6 +167,22 @@ export class RitualEngine {
           ...(record.roleEvents ?? []),
           ...devResult.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
         ];
+
+        // Plan C: write the diff into the live preview sandbox if an
+        // applier is configured. Failures inside apply are captured into
+        // the snapshot — never re-thrown — so the architect plan and
+        // developer diff still surface to the user.
+        if (this.applier && devResult.output.diff.kind === "patch" && devResult.output.diff.body) {
+          try {
+            const applyResult = await this.applier.apply(input.projectId, devResult.output.diff.body);
+            record.sandboxApplyResult = applyResult;
+          } catch (err) {
+            record.sandboxApplyResult = {
+              ok: false, parsed: 0, written: 0, failed: 0, skipped: 0,
+              files: [], parseError: `applier threw: ${err instanceof Error ? err.message : String(err)}`
+            };
+          }
+        }
       } catch (err) {
         // unknown-role (developer not registered) or BothProvidersFailedError
         // etc. Record a synthetic event so the UI can show what went wrong
@@ -179,7 +227,8 @@ export class RitualEngine {
       userId: r.userId,
       artifact: r.artifact,
       roleEvents: r.roleEvents ?? [],
-      developerOutput: r.developerOutput
+      developerOutput: r.developerOutput,
+      sandboxApplyResult: r.sandboxApplyResult
     };
   }
 

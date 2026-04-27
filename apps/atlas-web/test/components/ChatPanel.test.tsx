@@ -283,4 +283,85 @@ describe("ChatPanel — architect output rendering", () => {
     expect(screen.getByText(/first plan/)).toBeInTheDocument();
     expect(screen.getByText(/second time, more info\?/)).toBeInTheDocument();
   });
+
+  it("renders green '✓ Wrote N files' when sandboxApplyResult.ok && failed===0", async () => {
+    const action = vi.fn(async () => okResult({
+      artifact: { scope: "feature", summary: "x", plan: { steps: [{ title: "s" }] } },
+      developerOutput: { diff: "diff --git ...", summary: "did it" },
+      sandboxApplyResult: {
+        ok: true, parsed: 3, written: 3, failed: 0, skipped: 0,
+        files: [
+          { path: "src/a.ts", status: "written", bytesWritten: 10 },
+          { path: "src/b.ts", status: "written", bytesWritten: 20 },
+          { path: "src/c.ts", status: "written", bytesWritten: 30 }
+        ]
+      }
+    }));
+    render(<ChatPanel projectId="p-1" action={action} />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "x");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    const apply = await screen.findByTestId("sandbox-apply-status");
+    expect(apply).toHaveTextContent(/Wrote 3 files/);
+    expect(apply).toHaveTextContent(/refresh the iframe/i);
+    expect(apply.className).toContain("emerald"); // green tint
+  });
+
+  it("renders amber mixed-result panel when some files failed", async () => {
+    const action = vi.fn(async () => okResult({
+      artifact: { scope: "feature", summary: "x", plan: { steps: [{ title: "s" }] } },
+      developerOutput: { diff: "diff --git ...", summary: "did it" },
+      sandboxApplyResult: {
+        ok: false, parsed: 3, written: 1, failed: 1, skipped: 1,
+        files: [
+          { path: "src/a.ts", status: "written", bytesWritten: 10 },
+          { path: "src/b.ts", status: "skipped", reason: "hunk mismatch at line 5" },
+          { path: "src/c.ts", status: "failed", reason: "ENOSPC: disk full" }
+        ]
+      }
+    }));
+    render(<ChatPanel projectId="p-1" action={action} />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "x");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    const apply = await screen.findByTestId("sandbox-apply-status");
+    expect(apply).toHaveTextContent(/1 of 3/i);
+    expect(apply.className).toContain("amber");
+    // Per-file detail expandable
+    expect(apply).toHaveTextContent(/hunk mismatch at line 5/);
+    expect(apply).toHaveTextContent(/ENOSPC: disk full/);
+  });
+
+  it("renders red parse-error panel when sandboxApplyResult.parseError set", async () => {
+    const action = vi.fn(async () => okResult({
+      artifact: { scope: "feature", summary: "x", plan: { steps: [{ title: "s" }] } },
+      developerOutput: { diff: "garbage", summary: "tried" },
+      sandboxApplyResult: {
+        ok: false, parsed: 0, written: 0, failed: 0, skipped: 0, files: [],
+        parseError: "sandbox unavailable: ECONNREFUSED"
+      }
+    }));
+    render(<ChatPanel projectId="p-1" action={action} />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "x");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    const apply = await screen.findByTestId("sandbox-apply-status");
+    expect(apply).toHaveTextContent(/Could not apply/i);
+    expect(apply).toHaveTextContent(/sandbox unavailable: ECONNREFUSED/);
+    expect(apply.className).toContain("red");
+  });
+
+  it("renders nothing when sandboxApplyResult is absent (e.g. cosmetic edit)", async () => {
+    const action = vi.fn(async () => okResult({
+      artifact: { scope: "feature", summary: "x", plan: { steps: [{ title: "s" }] } },
+      developerOutput: { diff: "diff", summary: "x" }
+      // sandboxApplyResult deliberately omitted
+    }));
+    render(<ChatPanel projectId="p-1" action={action} />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "x");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    await screen.findByTestId("developer-output");
+    expect(screen.queryByTestId("sandbox-apply-status")).not.toBeInTheDocument();
+  });
 });
