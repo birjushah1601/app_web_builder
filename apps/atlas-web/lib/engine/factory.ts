@@ -19,9 +19,9 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { DeveloperRole } = await import("@atlas/role-developer");
   const { SkillRegistry, loadSkillsFromDir } = await import("@atlas/skill-runtime");
   const { resolve } = await import("node:path");
-  const { applyDiff } = await import("../sandbox/apply-diff.js");
-  const { createSandboxFsAdapter } = await import("../sandbox/sandbox-fs-adapter.js");
-  const { getSandboxFactory } = await import("../sandbox/factory.js");
+  const { applyDiff } = await import("@/lib/sandbox/apply-diff");
+  const { createSandboxFsAdapter } = await import("@/lib/sandbox/sandbox-fs-adapter");
+  const { getSandboxFactory } = await import("@/lib/sandbox/factory");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const prefs = new ClerkPersonaPreferences(
