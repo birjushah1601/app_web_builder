@@ -83,15 +83,16 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
       toolChoice: { type: "tool", name: "emit_architect_output" }
     });
   } catch (err) {
-    throw new DeepPlanFailedError("deep plan LLM call failed", { cause: err, scope: input.ambiguity.scope });
+    const causeMsg = err instanceof Error ? err.message : String(err);
+    throw new DeepPlanFailedError(`deep plan LLM call failed: ${causeMsg}`, { cause: err, scope: input.ambiguity.scope });
   }
 
   const parse = ArchitectOutputSchema.safeParse(result.input);
   if (!parse.success) {
-    throw new DeepPlanFailedError("deep plan tool_use payload failed ArchitectOutputSchema", {
-      cause: parse.error,
-      scope: input.ambiguity.scope
-    });
+    throw new DeepPlanFailedError(
+      `deep plan tool_use payload failed ArchitectOutputSchema: ${parse.error.message}`,
+      { cause: parse.error, scope: input.ambiguity.scope }
+    );
   }
   return parse.data;
 }

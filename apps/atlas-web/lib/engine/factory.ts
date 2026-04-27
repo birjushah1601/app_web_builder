@@ -72,7 +72,22 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const conductor = new Conductor({
     classifier: { classify: async () => ({ roleId: "architect", confidence: 0.9 }) },
     roles,
-    checkpointSink: { emit: async () => {} },
+    // Log every conductor checkpoint to stderr so role.failed payloads
+    // (the actual underlying error message before retry) show up in the
+    // dev server log. RitualEscalatedError otherwise swallows the cause.
+    // TODO: replace with a real persistent sink when checkpoint storage lands.
+    checkpointSink: {
+      emit: async (event) => {
+        if (event.eventType === "role.failed" || event.eventType === "ritual.escalated") {
+          console.error(
+            `[conductor] ${event.eventType}`,
+            JSON.stringify(event.payload)
+          );
+        } else if (process.env.ATLAS_LOG_CHECKPOINTS) {
+          console.log(`[conductor] ${event.eventType}`, JSON.stringify(event.payload));
+        }
+      }
+    },
     sliceBuilder: () => ({ bytes: "{}", hash: "sha256:" + "0".repeat(64) })
   });
 
