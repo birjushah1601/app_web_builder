@@ -24,6 +24,23 @@ export interface StartRitualResult {
   /** Developer role's diff + summary when the chain reached the developer
    *  step (architect produced an artifact AND editClass !== "cosmetic"). */
   developerOutput?: { diff: string; summary?: string };
+  /** Plan C: per-file outcome of writing the developer's diff into the
+   *  project's E2B sandbox. Absent when no developer diff was produced
+   *  or no SandboxApplier was wired. */
+  sandboxApplyResult?: {
+    ok: boolean;
+    parsed: number;
+    written: number;
+    failed: number;
+    skipped: number;
+    files: Array<{
+      path: string;
+      status: "written" | "skipped" | "failed";
+      reason?: string;
+      bytesWritten?: number;
+    }>;
+    parseError?: string;
+  };
 }
 
 export async function startRitual(input: StartRitualInput): Promise<StartRitualResult> {
@@ -44,6 +61,7 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
     ritualId,
     artifact: snapshot?.artifact,
     roleEvents: snapshot?.roleEvents ?? [],
-    developerOutput: snapshot?.developerOutput
+    developerOutput: snapshot?.developerOutput,
+    sandboxApplyResult: snapshot?.sandboxApplyResult
   };
 }
