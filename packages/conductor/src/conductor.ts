@@ -111,7 +111,11 @@ export class Conductor {
       ctx,
       payload: { roleId: role.id, attempts: policy.maxAttempts, finalError: (lastError as Error | undefined)?.message }
     });
-    throw new RitualEscalatedError(ctx.ritualId, `role ${role.id} failed ${policy.maxAttempts} times`);
+    throw new RitualEscalatedError(
+      ctx.ritualId,
+      `role ${role.id} failed ${policy.maxAttempts} times`,
+      lastError instanceof Error ? lastError : undefined
+    );
   }
 
   private async emit(input: { eventType: string; ctx: DispatchContext; payload: Record<string, unknown> }): Promise<void> {
