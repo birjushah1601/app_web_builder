@@ -71,3 +71,24 @@ describe("parseDiff — multi-file diff", () => {
     expect(ops.every((o) => o.kind === "create")).toBe(true);
   });
 });
+
+describe("parseDiff — empty/edge", () => {
+  it("returns ops:[] for empty string (not an error)", () => {
+    expect(parseDiff("")).toEqual({ ops: [] });
+  });
+
+  it("returns ops:[] for whitespace-only", () => {
+    expect(parseDiff("   \n  \t  \n")).toEqual({ ops: [] });
+  });
+
+  it("returns ops:[] for prose that contains no diff markers", () => {
+    expect(parseDiff("hello world, this is not a diff").ops).toEqual([]);
+  });
+
+  it("never throws on garbage input — returns structured result", () => {
+    // parse-diff is permissive; garbage either yields ops:[] or partial
+    // ops, but it should never throw. This is the contract.
+    expect(() => parseDiff("\\x00\\x01\\x02 not a diff")).not.toThrow();
+    expect(() => parseDiff("--- a/x\n+++ b/x\n@@ malformed @@\n")).not.toThrow();
+  });
+});
