@@ -63,7 +63,10 @@ vi.mock("prom-client", () => ({ Registry: class {} }));
 vi.mock("@atlas/conductor", () => ({
   Conductor: class {
     roles: Map<string, unknown>;
-    constructor(opts: { roles: Map<string, unknown> }) { this.roles = opts.roles; }
+    constructor(opts: { roles: Map<string, unknown>; checkpointSink: { emit: (e: unknown) => Promise<void> } }) {
+      this.roles = opts.roles;
+      (globalThis as { __lastConductorOpts?: typeof opts }).__lastConductorOpts = opts;
+    }
   }
 }));
 
@@ -366,5 +369,77 @@ describe("getRitualEngine — smoke", () => {
     const { getRitualEngine } = await import("@/lib/engine/factory");
     const engine = await getRitualEngine("p-1");
     expect(engine).toBeDefined();
+  });
+});
+
+describe("factory — checkpointSink wires to broker + SpecEventsSink (plan E.0)", () => {
+  beforeEach(async () => {
+    const { __resetEventBrokerForTesting } = await import("@/lib/events/broker-singleton");
+    __resetEventBrokerForTesting();
+    delete (globalThis as { __lastConductorOpts?: unknown }).__lastConductorOpts;
+  });
+
+  it("publishes Conductor checkpoints into the EventBroker for the project", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    vi.resetModules();
+    const { getRitualEngine } = await import("@/lib/engine/factory");
+    await getRitualEngine("proj-x");
+
+    const conductorOpts = (globalThis as { __lastConductorOpts?: { checkpointSink: { emit: (e: unknown) => Promise<void> } } }).__lastConductorOpts;
+    expect(conductorOpts).toBeDefined();
+
+    const { getEventBroker } = await import("@/lib/events/broker-singleton");
+    const ac = new AbortController();
+    const sub = getEventBroker().subscribe("proj-x", { signal: ac.signal });
+    const collector = (async () => {
+      const out: unknown[] = [];
+      for await (const e of sub) {
+        out.push(e);
+        break;
+      }
+      return out;
+    })();
+
+    await conductorOpts!.checkpointSink.emit({
+      eventType: "role.completed",
+      ritualId: "r-1",
+      payload: { roleId: "architect", attempts: 1 },
+      ts: new Date().toISOString()
+    });
+
+    const events = await collector;
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      projectId: "proj-x",
+      ritualId: "r-1",
+      type: "role.completed"
+    });
+    ac.abort();
+  });
+
+  it("does NOT crash the engine when broker.publish rejects (logs + continues)", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.resetModules();
+    const { getRitualEngine } = await import("@/lib/engine/factory");
+    await getRitualEngine("proj-y");
+
+    const conductorOpts = (globalThis as { __lastConductorOpts?: { checkpointSink: { emit: (e: unknown) => Promise<void> } } }).__lastConductorOpts;
+
+    const { getEventBroker } = await import("@/lib/events/broker-singleton");
+    const broker = getEventBroker();
+    const origPublish = broker.publish.bind(broker);
+    broker.publish = (async () => { throw new Error("simulated broker failure"); }) as never;
+
+    await expect(conductorOpts!.checkpointSink.emit({
+      eventType: "role.completed",
+      ritualId: "r-1",
+      payload: {},
+      ts: new Date().toISOString()
+    })).resolves.toBeUndefined();
+
+    expect(errSpy).toHaveBeenCalled();
+    broker.publish = origPublish;
+    errSpy.mockRestore();
   });
 });
