@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 import { specEvents, type NewSpecEventRow, type SpecEventRow } from "../schema/index.js";
@@ -63,6 +63,30 @@ export class SpecEventRepo {
           .orderBy(desc(specEvents.id))
           .limit(1);
         return rows[0] ?? null;
+      })
+    );
+  }
+
+  async listByRitual(
+    projectId: string,
+    ritualId: string,
+    opts: { limit?: number } = {}
+  ): Promise<SpecEventRow[]> {
+    const limit = opts.limit ?? 10000;
+    return withSpan("SpecEventRepo.listByRitual", { "atlas.project_id": projectId }, async () =>
+      withProjectContext(this.pool, projectId, async (client) => {
+        const db = drizzle(client, { schema: { specEvents } });
+        return db
+          .select()
+          .from(specEvents)
+          .where(
+            and(
+              eq(specEvents.projectId, projectId),
+              sql`${specEvents.payload}->>'ritualId' = ${ritualId}`
+            )
+          )
+          .orderBy(asc(specEvents.id))
+          .limit(limit);
       })
     );
   }
