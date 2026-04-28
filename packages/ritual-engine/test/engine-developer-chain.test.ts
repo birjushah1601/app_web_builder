@@ -95,7 +95,7 @@ describe("RitualEngine — architect → developer chain (plan B)", () => {
       userId: "u-1"
     });
 
-    const snapshot = engine.getRitual(ritualId);
+    const snapshot = await engine.getRitual(ritualId);
     expect(snapshot?.developerOutput?.diff).toBe(DEVELOPER_DIFF);
     expect(snapshot?.developerOutput?.summary).toBe("wrote login form");
   });
@@ -111,7 +111,7 @@ describe("RitualEngine — architect → developer chain (plan B)", () => {
       userId: "u-1"
     });
 
-    const snapshot = engine.getRitual(ritualId);
+    const snapshot = await engine.getRitual(ritualId);
     const types = (snapshot?.roleEvents ?? []).map((e) => e.eventType);
     expect(types).toEqual([
       "architect.pass1.completed",
@@ -133,7 +133,7 @@ describe("RitualEngine — architect → developer chain (plan B)", () => {
       userId: "u-1"
     });
 
-    const snapshot = engine.getRitual(ritualId);
+    const snapshot = await engine.getRitual(ritualId);
     // Developer never produced output
     expect(snapshot?.developerOutput).toBeUndefined();
     // Architect artifact still made it through
@@ -187,7 +187,7 @@ describe("RitualEngine — architect → developer chain (plan B)", () => {
 
     const dispatch = conductor.dispatch as unknown as ReturnType<typeof vi.fn>;
     expect(dispatch).toHaveBeenCalledTimes(1); // only architect, no developer
-    const snapshot = engine.getRitual(ritualId);
+    const snapshot = await engine.getRitual(ritualId);
     expect(snapshot?.artifact).toBeUndefined();
     expect(snapshot?.developerOutput).toBeUndefined();
     // Triage questions still preserved for the UI
@@ -210,7 +210,7 @@ describe("RitualEngine — architect → developer chain (plan B)", () => {
       userId: "u-1"
     });
 
-    const snapshot = engine.getRitual(ritualId);
+    const snapshot = await engine.getRitual(ritualId);
     // diff.kind="none" → no developerOutput record (pattern: no patch, no display)
     expect(snapshot?.developerOutput).toBeUndefined();
     // Events still flow through for diagnostics
@@ -258,7 +258,7 @@ describe("RitualEngine — sandbox apply (plan C)", () => {
 
     expect(apply).toHaveBeenCalledOnce();
     expect(apply).toHaveBeenCalledWith(PROJECT_ID, DEVELOPER_DIFF);
-    const snapshot = engine.getRitual(ritualId);
+    const snapshot = await engine.getRitual(ritualId);
     expect(snapshot?.sandboxApplyResult).toEqual(VALID_APPLY);
   });
 
@@ -297,7 +297,7 @@ describe("RitualEngine — sandbox apply (plan C)", () => {
       userId: "u-1"
     });
 
-    const snapshot = engine.getRitual(ritualId);
+    const snapshot = await engine.getRitual(ritualId);
     expect(snapshot?.sandboxApplyResult).toEqual(failApply);
     expect(snapshot?.developerOutput?.diff).toBe(DEVELOPER_DIFF);
   });
