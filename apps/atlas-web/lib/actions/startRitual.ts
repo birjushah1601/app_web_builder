@@ -56,7 +56,7 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
   // Snapshot is in-memory; same engine instance is cached per-request via
   // React `cache()` in factory.ts, so this getRitual() always finds the
   // ritual we just started.
-  const snapshot = engine.getRitual(ritualId);
+  const snapshot = await engine.getRitual(ritualId);
   return {
     ritualId,
     artifact: snapshot?.artifact,

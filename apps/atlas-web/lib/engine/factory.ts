@@ -24,8 +24,14 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { createSandboxFsAdapter } = await import("@/lib/sandbox/sandbox-fs-adapter");
   const { getSandboxFactory } = await import("@/lib/sandbox/factory");
   const { getEventBroker } = await import("@/lib/events/broker-singleton");
+  const { isFeatureEnabled } = await import("@/lib/feature-flags");
+  const { SpecEventsHydrator } = await import("./spec-events-hydrator");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  // Plan H: share one SpecEventRepo instance between the engine's eventSink
+  // (writes events) and the optional hydrator (reads them back) so both sides
+  // see the same observability span tree.
+  const specEventRepo = new SpecEventRepo(pool);
   const prefs = new ClerkPersonaPreferences(
     new PreferencesRepo(pool),
     async () => (await currentUser()) as never
@@ -150,10 +156,20 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     sliceBuilder: () => ({ bytes: "{}", hash: "sha256:" + "0".repeat(64) })
   });
 
+  // Plan H: when ATLAS_RITUAL_HYDRATION is on, the engine gets a hydrator
+  // that reads spec_events back into a snapshot when getRitual misses the
+  // in-memory map (process restart, cross-request access, etc.). When OFF,
+  // hydrator stays undefined and getRitual returns undefined for unknown
+  // ritualIds — today's behavior preserved.
+  const hydrator = isFeatureEnabled("ritual-hydration")
+    ? new SpecEventsHydrator(specEventRepo, projectId)
+    : undefined;
+
   return new RitualEngine({
     conductor,
-    eventSink: new SpecEventsSink(new SpecEventRepo(pool), projectId),
+    eventSink: new SpecEventsSink(specEventRepo, projectId),
     personaPreferences: prefs,
+    hydrator,
     // Plan C: when the developer role lands a diff, the engine writes it
     // into the project's E2B sandbox. The applier resolves the live
     // sandbox session via SandboxFactory, reattaches to the running E2B
