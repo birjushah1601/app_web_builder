@@ -5,12 +5,16 @@ import type { PersonaPreferences } from "./personas.js";
 import { applyTransition, isTerminal, type RitualState, type RitualTransition } from "./state.js";
 import { applyApproval, type ApprovalDecision } from "./approval.js";
 import { enforcePersonaGate, type RiskAccepted } from "./risk-accept.js";
+import type { RitualHydrator } from "./hydrator.js";
 
 export interface RitualEngineOptions {
   conductor: Conductor;
   eventSink: EventSink;
   personaPreferences: PersonaPreferences;
   sandboxApplier?: SandboxApplier;
+  /** Plan H: optional fallback for getRitual on in-memory miss.
+   *  When omitted, getRitual returns undefined for unknown IDs (today's behavior). */
+  hydrator?: RitualHydrator;
 }
 
 export interface StartInput {
@@ -94,6 +98,7 @@ export class RitualEngine {
   private readonly sink: EventSink;
   private readonly prefs: PersonaPreferences;
   private readonly applier?: SandboxApplier;
+  private readonly hydrator?: RitualHydrator;
   private readonly rituals = new Map<string, RitualRecord>();
 
   constructor(opts: RitualEngineOptions) {
@@ -101,6 +106,7 @@ export class RitualEngine {
     this.sink = opts.eventSink;
     this.prefs = opts.personaPreferences;
     this.applier = opts.sandboxApplier;
+    this.hydrator = opts.hydrator;
   }
 
   async start(input: StartInput): Promise<string> {
@@ -218,18 +224,25 @@ export class RitualEngine {
   /** Read-only snapshot of a ritual's persisted state. Returns undefined if
    *  the ritualId is unknown to this engine instance (engine state is
    *  in-memory; rituals from a previous process are not reachable). */
-  getRitual(ritualId: string): RitualSnapshot | undefined {
+  async getRitual(ritualId: string): Promise<RitualSnapshot | undefined> {
     const r = this.rituals.get(ritualId);
-    if (!r) return undefined;
-    return {
-      state: r.state,
-      projectId: r.projectId,
-      userId: r.userId,
-      artifact: r.artifact,
-      roleEvents: r.roleEvents ?? [],
-      developerOutput: r.developerOutput,
-      sandboxApplyResult: r.sandboxApplyResult
-    };
+    if (r) {
+      return {
+        state: r.state,
+        projectId: r.projectId,
+        userId: r.userId,
+        artifact: r.artifact,
+        roleEvents: r.roleEvents ?? [],
+        developerOutput: r.developerOutput,
+        sandboxApplyResult: r.sandboxApplyResult
+      };
+    }
+    // Plan H: in-memory miss — fall back to hydrator if configured.
+    if (this.hydrator) {
+      const hydrated = await this.hydrator.hydrate(ritualId);
+      return hydrated ?? undefined;
+    }
+    return undefined;
   }
 
   async approve(ritualId: string, decision: ApprovalDecision): Promise<void> {

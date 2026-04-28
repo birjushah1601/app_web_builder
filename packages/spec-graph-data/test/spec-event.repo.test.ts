@@ -135,3 +135,47 @@ describe("SpecEventRepo.getLatest", () => {
     expect(await repo.getLatest(uniqueProjectId())).toBeNull();
   });
 });
+
+describe("SpecEventRepo.listByRitual (plan H)", () => {
+  let db: Database;
+  let repo: SpecEventRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    repo = new SpecEventRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAllTables(db);
+  });
+
+  afterAll(async () => {
+    await db.pool.end();
+  });
+
+  it("returns only events whose payload.ritualId matches, ordered by id ASC", async () => {
+    const projectId = uniqueProjectId();
+    await repo.append(projectId, { eventType: "ritual.started",  payload: { ritualId: "r-A", ts: 1 }, actor: null });
+    await repo.append(projectId, { eventType: "role.started",    payload: { ritualId: "r-B", ts: 2 }, actor: null });
+    await repo.append(projectId, { eventType: "role.completed",  payload: { ritualId: "r-A", ts: 3 }, actor: null });
+    const rows = await repo.listByRitual(projectId, "r-A");
+    expect(rows.length).toBe(2);
+    expect(rows[0]!.eventType).toBe("ritual.started");
+    expect(rows[1]!.eventType).toBe("role.completed");
+  });
+
+  it("returns [] when no events match the ritualId", async () => {
+    const projectId = uniqueProjectId();
+    const rows = await repo.listByRitual(projectId, "r-DOES-NOT-EXIST");
+    expect(rows).toEqual([]);
+  });
+
+  it("respects the limit option (default 10000)", async () => {
+    const projectId = uniqueProjectId();
+    for (let i = 0; i < 5; i++) {
+      await repo.append(projectId, { eventType: "role.started", payload: { ritualId: "r-LIM", ts: i }, actor: null });
+    }
+    const rows = await repo.listByRitual(projectId, "r-LIM", { limit: 3 });
+    expect(rows.length).toBe(3);
+  });
+});

@@ -11,7 +11,8 @@ export type FeatureFlag =
   | "stripe-payments"
   | "video-kling"
   | "auth-keycloak"
-  | "live-events";
+  | "live-events"
+  | "ritual-hydration";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -22,7 +23,11 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // diverges from the ATLAS_FF_* convention — the spec mandates this exact
   // env name so operators can flip live events on a deploy without learning
   // the FF prefix convention.
-  "live-events": "ATLAS_LIVE_EVENTS"
+  "live-events": "ATLAS_LIVE_EVENTS",
+  // Plan H — same convention as live-events (no FF_ prefix) so operators
+  // flip persistent ritual hydration on a deploy without learning the
+  // convention.
+  "ritual-hydration": "ATLAS_RITUAL_HYDRATION"
 };
 
 export interface FeatureFlagSource {
@@ -52,6 +57,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "stripe-payments": isFeatureEnabled("stripe-payments", source),
     "video-kling": isFeatureEnabled("video-kling", source),
     "auth-keycloak": isFeatureEnabled("auth-keycloak", source),
-    "live-events": isFeatureEnabled("live-events", source)
+    "live-events": isFeatureEnabled("live-events", source),
+    "ritual-hydration": isFeatureEnabled("ritual-hydration", source)
   };
 }

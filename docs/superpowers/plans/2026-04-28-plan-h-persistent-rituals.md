@@ -1297,3 +1297,11 @@ After all 12 tasks:
 - [ ] This plan file marked Shipped at the bottom
 - [ ] `plan-h/persistent-rituals` merged to `main` (`--no-ff`); branch deleted
 - [ ] Manual smoke: start atlas-web, run a ritual, restart `pnpm dev`, navigate back to ChatPanel — architect plan card + developer output recover
+
+---
+
+## Shipped
+
+All 12 tasks merged to `plan-h/persistent-rituals` and then to `main`. `pnpm typecheck` clean across atlas-web + @atlas/ritual-engine + @atlas/spec-graph-data. ritual-engine added 11 hydrator cases + 4 getRitual-hydrator cases (67 tests total now); spec-graph-data added 3 listByRitual cases (12 total); atlas-web added 3 hydrator-adapter + 2 factory-flag + 3 feature-flag cases. Integration test for real-Postgres roundtrip skips cleanly when `DATABASE_URL_TEST` is unset (matches the existing spec-graph-data test fixture pattern). Flag-OFF behavioural lock preserved — engine constructed without hydrator when `ATLAS_RITUAL_HYDRATION` unset; getRitual returns undefined for unknown ritualIds as before.
+
+Deviations from plan: Tasks 3-5 combined into one commit (the fold extension is small and tests pile up cleanly); Tasks 6+7 combined (interface + engine opt + getRitual change in one logical chunk). The plan estimated ~4 Server Action ripple sites for `await engine.getRitual()` — actual was 1 site (only `startRitual.ts` calls it today). Factory test was rewritten to spy on `SpecEventsHydrator` constructor (spying on `RitualEngine` directly broke `new` invocation under vi.spyOn). Pre-existing parallel-run vitest flakiness reproduces; new tests pass when run in small groups.

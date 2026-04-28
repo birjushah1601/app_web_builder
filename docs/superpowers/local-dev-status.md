@@ -45,12 +45,12 @@ Total wall time: ~45–60 seconds (5 LLM hops through the local proxy).
   - Developer's `testsAdded` / `filesModified` defaulted post-hoc (`filesModified` recovered from diff headers)
 - **Plan C: developer's diff applied to the live preview sandbox.** Every successful developer dispatch parses the diff via `parse-diff`, writes per-file via E2B SDK's `Sandbox.connect(sandboxId).files.*` to `/code/src/`, and Next.js HMR refreshes the iframe within ~3s. Per-file outcome rendered in ChatPanel as green/amber/red apply-status panel. `applyDiff` never throws — sandbox unavailable, hunk mismatch, path escape all become structured `FileApplyResult` entries.
 - **Plan G: persistent left-rail chat shell.** When `ATLAS_LIVE_EVENTS=true`, `apps/atlas-web/app/projects/[projectId]/layout.tsx` wraps every project sub-route with `<EventSourceProvider>` + a 360px `<RailShell />` containing `<ChatPanel />` and the `<RitualTimelineSlot />`. Chat history + textarea state survive navigation between `/canvas`, `/code`, `/run`. Switching projects re-keys the rail (fresh React tree). Flag-OFF path is unchanged: `/canvas/page.tsx` mounts its own ChatPanel as before; layout passes `{children}` through with no wrapper.
+- **Plan H: persistent ritual snapshots.** When `ATLAS_RITUAL_HYDRATION=true`, `RitualEngine.getRitual(ritualId)` (now async) falls back to a Postgres-backed `SpecEventsHydrator` on in-memory miss. Events landed by `SpecEventsSink` are folded back into a `RitualSnapshot` via the pure `replayEventsToSnapshot` in `@atlas/ritual-engine`. Process restart no longer drops history. Flag-OFF preserves today's in-memory-only behavior — no hydrator wired, miss returns undefined as before.
 
 ## What's NOT wired (deferred)
 
 - **Streaming progress.** Send button stays disabled for the whole 45–60s; user can't see "architect running" → "developer running" in real time.
 - **Multi-turn refinement.** No "user reads developer output → asks for changes → ritual re-runs with feedback" loop.
-- **Persistent ritual snapshots.** `engine.getRitual(ritualId)` is in-memory only; restart = lose history. Postgres-backed `spec_events` table exists but the conductor's checkpoint sink is a `console.error`-on-failure stub.
 - **Dynamic UI for blocking questions** (architect.triage.needs_input). Today they render as a bullet list; agent could emit a structured form (RJSF / AG-UI / Anthropic tool-use → React form). Research note in `docs/superpowers/research/a2ui-2026-04-27.md` (TBD if formalized).
 - **Multi-role orchestration beyond architect → developer.** Reviewer is invoked inline by DeveloperRole, not as its own Conductor role. Ship / security / accessibility roles exist as packages but aren't registered in the factory.
 
