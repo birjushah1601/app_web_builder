@@ -15,6 +15,12 @@ export interface RitualEngineOptions {
   /** Plan H: optional fallback for getRitual on in-memory miss.
    *  When omitted, getRitual returns undefined for unknown IDs (today's behavior). */
   hydrator?: RitualHydrator;
+  /** Plan I: ordered list of role IDs to dispatch after a successful
+   *  developer pass (when developerOutput.diff is non-empty). Each role
+   *  is dispatched via Conductor.dispatch({ forceRoleId, priorArtifact }).
+   *  A gate-failing role (report.passed === false) escalates the ritual
+   *  and stops the chain. Default [] preserves today's architect→developer-only flow. */
+  postDeveloperChain?: string[];
 }
 
 export interface StartInput {
@@ -80,6 +86,10 @@ interface RitualRecord {
   /** Set when the developer role chained successfully after architect. */
   developerOutput?: DeveloperOutputRecord;
   sandboxApplyResult?: SandboxApplyResult;
+  /** Plan I: present when SecurityRole ran in the post-developer chain. */
+  securityReport?: unknown;
+  /** Plan I: present when AccessibilityRole ran in the post-developer chain. */
+  accessibilityReport?: unknown;
 }
 
 /** Read-only view of a ritual's persisted state. Returned by getRitual(). */
@@ -91,6 +101,11 @@ export interface RitualSnapshot {
   roleEvents: RoleEventRecord[];
   developerOutput?: DeveloperOutputRecord;
   sandboxApplyResult?: SandboxApplyResult;
+  /** Plan I: present when SecurityRole ran. The role's full report.
+   *  passed=false means a critical issue → ritual.escalated. */
+  securityReport?: unknown;
+  /** Plan I: present when AccessibilityRole ran. Same shape contract. */
+  accessibilityReport?: unknown;
 }
 
 export class RitualEngine {
@@ -99,6 +114,7 @@ export class RitualEngine {
   private readonly prefs: PersonaPreferences;
   private readonly applier?: SandboxApplier;
   private readonly hydrator?: RitualHydrator;
+  private readonly postDeveloperChain: readonly string[];
   private readonly rituals = new Map<string, RitualRecord>();
 
   constructor(opts: RitualEngineOptions) {
@@ -106,6 +122,7 @@ export class RitualEngine {
     this.sink = opts.eventSink;
     this.prefs = opts.personaPreferences;
     this.applier = opts.sandboxApplier;
+    this.postDeveloperChain = opts.postDeveloperChain ?? [];
     this.hydrator = opts.hydrator;
   }
 
@@ -234,7 +251,9 @@ export class RitualEngine {
         artifact: r.artifact,
         roleEvents: r.roleEvents ?? [],
         developerOutput: r.developerOutput,
-        sandboxApplyResult: r.sandboxApplyResult
+        sandboxApplyResult: r.sandboxApplyResult,
+        securityReport: r.securityReport,
+        accessibilityReport: r.accessibilityReport
       };
     }
     // Plan H: in-memory miss — fall back to hydrator if configured.
