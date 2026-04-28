@@ -1343,3 +1343,9 @@ After all 10 tasks:
 - [ ] `docs/superpowers/local-dev-status.md` updated — Plan G moved to "What's wired"
 - [ ] This plan file marked Shipped at the bottom
 - [ ] `plan-g/rail-shell` merged to `main`
+
+---
+
+## Shipped
+
+All 10 tasks merged to `plan-g/rail-shell` and then to `main`. `pnpm typecheck` clean (atlas-web + @atlas/spec-graph-data). atlas-web vitest added 16 cases across 5 new test files (`rail-config.test.ts`, `ritual-timeline-slot.test.tsx`, `RailShell.test.tsx`, `layout-flag-branch.test.tsx`, `canvas-chatpanel-gate.test.tsx`); each new file passes individually and all 16 pass when run together. E2E spec `plan-g-rail-shell.spec.ts` registers 2 tests with Playwright (`--list` confirmed); live execution requires a running dev server with `ATLAS_LIVE_EVENTS=true` + `e2e/auth/diego.json` (Plan D auth state) and is documented in the spec header. Pre-existing flaky parallel-run failures in `test/lib/engine/factory.test.ts`, `test/app/auth/callback.test.ts`, `test/lib/sandbox/factory.test.ts`, `test/components/PersonaToggle.test.tsx`, `test/lib/engine/event-sink.test.ts`, `test/actions/escalateRitual.test.ts`, and `test/integration/broker-sse-roundtrip.test.ts` reproduce on `main` and are unrelated to Plan G surface area (each test passes when run individually). Flag-OFF behavioural lock: layout pass-through preserved; canvas/page.tsx still mounts ChatPanel; no Plan G test fails when `ATLAS_LIVE_EVENTS` is unset.
