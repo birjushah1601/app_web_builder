@@ -75,6 +75,83 @@ describe("InMemoryEventBroker — ring buffer", () => {
   });
 });
 
+describe("InMemoryEventBroker — multi-subscriber fan-out", () => {
+  it("delivers each published event to every live subscriber for that project", async () => {
+    const b = new InMemoryEventBroker();
+    const ac = new AbortController();
+    const subA = b.subscribe(PROJECT_A, { signal: ac.signal });
+    const subB = b.subscribe(PROJECT_A, { signal: ac.signal });
+
+    const collectorA = collect(subA, 2, 200);
+    const collectorB = collect(subB, 2, 200);
+
+    await b.publish(evt({ payload: { i: 1 } }));
+    await b.publish(evt({ payload: { i: 2 } }));
+
+    const [resultA, resultB] = await Promise.all([collectorA, collectorB]);
+    expect(resultA.map((e) => (e.payload as { i: number }).i)).toEqual([1, 2]);
+    expect(resultB.map((e) => (e.payload as { i: number }).i)).toEqual([1, 2]);
+    ac.abort();
+  });
+
+  it("does NOT deliver events from other projects to a subscriber", async () => {
+    const b = new InMemoryEventBroker();
+    const ac = new AbortController();
+    const subA = b.subscribe(PROJECT_A, { signal: ac.signal });
+
+    const collector = collect(subA, 1, 200);
+    await b.publish(evt({ projectId: PROJECT_B }));
+    await b.publish(evt({ projectId: PROJECT_A, payload: { right: true } }));
+
+    const result = await collector;
+    expect(result).toHaveLength(1);
+    expect((result[0]!.payload as { right: boolean }).right).toBe(true);
+    ac.abort();
+  });
+});
+
+describe("InMemoryEventBroker — signal-driven unsubscribe", () => {
+  it("aborting the signal causes the iterator to return cleanly", async () => {
+    const b = new InMemoryEventBroker();
+    const ac = new AbortController();
+    const sub = b.subscribe(PROJECT_A, { signal: ac.signal });
+
+    const it = sub[Symbol.asyncIterator]();
+    await b.publish(evt({ payload: { i: 1 } }));
+    const first = await it.next();
+    expect(first.done).toBe(false);
+
+    ac.abort();
+    const second = await it.next();
+    expect(second.done).toBe(true);
+  });
+
+  it("removes the subscriber from the broker's internal set on abort", async () => {
+    const b = new InMemoryEventBroker();
+    const ac = new AbortController();
+    const sub = b.subscribe(PROJECT_A, { signal: ac.signal });
+
+    const it = sub[Symbol.asyncIterator]();
+    void it.next();
+    ac.abort();
+    await it.next();
+
+    const out = await b.publish(evt());
+    expect(out.id).toBeTruthy();
+  });
+
+  it("subscribing with an already-aborted signal yields no events and returns immediately", async () => {
+    const b = new InMemoryEventBroker();
+    const ac = new AbortController();
+    ac.abort();
+    const sub = b.subscribe(PROJECT_A, { signal: ac.signal });
+
+    await b.publish(evt());
+    const result = await collect(sub, 1, 100);
+    expect(result).toEqual([]);
+  });
+});
+
 async function collect<T>(
   iter: AsyncIterable<T>,
   n: number,
