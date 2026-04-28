@@ -43,8 +43,7 @@ describe("TimelineState — types and initial value", () => {
 
   it("initialTimelineState is frozen (cannot be mutated by careless code)", () => {
     expect(() => {
-      // @ts-expect-error — runtime mutation must throw under Object.freeze
-      initialTimelineState.escalated = true;
+      (initialTimelineState as { escalated: boolean }).escalated = true;
     }).toThrow();
   });
 
