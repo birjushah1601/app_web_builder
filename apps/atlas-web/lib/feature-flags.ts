@@ -12,7 +12,9 @@ export type FeatureFlag =
   | "video-kling"
   | "auth-keycloak"
   | "live-events"
-  | "ritual-hydration";
+  | "ritual-hydration"
+  | "security-role"
+  | "a11y-role";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -27,7 +29,11 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan H — same convention as live-events (no FF_ prefix) so operators
   // flip persistent ritual hydration on a deploy without learning the
   // convention.
-  "ritual-hydration": "ATLAS_RITUAL_HYDRATION"
+  "ritual-hydration": "ATLAS_RITUAL_HYDRATION",
+  // Plan I — per-role flags so an operator can flip Security on for an
+  // audit run, leave Accessibility off while iterating on its prompts, etc.
+  "security-role": "ATLAS_FF_SECURITY_ROLE",
+  "a11y-role": "ATLAS_FF_A11Y_ROLE"
 };
 
 export interface FeatureFlagSource {
@@ -58,6 +64,8 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "video-kling": isFeatureEnabled("video-kling", source),
     "auth-keycloak": isFeatureEnabled("auth-keycloak", source),
     "live-events": isFeatureEnabled("live-events", source),
-    "ritual-hydration": isFeatureEnabled("ritual-hydration", source)
+    "ritual-hydration": isFeatureEnabled("ritual-hydration", source),
+    "security-role": isFeatureEnabled("security-role", source),
+    "a11y-role": isFeatureEnabled("a11y-role", source)
   };
 }

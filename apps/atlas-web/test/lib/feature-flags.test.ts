@@ -67,8 +67,30 @@ describe("listFlagStates", () => {
       "video-kling": false,
       "auth-keycloak": true,
       "live-events": false,
-      "ritual-hydration": false
+      "ritual-hydration": false,
+      "security-role": false,
+      "a11y-role": false
     });
+  });
+});
+
+describe("security-role + a11y-role flags (Plan I)", () => {
+  it("security-role reads ATLAS_FF_SECURITY_ROLE; off by default", () => {
+    expect(isFeatureEnabled("security-role", sourceWith({}))).toBe(false);
+    expect(
+      isFeatureEnabled("security-role", sourceWith({ ATLAS_FF_SECURITY_ROLE: "true" }))
+    ).toBe(true);
+  });
+  it("a11y-role reads ATLAS_FF_A11Y_ROLE; off by default", () => {
+    expect(isFeatureEnabled("a11y-role", sourceWith({}))).toBe(false);
+    expect(
+      isFeatureEnabled("a11y-role", sourceWith({ ATLAS_FF_A11Y_ROLE: "true" }))
+    ).toBe(true);
+  });
+  it("listFlagStates includes both", () => {
+    const states = listFlagStates(sourceWith({}));
+    expect(states["security-role"]).toBe(false);
+    expect(states["a11y-role"]).toBe(false);
   });
 });
 
