@@ -25,17 +25,10 @@ export function useReloadOnApplied(_projectId: string): ReloadOnAppliedValue {
   const { events } = useEventStream();
 
   const [cacheBuster, setCacheBuster] = useState<string>("");
-  const [toast] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  // Tracks how many events from the cumulative `events` array we have
-  // already folded into our state. Re-renders without new events are
-  // a no-op (start === events.length means the slice is empty).
   const processedCountRef = useRef<number>(0);
-  // The pending debounce timer. We cancel-and-reschedule on every new
-  // success event so a burst coalesces into one trailing reload.
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The id of the most recent ok:true event in the current debounce
-  // window. The timer's callback writes this into cacheBuster.
   const pendingEventIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -48,7 +41,10 @@ export function useReloadOnApplied(_projectId: string): ReloadOnAppliedValue {
       if (!isApplyCompleted(ev)) continue;
       const ok = (ev.payload as { ok?: unknown }).ok === true;
       if (ok) {
-        // Schedule (or reschedule) the debounced cacheBuster update.
+        // Success: clear any prior failure toast immediately + schedule a
+        // debounced cacheBuster update. Burst-coalescing comes from
+        // cancel-and-reschedule.
+        setToast(null);
         pendingEventIdRef.current = ev.id;
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = setTimeout(() => {
@@ -57,12 +53,15 @@ export function useReloadOnApplied(_projectId: string): ReloadOnAppliedValue {
           debounceTimerRef.current = null;
           pendingEventIdRef.current = null;
         }, DEBOUNCE_MS);
+      } else {
+        // Failure: surface the toast NOW (no debounce — the user wants to
+        // see the failure immediately) and CRUCIALLY do not touch
+        // cacheBuster, so the iframe keeps showing the last working page.
+        setToast(deriveToastText(ev.payload));
       }
     }
   }, [events]);
 
-  // Unmount cleanup — clear any pending debounce so it does not fire after
-  // the consumer has gone away.
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -81,4 +80,25 @@ export function useReloadOnApplied(_projectId: string): ReloadOnAppliedValue {
 
 function isApplyCompleted(ev: RitualEvent): boolean {
   return ev.type === "sandbox.apply.completed";
+}
+
+/** Pick the most-informative human-readable string from an ok:false
+ *  apply payload. Order: parseError (set when the diff itself was
+ *  malformed), then "Last apply failed: <first-failed-file-path>" (set
+ *  when one or more file ops failed during apply), then a flat
+ *  "Last apply failed." fallback so the toast is never an empty string. */
+function deriveToastText(payload: Record<string, unknown>): string {
+  const parseError = payload.parseError;
+  if (typeof parseError === "string" && parseError.length > 0) return parseError;
+  const files = payload.files;
+  if (Array.isArray(files)) {
+    const failed = files.find(
+      (f): f is { path: string; status: string } =>
+        typeof f === "object" && f !== null &&
+        typeof (f as { path?: unknown }).path === "string" &&
+        (f as { status?: unknown }).status === "failed"
+    );
+    if (failed) return `Last apply failed: ${failed.path}`;
+  }
+  return "Last apply failed.";
 }

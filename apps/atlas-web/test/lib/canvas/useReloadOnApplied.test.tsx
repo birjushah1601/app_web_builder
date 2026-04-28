@@ -139,3 +139,89 @@ describe("useReloadOnApplied — debounced success", () => {
     }
   });
 });
+
+describe("useReloadOnApplied — failure surfaces toast, never reloads", () => {
+  it("ok:false with a parseError string sets toast to that string", async () => {
+    const evts: RitualEvent[] = [];
+    (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      events: [...evts],
+      status: "open",
+      lastEventId: evts.at(-1)?.id ?? null
+    }));
+
+    const { result, rerender } = renderHook(() => useReloadOnApplied("proj-1"));
+
+    evts.push(applyCompleted("proj-1:1", false, { parseError: "Could not parse diff at line 4" }));
+    rerender();
+
+    expect(result.current.toast).toBe("Could not parse diff at line 4");
+    expect(result.current.cacheBuster).toBe(""); // never updated on failure
+  });
+
+  it("ok:false with no parseError but a failed file falls back to 'Last apply failed: <path>'", async () => {
+    const evts: RitualEvent[] = [];
+    (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      events: [...evts],
+      status: "open",
+      lastEventId: evts.at(-1)?.id ?? null
+    }));
+
+    const { result, rerender } = renderHook(() => useReloadOnApplied("proj-1"));
+
+    evts.push(applyCompleted("proj-1:1", false, {
+      files: [
+        { path: "src/ok.ts", status: "written" },
+        { path: "src/broken.ts", status: "failed", reason: "hunk did not apply" }
+      ]
+    }));
+    rerender();
+
+    expect(result.current.toast).toBe("Last apply failed: src/broken.ts");
+    expect(result.current.cacheBuster).toBe("");
+  });
+
+  it("ok:false with neither parseError nor failed files falls back to literal 'Last apply failed.'", async () => {
+    const evts: RitualEvent[] = [];
+    (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      events: [...evts],
+      status: "open",
+      lastEventId: evts.at(-1)?.id ?? null
+    }));
+
+    const { result, rerender } = renderHook(() => useReloadOnApplied("proj-1"));
+
+    evts.push(applyCompleted("proj-1:1", false, {}));
+    rerender();
+
+    expect(result.current.toast).toBe("Last apply failed.");
+    expect(result.current.cacheBuster).toBe("");
+  });
+
+  it("a successful apply AFTER a failure clears the toast", async () => {
+    vi.useFakeTimers();
+    try {
+      const evts: RitualEvent[] = [];
+      (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        events: [...evts],
+        status: "open",
+        lastEventId: evts.at(-1)?.id ?? null
+      }));
+
+      const { result, rerender } = renderHook(() => useReloadOnApplied("proj-1"));
+
+      evts.push(applyCompleted("proj-1:1", false, { parseError: "boom" }));
+      rerender();
+      expect(result.current.toast).toBe("boom");
+
+      evts.push(applyCompleted("proj-1:2", true));
+      rerender();
+      // Toast clears synchronously (the success arrival is the trigger);
+      // cacheBuster updates after the debounce.
+      expect(result.current.toast).toBeNull();
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+      expect(result.current.cacheBuster).toBe("proj-1:2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
