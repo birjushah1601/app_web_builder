@@ -225,3 +225,53 @@ describe("useReloadOnApplied — failure surfaces toast, never reloads", () => {
     }
   });
 });
+
+describe("useReloadOnApplied — manualReload (bypasses debounce, works with flag OFF)", () => {
+  it("manualReload() updates cacheBuster immediately to a Date.now() string (no debounce)", () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+
+    const beforeNow = Date.now();
+    const { result } = renderHook(() => useReloadOnApplied("proj-1"));
+    expect(result.current.cacheBuster).toBe("");
+
+    act(() => { result.current.manualReload(); });
+
+    const afterNow = Date.now();
+    expect(result.current.cacheBuster).not.toBe("");
+    const parsed = Number(result.current.cacheBuster);
+    expect(Number.isFinite(parsed)).toBe(true);
+    expect(parsed).toBeGreaterThanOrEqual(beforeNow);
+    expect(parsed).toBeLessThanOrEqual(afterNow);
+  });
+
+  it("calling manualReload twice produces two distinct cacheBuster values (each click re-busts)", async () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+
+    const { result } = renderHook(() => useReloadOnApplied("proj-1"));
+    act(() => { result.current.manualReload(); });
+    const first = result.current.cacheBuster;
+    // Real clock advances even on a fast machine; await one macrotask so Date.now() ticks.
+    await new Promise((r) => setTimeout(r, 5));
+    act(() => { result.current.manualReload(); });
+    expect(result.current.cacheBuster).not.toBe(first);
+  });
+
+  it("flag OFF (events array empty, status='disabled'): hook is a no-op for SSE; manualReload still updates cacheBuster", () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [],            // disabled provider returns empty
+      status: "disabled",
+      lastEventId: null
+    });
+
+    const { result } = renderHook(() => useReloadOnApplied("proj-1"));
+    expect(result.current.cacheBuster).toBe("");
+    expect(result.current.toast).toBeNull();
+
+    act(() => { result.current.manualReload(); });
+    expect(result.current.cacheBuster).not.toBe("");
+  });
+});
