@@ -20,7 +20,7 @@ export class InMemoryEventBroker implements EventBroker {
 
   async publish(input: PublishInput): Promise<RitualEvent> {
     const state = this.getOrCreate(input.projectId);
-    state.counter += 1n;
+    state.counter += BigInt(1);
     const event: RitualEvent = {
       ...input,
       id: `${input.projectId}:${state.counter.toString()}`
@@ -43,7 +43,7 @@ export class InMemoryEventBroker implements EventBroker {
   private getOrCreate(projectId: string): ProjectState {
     let s = this.projects.get(projectId);
     if (!s) {
-      s = { counter: 0n, buffer: [], subscribers: new Set() };
+      s = { counter: BigInt(0), buffer: [], subscribers: new Set() };
       this.projects.set(projectId, s);
     }
     return s;
@@ -54,7 +54,9 @@ function pushToSubscriber(sub: Subscriber, event: RitualEvent): void {
   if (sub.closed) return;
   if (sub.queue.length >= SUBSCRIBER_QUEUE_SIZE) {
     sub.queue.shift();
-    if (sub.queue[0]?.type !== "stream.gap") {
+    // stream.gap is not in the public RitualEventType union (it's an internal
+    // control marker). Cast for the comparison.
+    if ((sub.queue[0]?.type as string | undefined) !== "stream.gap") {
       sub.queue.unshift(gapEvent(event.projectId, "subscriber backpressure overflow"));
     }
   }
@@ -80,7 +82,7 @@ function makeSubscription(
       // the buffer's first replayable event — i.e., the first available
       // counter is more than one past the cursor.
       const firstCounter = counterFromId(state.buffer[idx]!.id);
-      if (firstCounter > cursorCounter + 1n) {
+      if (firstCounter > cursorCounter + BigInt(1)) {
         sub.queue.push(gapEvent(state.buffer[idx]!.projectId, "cursor older than ring buffer"));
       }
       for (let i = idx; i < state.buffer.length; i++) {
@@ -132,11 +134,11 @@ function makeSubscription(
  *  into subscriber queues). */
 function counterFromId(id: string): bigint {
   const colon = id.lastIndexOf(":");
-  if (colon === -1) return 0n;
+  if (colon === -1) return BigInt(0);
   const tail = id.slice(colon + 1);
   // Defensive: if the tail isn't numeric (shouldn't happen for buffer ids),
   // treat it as 0 so we don't throw inside the iterator setup.
-  return /^\d+$/.test(tail) ? BigInt(tail) : 0n;
+  return /^\d+$/.test(tail) ? BigInt(tail) : BigInt(0);
 }
 
 function gapEvent(projectId: string, reason: string): RitualEvent {

@@ -88,7 +88,7 @@ export class RedisEventBroker implements EventBroker {
   constructor(private readonly redis: RedisStreamsLike) {}
 
   private nextId(projectId: string): string {
-    const c = (this.counters.get(projectId) ?? 0n) + 1n;
+    const c = (this.counters.get(projectId) ?? BigInt(0)) + BigInt(1);
     this.counters.set(projectId, c);
     return `${projectId}:${c.toString()}`;
   }
