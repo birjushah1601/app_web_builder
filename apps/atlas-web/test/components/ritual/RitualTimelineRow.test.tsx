@@ -41,3 +41,65 @@ describe("RitualTimelineRow — duration badge", () => {
     expect(screen.queryByTestId("ritual-row-duration")).not.toBeInTheDocument();
   });
 });
+
+import userEvent from "@testing-library/user-event";
+
+describe("RitualTimelineRow — chevron expand/collapse", () => {
+  it("renders a chevron toggle button", () => {
+    render(<RitualTimelineRow row={baseRow({ status: "done", retries: 1, lastError: "timeout" })} title="Architect" />);
+    expect(screen.getByRole("button", { name: /expand details|collapse details/i })).toBeInTheDocument();
+  });
+
+  it("detail panel is hidden by default", () => {
+    render(<RitualTimelineRow row={baseRow({ status: "done", retries: 2, lastError: "timeout 300s" })} title="Architect" />);
+    expect(screen.queryByTestId("ritual-row-detail")).not.toBeInTheDocument();
+  });
+
+  it("clicking the chevron expands the detail panel and shows retry count + last error", async () => {
+    render(
+      <RitualTimelineRow
+        row={baseRow({ status: "done", retries: 2, lastError: "provider timeout 300s" })}
+        title="Architect planning"
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: /expand details/i }));
+    const detail = screen.getByTestId("ritual-row-detail");
+    expect(detail).toBeInTheDocument();
+    expect(detail).toHaveTextContent("retried 2×");
+    expect(detail).toHaveTextContent("provider timeout 300s");
+  });
+
+  it("clicking again collapses the panel", async () => {
+    render(<RitualTimelineRow row={baseRow({ status: "done", retries: 1 })} title="Architect" />);
+    const btn = screen.getByRole("button", { name: /expand details/i });
+    await userEvent.click(btn);
+    expect(screen.getByTestId("ritual-row-detail")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /collapse details/i }));
+    expect(screen.queryByTestId("ritual-row-detail")).not.toBeInTheDocument();
+  });
+
+  it("detail panel shows meta.winner and meta.filesWritten when present", async () => {
+    render(
+      <RitualTimelineRow
+        row={baseRow({
+          phase: "developer",
+          status: "done",
+          retries: 0,
+          meta: { winner: "anthropic", filesWritten: 6 }
+        })}
+        title="Developer writing"
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: /expand details/i }));
+    const detail = screen.getByTestId("ritual-row-detail");
+    expect(detail).toHaveTextContent("winner: anthropic");
+    expect(detail).toHaveTextContent("files: 6");
+  });
+
+  it("detail panel renders nothing-of-substance when row has no retries / error / meta", async () => {
+    render(<RitualTimelineRow row={baseRow({ status: "active" })} title="Architect" />);
+    await userEvent.click(screen.getByRole("button", { name: /expand details/i }));
+    const detail = screen.getByTestId("ritual-row-detail");
+    expect(detail).toHaveTextContent("No additional detail.");
+  });
+});
