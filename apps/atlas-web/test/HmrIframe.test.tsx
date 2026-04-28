@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { HmrIframe } from "../app/projects/[projectId]/canvas/_components/HmrIframe.js";
+import { HmrIframe } from "../app/projects/[projectId]/canvas/_components/HmrIframe";
 
 // iframe-resizer is a DOM-side library; mock it in the test environment
 vi.mock("iframe-resizer", () => ({

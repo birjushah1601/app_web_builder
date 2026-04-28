@@ -5,9 +5,9 @@ beforeEach(() => { vi.resetModules(); });
 describe("acceptRiskAction", () => {
   it("forwards a Diego L4 risk-accept", async () => {
     const acceptRisk = vi.fn(async () => {});
-    vi.doMock("@/lib/engine/factory.js", () => ({ getRitualEngine: async () => ({ acceptRisk }) }));
+    vi.doMock("@/lib/engine/factory", () => ({ getRitualEngine: async () => ({ acceptRisk }) }));
     vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-diego" }) }));
-    const { acceptRiskAction } = await import("@/lib/actions/acceptRiskAction.js");
+    const { acceptRiskAction } = await import("@/lib/actions/acceptRiskAction");
     await acceptRiskAction({
       projectId: "p-1", ritualId: "r-1",
       gate: "L4-security", persona: "diego",
@@ -19,9 +19,9 @@ describe("acceptRiskAction", () => {
   it("propagates PersonaGateError back to the caller", async () => {
     const { PersonaGateError } = await import("@atlas/ritual-engine");
     const acceptRisk = vi.fn(async () => { throw new PersonaGateError("L4-security", "ama", "diego"); });
-    vi.doMock("@/lib/engine/factory.js", () => ({ getRitualEngine: async () => ({ acceptRisk }) }));
+    vi.doMock("@/lib/engine/factory", () => ({ getRitualEngine: async () => ({ acceptRisk }) }));
     vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-ama" }) }));
-    const { acceptRiskAction } = await import("@/lib/actions/acceptRiskAction.js");
+    const { acceptRiskAction } = await import("@/lib/actions/acceptRiskAction");
     await expect(acceptRiskAction({
       projectId: "p-1", ritualId: "r-1",
       gate: "L4-security", persona: "ama",

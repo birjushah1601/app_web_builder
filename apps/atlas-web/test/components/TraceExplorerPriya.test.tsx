@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TraceExplorerPriya } from "@/app/projects/[projectId]/run/_components/TraceExplorerPriya.js";
+import { TraceExplorerPriya } from "@/app/projects/[projectId]/run/_components/TraceExplorerPriya";
 
 const traces = [
   {

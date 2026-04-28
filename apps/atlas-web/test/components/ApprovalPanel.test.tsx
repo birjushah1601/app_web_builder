@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApprovalPanel } from "@/components/ApprovalPanel.js";
+import { ApprovalPanel } from "@/components/ApprovalPanel";
 
 describe("ApprovalPanel", () => {
   it("Ama sees Yes / No / Ask", () => {

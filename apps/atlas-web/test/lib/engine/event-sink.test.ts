@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { SpecEventsSink } from "@/lib/engine/event-sink.js";
+import { SpecEventsSink } from "@/lib/engine/event-sink";
 
 describe("SpecEventsSink", () => {
   it("forwards every RitualEvent to spec_events repo via append", async () => {

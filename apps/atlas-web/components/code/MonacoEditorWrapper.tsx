@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import Editor from "@monaco-editor/react";
-import { classifyEdit } from "../../lib/code/editClassifier.js";
+import { classifyEdit } from "../../lib/code/editClassifier";
 import type { EditClass } from "@atlas/ritual-engine";
 
 export interface MonacoEditorWrapperProps {

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ShareableUrlModal } from "../app/projects/[projectId]/canvas/_components/ShareableUrlModal.js";
+import { ShareableUrlModal } from "../app/projects/[projectId]/canvas/_components/ShareableUrlModal";
 
 // Mock the Server Action — it's server-side only, not callable in test env
-vi.mock("../lib/actions/sandbox.js", () => ({
+vi.mock("../lib/actions/sandbox", () => ({
   createShareableUrl: vi.fn().mockResolvedValue({
     url: "https://example.com/preview/abc",
     accessMode: "auth",

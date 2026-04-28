@@ -38,7 +38,7 @@ vi.mock("@monaco-editor/react", () => ({
 }));
 
 // Mock the classifyEdit and ritual engine
-vi.mock("../../../lib/code/editClassifier.js", () => ({
+vi.mock("../../../lib/code/editClassifier", () => ({
   classifyEdit: vi.fn().mockReturnValue("cosmetic"),
 }));
 
@@ -48,7 +48,7 @@ vi.mock("@atlas/ritual-engine", () => ({
   })),
 }));
 
-import { MonacoEditorWrapper } from "../../../components/code/MonacoEditorWrapper.js";
+import { MonacoEditorWrapper } from "../../../components/code/MonacoEditorWrapper";
 
 describe("MonacoEditorWrapper", () => {
   const defaultProps = {

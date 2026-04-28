@@ -119,7 +119,7 @@ describe("getRitualEngine — provider precedence", () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
     process.env.ANTHROPIC_API_KEY = "sk-ant-should-be-ignored";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     const engine = (await getRitualEngine("p-1")) as unknown as {
       conductor: { roles: Map<string, unknown> };
     };
@@ -137,7 +137,7 @@ describe("getRitualEngine — provider precedence", () => {
   it("uses proxy default triage + deep-plan model names when vars unset", async () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = architectCtor.mock.calls[0]![0] as {
@@ -153,7 +153,7 @@ describe("getRitualEngine — provider precedence", () => {
     process.env.ATLAS_LLM_TRIAGE_MODEL = "custom-triage";
     process.env.ATLAS_LLM_DEEP_MODEL = "custom-deep";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = architectCtor.mock.calls[0]![0] as {
@@ -167,7 +167,7 @@ describe("getRitualEngine — provider precedence", () => {
   it("falls back to ANTHROPIC_API_KEY when ATLAS_LLM_BASE_URL absent", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-test";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     const engine = (await getRitualEngine("p-1")) as unknown as {
       conductor: { roles: Map<string, unknown> };
     };
@@ -189,7 +189,7 @@ describe("getRitualEngine — provider precedence", () => {
   it("registers no architect role when neither provider is configured", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     const engine = (await getRitualEngine("p-1")) as unknown as {
       conductor: { roles: Map<string, unknown> };
     };
@@ -206,7 +206,7 @@ describe("getRitualEngine — provider precedence", () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
     // ATLAS_LLM_API_KEY deliberately unset
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     // Just ensure construction succeeds — the unit tests for the provider
     // cover the default itself. This verifies factory wiring doesn't crash
     // when the auth var is missing.
@@ -238,7 +238,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
   it("registers BOTH architect and developer roles when an LLM is configured", async () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     const engine = (await getRitualEngine("p-1")) as unknown as {
       conductor: { roles: Map<string, unknown> };
     };
@@ -251,7 +251,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
   it("registers no developer role when no LLM is configured (parity with architect)", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     const engine = (await getRitualEngine("p-1")) as unknown as {
       conductor: { roles: Map<string, unknown> };
     };
@@ -264,7 +264,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
   it("DeveloperRole receives the same provider in all three slots in single-provider setup", async () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = developerCtor.mock.calls[0]![0] as {
@@ -284,7 +284,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
     process.env.ATLAS_DEVELOPER_SEQUENTIAL = "true";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = developerCtor.mock.calls[0]![0] as { parallelMode?: string };
@@ -295,7 +295,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
     // ATLAS_DEVELOPER_SEQUENTIAL deliberately unset
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = developerCtor.mock.calls[0]![0] as { parallelMode?: string };
@@ -307,7 +307,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
     process.env.ATLAS_LLM_DEEP_MODEL = "claude-sonnet-4";
     process.env.ATLAS_LLM_DEVELOPER_MODEL = "claude-haiku-4-5";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = developerCtor.mock.calls[0]![0] as {
@@ -326,7 +326,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
     process.env.ATLAS_LLM_DEEP_MODEL = "claude-sonnet-4";
     // ATLAS_LLM_DEVELOPER_MODEL deliberately unset
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = developerCtor.mock.calls[0]![0] as { anthropicModel?: string };
@@ -337,7 +337,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
     process.env.ATLAS_DEVELOPER_SEQUENTIAL = "1"; // truthy-ish, but not the literal "true"
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = developerCtor.mock.calls[0]![0] as { parallelMode?: string };
@@ -347,7 +347,7 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
   it("wires a sandboxApplier into RitualEngineOptions when llm is configured (plan C)", async () => {
     process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
 
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     await getRitualEngine("p-1");
 
     const opts = ritualEngineCtor.mock.calls.at(-1)?.[0] as {
@@ -363,7 +363,7 @@ describe("getRitualEngine — smoke", () => {
     for (const k of ENV_KEYS) delete process.env[k];
     vi.resetModules();
     architectCtor.mockClear();
-    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    const { getRitualEngine } = await import("@/lib/engine/factory");
     const engine = await getRitualEngine("p-1");
     expect(engine).toBeDefined();
   });

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { RiskAcceptModal } from "@/components/RiskAcceptModal.js";
+import { RiskAcceptModal } from "@/components/RiskAcceptModal";
 
 describe("RiskAcceptModal", () => {
   it("submit disabled until rationale >= 20 chars", async () => {

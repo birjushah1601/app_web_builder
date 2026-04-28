@@ -10,7 +10,7 @@ describe("setPersonaOverride", () => {
     }));
     vi.doMock("pg", () => ({ Pool: class { query() {} } }));
     vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-1" }) }));
-    const { setPersonaOverride } = await import("@/lib/actions/setPersonaOverride.js");
+    const { setPersonaOverride } = await import("@/lib/actions/setPersonaOverride");
     await setPersonaOverride({ projectId: "p-1", persona: "diego" });
     expect(upsert).toHaveBeenCalledWith("u-1", "p-1", "diego");
   });

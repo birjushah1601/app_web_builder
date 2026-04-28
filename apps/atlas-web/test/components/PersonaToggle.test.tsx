@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PersonaToggle } from "@/components/PersonaToggle.js";
+import { PersonaToggle } from "@/components/PersonaToggle";
 
 describe("PersonaToggle", () => {
   it("renders three buttons reflecting the current persona", () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
 async function loadRoute() {
-  const mod = await import("@/app/auth/logout/route.js");
+  const mod = await import("@/app/auth/logout/route");
   return mod.GET;
 }
 

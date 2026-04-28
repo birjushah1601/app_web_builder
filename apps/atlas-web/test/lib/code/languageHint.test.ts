@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { languageFromPath } from "../../../lib/code/languageHint.js";
+import { languageFromPath } from "../../../lib/code/languageHint";
 
 describe("languageFromPath", () => {
   it("returns typescript for .ts files", () => {

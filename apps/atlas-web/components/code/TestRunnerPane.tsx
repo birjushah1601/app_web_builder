@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { getTestResults, type GetTestResultsResult } from "../../lib/actions/code/getTestResults.js";
+import { getTestResults, type GetTestResultsResult } from "../../lib/actions/code/getTestResults";
 import type { SandboxExec } from "@atlas/sandbox-e2b";
 import type { SandboxId } from "@atlas/sandbox-e2b";
 

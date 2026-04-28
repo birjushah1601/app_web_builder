@@ -2,13 +2,13 @@
 
 import React, { useCallback } from "react";
 import dynamic from "next/dynamic";
-import { saveFile } from "../../lib/actions/code/saveFile.js";
+import { saveFile } from "../../lib/actions/code/saveFile";
 import type { EditClass } from "@atlas/ritual-engine";
 
 // Monaco depends on browser globals — must be loaded with ssr: false
 const MonacoEditorWrapper = dynamic(
   () =>
-    import("./MonacoEditorWrapper.js").then((m) => ({ default: m.MonacoEditorWrapper })),
+    import("./MonacoEditorWrapper").then((m) => ({ default: m.MonacoEditorWrapper })),
   { ssr: false, loading: () => <div className="flex h-full items-center justify-center text-zinc-500 text-sm">Loading editor…</div> }
 );
 

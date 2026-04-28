@@ -2,7 +2,7 @@
 import { expect } from "@playwright/test";
 import { Pool } from "pg";
 import { SpecGraphRepo } from "@atlas/spec-graph-data";
-import { makeFreshProjectTest } from "../fixtures/index.js";
+import { makeFreshProjectTest } from "../fixtures/index";
 
 const test = makeFreshProjectTest({ persona: "diego", projectName: "pr-flow" });
 

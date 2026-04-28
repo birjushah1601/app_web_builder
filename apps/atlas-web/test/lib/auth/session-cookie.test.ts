@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sealSession, unsealSession, SessionSealError } from "@/lib/auth/session-cookie.js";
+import { sealSession, unsealSession, SessionSealError } from "@/lib/auth/session-cookie";
 
 const SECRET = "a".repeat(32);
 

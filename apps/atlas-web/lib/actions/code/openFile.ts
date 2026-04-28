@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth/clerk-compat";
 import { readMirroredFile } from "@atlas/spec-graph-sync";
-import { languageFromPath } from "../../code/languageHint.js";
+import { languageFromPath } from "../../code/languageHint";
 
 export interface OpenFileInput {
   projectId: string;

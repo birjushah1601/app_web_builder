@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { connectTerminal } from "../../lib/actions/code/connectTerminal.js";
+import { connectTerminal } from "../../lib/actions/code/connectTerminal";
 import type { SandboxExec } from "@atlas/sandbox-e2b";
 import type { SandboxId } from "@atlas/sandbox-e2b";
 

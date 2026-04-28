@@ -10,7 +10,7 @@ const baseEnv = (): Record<string, string> => ({
 
 async function loadRoute() {
   vi.resetModules();
-  const mod = await import("@/app/auth/start/route.js");
+  const mod = await import("@/app/auth/start/route");
   return mod.GET;
 }
 

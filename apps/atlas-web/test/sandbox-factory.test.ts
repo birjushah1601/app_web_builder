@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { SandboxFactory } from "../lib/sandbox/factory.js";
+import { SandboxFactory } from "../lib/sandbox/factory";
 import type { SandboxLifecycle } from "@atlas/sandbox-e2b";
 import type { SpendReader } from "@atlas/sandbox-e2b";
 

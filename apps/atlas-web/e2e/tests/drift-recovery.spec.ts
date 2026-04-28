@@ -1,7 +1,7 @@
 // apps/atlas-web/e2e/tests/drift-recovery.spec.ts
 import { expect } from "@playwright/test";
 import { Sandbox } from "@e2b/sdk";
-import { makeFreshProjectTest } from "../fixtures/index.js";
+import { makeFreshProjectTest } from "../fixtures/index";
 
 const test = makeFreshProjectTest({ persona: "ama", projectName: "drift-test" });
 

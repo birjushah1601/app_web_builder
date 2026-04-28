@@ -11,7 +11,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 }));
 
 import { readMirroredFile } from "@atlas/spec-graph-sync";
-import { openFile } from "../../../lib/actions/code/openFile.js";
+import { openFile } from "../../../lib/actions/code/openFile";
 
 const mockRead = vi.mocked(readMirroredFile);
 

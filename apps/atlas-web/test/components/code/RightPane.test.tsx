@@ -15,14 +15,14 @@ vi.mock("xterm-addon-fit", () => ({
   FitAddon: vi.fn().mockImplementation(() => ({ fit: vi.fn() })),
 }));
 
-vi.mock("../../../lib/actions/code/connectTerminal.js", () => ({
+vi.mock("../../../lib/actions/code/connectTerminal", () => ({
   connectTerminal: vi.fn().mockResolvedValue({
     status: "stub",
     message: "sandbox not connected yet (E.4)",
   }),
 }));
 
-vi.mock("../../../lib/actions/code/getTestResults.js", () => ({
+vi.mock("../../../lib/actions/code/getTestResults", () => ({
   getTestResults: vi.fn().mockResolvedValue({
     status: "stub",
     suites: [],
@@ -31,11 +31,11 @@ vi.mock("../../../lib/actions/code/getTestResults.js", () => ({
 }));
 
 // Mock PrPane to avoid needing its dependencies
-vi.mock("../../../components/code/PrPane.js", () => ({
+vi.mock("../../../components/code/PrPane", () => ({
   PrPane: () => <div data-testid="pr-pane">PR Pane</div>,
 }));
 
-import { RightPane } from "../../../components/code/RightPane.js";
+import { RightPane } from "../../../components/code/RightPane";
 
 beforeEach(() => vi.clearAllMocks());
 

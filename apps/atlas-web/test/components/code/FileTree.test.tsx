@@ -15,7 +15,7 @@ vi.mock("@atlas/spec-graph-sync", () => ({
 }));
 
 // FileTreeClient is a pure client component — render directly
-import { FileTreeClient } from "../../../components/code/FileTreeClient.js";
+import { FileTreeClient } from "../../../components/code/FileTreeClient";
 
 const FIXTURE_FILES = [
   "src/index.ts",

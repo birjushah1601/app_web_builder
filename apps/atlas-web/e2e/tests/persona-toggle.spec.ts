@@ -1,6 +1,6 @@
 // apps/atlas-web/e2e/tests/persona-toggle.spec.ts
 import { expect } from "@playwright/test";
-import { makeFreshProjectTest } from "../fixtures/index.js";
+import { makeFreshProjectTest } from "../fixtures/index";
 
 const test = makeFreshProjectTest({ persona: "ama", projectName: "toggle-test", withSandbox: false });
 

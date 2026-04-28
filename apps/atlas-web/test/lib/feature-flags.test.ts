@@ -3,7 +3,7 @@ import {
   isFeatureEnabled,
   listFlagStates,
   type FeatureFlagSource
-} from "@/lib/feature-flags.js";
+} from "@/lib/feature-flags";
 
 const sourceWith = (env: Record<string, string>): FeatureFlagSource => ({
   readEnv: (name) => env[name]

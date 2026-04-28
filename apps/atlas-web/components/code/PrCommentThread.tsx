@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { postPrComment } from "../../lib/actions/code/postPrComment.js";
+import { postPrComment } from "../../lib/actions/code/postPrComment";
 
 export interface PrComment {
   id: number;

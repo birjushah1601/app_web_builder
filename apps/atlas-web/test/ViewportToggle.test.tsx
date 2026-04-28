@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ViewportToggle, VIEWPORTS } from "../app/projects/[projectId]/canvas/_components/ViewportToggle.js";
+import { ViewportToggle, VIEWPORTS } from "../app/projects/[projectId]/canvas/_components/ViewportToggle";
 
 describe("ViewportToggle", () => {
   it("renders all three viewport buttons", () => {

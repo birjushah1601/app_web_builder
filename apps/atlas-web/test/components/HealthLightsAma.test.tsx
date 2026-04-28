@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { HealthLightsAma } from "@/app/projects/[projectId]/run/_components/HealthLightsAma.js";
+import { HealthLightsAma } from "@/app/projects/[projectId]/run/_components/HealthLightsAma";
 
 describe("HealthLightsAma", () => {
   it("renders a green light for healthy summary", () => {

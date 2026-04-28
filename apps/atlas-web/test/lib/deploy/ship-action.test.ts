@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { performShipAction } from "@/lib/deploy/ship-action.js";
+import { performShipAction } from "@/lib/deploy/ship-action";
 
 describe("performShipAction", () => {
   it("calls DeployOrchestrator.deploy with derived request, returns publicUrl", async () => {

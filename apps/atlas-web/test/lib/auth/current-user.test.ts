@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { sealSession, ATLAS_SESSION_COOKIE } from "@/lib/auth/session-cookie.js";
+import { sealSession, ATLAS_SESSION_COOKIE } from "@/lib/auth/session-cookie";
 
 const SECRET = "a".repeat(32);
 
@@ -19,7 +19,7 @@ vi.mock("next/headers", () => ({
 
 async function loadGetCurrentUser() {
   vi.resetModules();
-  const mod = await import("@/lib/auth/current-user.js");
+  const mod = await import("@/lib/auth/current-user");
   return mod.getCurrentUser;
 }
 

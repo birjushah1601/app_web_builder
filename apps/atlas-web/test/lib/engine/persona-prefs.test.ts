@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { ClerkPersonaPreferences } from "@/lib/engine/persona-prefs.js";
+import { ClerkPersonaPreferences } from "@/lib/engine/persona-prefs";
 
 describe("ClerkPersonaPreferences", () => {
   it("returns the per-project override when present", async () => {

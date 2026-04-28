@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { CanvasClient } from "@/components/CanvasClient.js";
+import { CanvasClient } from "@/components/CanvasClient";
 
 vi.mock("@xyflow/react", () => ({
   ReactFlow: ({

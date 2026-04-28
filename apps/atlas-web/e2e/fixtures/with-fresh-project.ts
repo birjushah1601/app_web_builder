@@ -3,8 +3,8 @@ import { test as base, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { Sandbox } from "@e2b/sdk";
-import { PERSONA_STORAGE_STATE, type Persona } from "./personas.js";
-import { minimalSeed, insertSeed, deleteSeed } from "./spec-graph-seeds.js";
+import { PERSONA_STORAGE_STATE, type Persona } from "./personas";
+import { minimalSeed, insertSeed, deleteSeed } from "./spec-graph-seeds";
 
 export type FreshProjectFixture = {
   projectId: string;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyEdit } from "../../../lib/code/editClassifier.js";
+import { classifyEdit } from "../../../lib/code/editClassifier";
 
 describe("classifyEdit", () => {
   it("returns cosmetic for a Tailwind class-only change in a .tsx file", () => {

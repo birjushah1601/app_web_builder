@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { EndpointTableDiego } from "@/app/projects/[projectId]/run/_components/EndpointTableDiego.js";
+import { EndpointTableDiego } from "@/app/projects/[projectId]/run/_components/EndpointTableDiego";
 
 const stats = [
   { endpointId: "GET /a", requestCount: 1000, errorCount: 3, p50Ms: 80, p95Ms: 400, p99Ms: 800 },

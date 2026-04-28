@@ -9,7 +9,7 @@ import { openFile } from "../../lib/actions/code/openFile";
 // MonacoPane is already ssr: false internally, but CodeLayout is a Client Component
 // that orchestrates state — it imports MonacoPane directly (no additional dynamic needed).
 const MonacoPane = dynamic(
-  () => import("./MonacoPane.js").then((m) => ({ default: m.MonacoPane })),
+  () => import("./MonacoPane").then((m) => ({ default: m.MonacoPane })),
   { ssr: false }
 );
 

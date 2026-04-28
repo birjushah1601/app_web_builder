@@ -26,7 +26,7 @@ const baseEnv = (): Record<string, string> => ({
 
 async function loadRoute() {
   vi.resetModules();
-  const mod = await import("@/app/auth/callback/route.js");
+  const mod = await import("@/app/auth/callback/route");
   return mod.GET;
 }
 

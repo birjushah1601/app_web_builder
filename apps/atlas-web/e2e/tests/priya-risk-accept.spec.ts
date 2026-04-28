@@ -1,6 +1,6 @@
 // apps/atlas-web/e2e/tests/priya-risk-accept.spec.ts
 import { expect } from "@playwright/test";
-import { makeFreshProjectTest } from "../fixtures/index.js";
+import { makeFreshProjectTest } from "../fixtures/index";
 
 const test = makeFreshProjectTest({ persona: "priya", projectName: "priya-risk" });
 

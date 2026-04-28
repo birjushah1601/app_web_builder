@@ -9,7 +9,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 }));
 
 import { writeMirroredFile } from "@atlas/spec-graph-sync";
-import { saveFile } from "../../../lib/actions/code/saveFile.js";
+import { saveFile } from "../../../lib/actions/code/saveFile";
 
 const mockWrite = vi.mocked(writeMirroredFile);
 

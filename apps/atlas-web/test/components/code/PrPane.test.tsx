@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
 // Stub Server Actions
-vi.mock("../../../lib/actions/code/listPrs.js", () => ({
+vi.mock("../../../lib/actions/code/listPrs", () => ({
   listPrs: vi.fn().mockResolvedValue([
     {
       number: 7,
@@ -16,20 +16,20 @@ vi.mock("../../../lib/actions/code/listPrs.js", () => ({
   ]),
 }));
 
-vi.mock("../../../lib/actions/code/openPr.js", () => ({
+vi.mock("../../../lib/actions/code/openPr", () => ({
   openPr: vi.fn().mockResolvedValue({ prNumber: 8, prUrl: "https://github.com/acme/app/pull/8" }),
 }));
 
-vi.mock("../../../lib/actions/code/getPrDiff.js", () => ({
+vi.mock("../../../lib/actions/code/getPrDiff", () => ({
   getPrDiff: vi.fn().mockResolvedValue({ diff: "--- a/index.ts\n+++ b/index.ts\n@@ -1 +1 @@\n-old\n+new" }),
 }));
 
-vi.mock("../../../components/code/PrDiffViewer.js", () => ({
+vi.mock("../../../components/code/PrDiffViewer", () => ({
   PrDiffViewer: ({ diff }: { diff: string }) => <pre data-testid="diff-viewer">{diff}</pre>,
 }));
 
-import { PrPane } from "../../../components/code/PrPane.js";
-import { listPrs } from "../../../lib/actions/code/listPrs.js";
+import { PrPane } from "../../../components/code/PrPane";
+import { listPrs } from "../../../lib/actions/code/listPrs";
 
 beforeEach(() => vi.clearAllMocks());
 

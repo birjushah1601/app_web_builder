@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth/clerk-compat";
-import { createOctokit, parseRepoSlug } from "../../code/octokitClient.js";
+import { createOctokit, parseRepoSlug } from "../../code/octokitClient";
 
 export interface MergePrInput {
   projectId: string;

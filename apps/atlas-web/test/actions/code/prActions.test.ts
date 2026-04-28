@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock Octokit factory before importing actions
-vi.mock("../../../lib/code/octokitClient.js", () => ({
+vi.mock("../../../lib/code/octokitClient", () => ({
   createOctokit: vi.fn(),
   parseRepoSlug: vi.fn().mockReturnValue({ owner: "acme", repo: "my-app" }),
 }));
@@ -10,12 +10,12 @@ vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn().mockResolvedValue({ userId: "u-test" }),
 }));
 
-import { createOctokit, parseRepoSlug } from "../../../lib/code/octokitClient.js";
-import { listPrs } from "../../../lib/actions/code/listPrs.js";
-import { openPr } from "../../../lib/actions/code/openPr.js";
-import { getPrDiff } from "../../../lib/actions/code/getPrDiff.js";
-import { postPrComment } from "../../../lib/actions/code/postPrComment.js";
-import { mergePr } from "../../../lib/actions/code/mergePr.js";
+import { createOctokit, parseRepoSlug } from "../../../lib/code/octokitClient";
+import { listPrs } from "../../../lib/actions/code/listPrs";
+import { openPr } from "../../../lib/actions/code/openPr";
+import { getPrDiff } from "../../../lib/actions/code/getPrDiff";
+import { postPrComment } from "../../../lib/actions/code/postPrComment";
+import { mergePr } from "../../../lib/actions/code/mergePr";
 
 const mockCreateOctokit = vi.mocked(createOctokit);
 
