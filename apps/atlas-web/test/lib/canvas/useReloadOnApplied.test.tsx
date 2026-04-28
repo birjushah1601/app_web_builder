@@ -35,3 +35,107 @@ describe("useReloadOnApplied — return shape and initial values", () => {
     expect(result.current.manualReload).toBe(first);
   });
 });
+
+import type { RitualEvent } from "@/lib/events/EventBroker";
+
+function applyCompleted(id: string, ok: boolean, extra: Record<string, unknown> = {}): RitualEvent {
+  return {
+    id,
+    projectId: "proj-1",
+    ritualId: "r-1",
+    type: "sandbox.apply.completed",
+    payload: { ok, ...extra },
+    ts: Date.now()
+  };
+}
+
+describe("useReloadOnApplied — debounced success", () => {
+  it("ok:true event updates cacheBuster after 500ms debounce", async () => {
+    vi.useFakeTimers();
+    try {
+      const evts: RitualEvent[] = [];
+      (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        events: [...evts],
+        status: "open",
+        lastEventId: evts.at(-1)?.id ?? null
+      }));
+
+      const { result, rerender } = renderHook(() => useReloadOnApplied("proj-1"));
+      expect(result.current.cacheBuster).toBe("");
+
+      // Push one ok:true event into the mock stream + rerender so the hook sees it.
+      evts.push(applyCompleted("proj-1:1", true));
+      rerender();
+
+      // Before the debounce fires, cacheBuster has NOT yet updated.
+      expect(result.current.cacheBuster).toBe("");
+
+      // Advance to just before the threshold — still empty.
+      await act(async () => { await vi.advanceTimersByTimeAsync(499); });
+      expect(result.current.cacheBuster).toBe("");
+
+      // Cross the threshold — cacheBuster now equals the event id.
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(result.current.cacheBuster).toBe("proj-1:1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("3 ok:true events within 500ms coalesce into ONE cacheBuster update (debounce)", async () => {
+    vi.useFakeTimers();
+    try {
+      const evts: RitualEvent[] = [];
+      (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        events: [...evts],
+        status: "open",
+        lastEventId: evts.at(-1)?.id ?? null
+      }));
+
+      const { result, rerender } = renderHook(() => useReloadOnApplied("proj-1"));
+
+      // Three rapid events — each one resets the debounce timer.
+      evts.push(applyCompleted("proj-1:1", true)); rerender();
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      evts.push(applyCompleted("proj-1:2", true)); rerender();
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      evts.push(applyCompleted("proj-1:3", true)); rerender();
+
+      // Only 200ms have elapsed since the last event — still no update.
+      await act(async () => { await vi.advanceTimersByTimeAsync(499); });
+      expect(result.current.cacheBuster).toBe("");
+
+      // Cross the 500ms threshold from the LAST event — single update with the
+      // newest event id (the coalesced one).
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(result.current.cacheBuster).toBe("proj-1:3");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("re-rendering with the SAME events array does NOT re-trigger the debounce timer", async () => {
+    vi.useFakeTimers();
+    try {
+      const evts: RitualEvent[] = [applyCompleted("proj-1:1", true)];
+      (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        events: [...evts],
+        status: "open",
+        lastEventId: "proj-1:1"
+      }));
+
+      const { result, rerender } = renderHook(() => useReloadOnApplied("proj-1"));
+
+      // Fire the initial debounce.
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+      expect(result.current.cacheBuster).toBe("proj-1:1");
+
+      // Re-render multiple times with no new events. cacheBuster must not change.
+      rerender(); rerender(); rerender();
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      expect(result.current.cacheBuster).toBe("proj-1:1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
