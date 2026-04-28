@@ -90,7 +90,8 @@ const ENV_KEYS = [
   "ATLAS_LLM_TRIAGE_MODEL",
   "ATLAS_LLM_DEEP_MODEL",
   "ANTHROPIC_API_KEY",
-  "ATLAS_DEVELOPER_SEQUENTIAL"
+  "ATLAS_DEVELOPER_SEQUENTIAL",
+  "ATLAS_LLM_DEVELOPER_MODEL"
 ] as const;
 
 describe("getRitualEngine — provider precedence", () => {
@@ -299,6 +300,37 @@ describe("getRitualEngine — DeveloperRole registration (plan B)", () => {
 
     const opts = developerCtor.mock.calls[0]![0] as { parallelMode?: string };
     expect(opts.parallelMode).toBe("parallel");
+  });
+
+  it("ATLAS_LLM_DEVELOPER_MODEL overrides the developer model (escapes proxy timeout for sonnet-tier requests)", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    process.env.ATLAS_LLM_DEEP_MODEL = "claude-sonnet-4";
+    process.env.ATLAS_LLM_DEVELOPER_MODEL = "claude-haiku-4-5";
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    await getRitualEngine("p-1");
+
+    const opts = developerCtor.mock.calls[0]![0] as {
+      anthropicModel?: string;
+      googleModel?: string;
+      reviewerModel?: string;
+    };
+    // All three slots use the developer model when overridden
+    expect(opts.anthropicModel).toBe("claude-haiku-4-5");
+    expect(opts.googleModel).toBe("claude-haiku-4-5");
+    expect(opts.reviewerModel).toBe("claude-haiku-4-5");
+  });
+
+  it("DeveloperRole model defaults to ATLAS_LLM_DEEP_MODEL when ATLAS_LLM_DEVELOPER_MODEL unset (back-compat)", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    process.env.ATLAS_LLM_DEEP_MODEL = "claude-sonnet-4";
+    // ATLAS_LLM_DEVELOPER_MODEL deliberately unset
+
+    const { getRitualEngine } = await import("@/lib/engine/factory.js");
+    await getRitualEngine("p-1");
+
+    const opts = developerCtor.mock.calls[0]![0] as { anthropicModel?: string };
+    expect(opts.anthropicModel).toBe("claude-sonnet-4");
   });
 
   it("ATLAS_DEVELOPER_SEQUENTIAL=anything-other-than-'true' is treated as parallel (strict opt-in)", async () => {

@@ -77,6 +77,12 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     // slots at the same provider — the parallel dispatch becomes redundant
     // but the role still functions and the reviewer pass still picks a
     // winner via the same model.
+    // Developer model selection. Defaults to deepPlanModel (sonnet-class)
+    // for richest output, but the local proxy buffers non-streaming
+    // requests and times out at 5min. Sonnet-tier requests for non-trivial
+    // diffs routinely exceed that. Set ATLAS_LLM_DEVELOPER_MODEL=claude-haiku-4-5
+    // (or any faster model) to escape the timeout in proxy-only setups.
+    const developerModel = process.env.ATLAS_LLM_DEVELOPER_MODEL ?? deepPlanModel;
     roles.set(
       "developer",
       new DeveloperRole({
@@ -84,9 +90,9 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
         google: llm,
         reviewer: llm,
         skills: skillRegistry,
-        anthropicModel: deepPlanModel,
-        googleModel: deepPlanModel,
-        reviewerModel: deepPlanModel,
+        anthropicModel: developerModel,
+        googleModel: developerModel,
+        reviewerModel: developerModel,
         // Sequential mode is recommended when both slots point at the same
         // provider (e.g. local proxy) — avoids hammering one endpoint with
         // concurrent tool-use requests. Set ATLAS_DEVELOPER_SEQUENTIAL=true
