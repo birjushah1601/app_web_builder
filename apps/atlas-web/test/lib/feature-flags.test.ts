@@ -65,7 +65,36 @@ describe("listFlagStates", () => {
       "figma-importer": false,
       "stripe-payments": true,
       "video-kling": false,
-      "auth-keycloak": true
+      "auth-keycloak": true,
+      "live-events": false
     });
+  });
+});
+
+describe("live-events flag (Plan E.0)", () => {
+  it("reads ATLAS_LIVE_EVENTS, NOT ATLAS_FF_LIVE_EVENTS (per spec)", () => {
+    expect(
+      isFeatureEnabled("live-events", sourceWith({ ATLAS_LIVE_EVENTS: "true" }))
+    ).toBe(true);
+    expect(
+      isFeatureEnabled("live-events", sourceWith({ ATLAS_FF_LIVE_EVENTS: "true" }))
+    ).toBe(false);
+  });
+
+  it("defaults to false when ATLAS_LIVE_EVENTS unset", () => {
+    expect(isFeatureEnabled("live-events", sourceWith({}))).toBe(false);
+  });
+
+  it("accepts the same truthy values as other flags", () => {
+    for (const truthy of ["1", "true", "TRUE", "yes", "on"]) {
+      expect(
+        isFeatureEnabled("live-events", sourceWith({ ATLAS_LIVE_EVENTS: truthy }))
+      ).toBe(true);
+    }
+  });
+
+  it("listFlagStates includes live-events", () => {
+    const states = listFlagStates(sourceWith({ ATLAS_LIVE_EVENTS: "true" }));
+    expect(states["live-events"]).toBe(true);
   });
 });

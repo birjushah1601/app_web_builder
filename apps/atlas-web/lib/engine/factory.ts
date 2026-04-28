@@ -4,6 +4,7 @@ import { RitualEngine } from "@atlas/ritual-engine";
 import { ClerkPersonaPreferences } from "./persona-prefs";
 import { SpecEventsSink } from "./event-sink";
 import { OpenAICompatProvider } from "./openai-compat-provider";
+import type { RitualEventType } from "@/lib/events/EventBroker";
 
 /** Lazy + per-request cached. Real DB client + Conductor wiring happens here. */
 export const getRitualEngine = cache(async (projectId: string): Promise<RitualEngine> => {
@@ -22,6 +23,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { applyDiff } = await import("@/lib/sandbox/apply-diff");
   const { createSandboxFsAdapter } = await import("@/lib/sandbox/sandbox-fs-adapter");
   const { getSandboxFactory } = await import("@/lib/sandbox/factory");
+  const { getEventBroker } = await import("@/lib/events/broker-singleton");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const prefs = new ClerkPersonaPreferences(
@@ -105,19 +107,43 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const conductor = new Conductor({
     classifier: { classify: async () => ({ roleId: "architect", confidence: 0.9 }) },
     roles,
-    // Log every conductor checkpoint to stderr so role.failed payloads
-    // (the actual underlying error message before retry) show up in the
-    // dev server log. RitualEscalatedError otherwise swallows the cause.
-    // TODO: replace with a real persistent sink when checkpoint storage lands.
+    // Plan E.0: every Conductor checkpoint is now published to the
+    // EventBroker (for live UI streaming) AND continues to flow to the
+    // existing logging path. SpecEventRepo persistence lives on the
+    // engine's `eventSink` (SpecEventsSink) below — independent path,
+    // unchanged. Both publish + log are wrapped in Promise.allSettled so
+    // a broker failure does not suppress logging and vice-versa. The
+    // outer emit() never throws — Conductor expects fire-and-forget.
     checkpointSink: {
       emit: async (event) => {
-        if (event.eventType === "role.failed" || event.eventType === "ritual.escalated") {
-          console.error(
-            `[conductor] ${event.eventType}`,
-            JSON.stringify(event.payload)
-          );
-        } else if (process.env.ATLAS_LOG_CHECKPOINTS) {
-          console.log(`[conductor] ${event.eventType}`, JSON.stringify(event.payload));
+        const broker = getEventBroker();
+        const ritualType = mapCheckpointToRitualType(event.eventType);
+        const publish = ritualType
+          ? broker.publish({
+              projectId,
+              ritualId: event.ritualId,
+              type: ritualType,
+              payload: event.payload,
+              ts: Date.parse(event.ts) || Date.now()
+            })
+          : Promise.resolve(null);
+
+        const log = (async () => {
+          if (event.eventType === "role.failed" || event.eventType === "ritual.escalated") {
+            console.error(
+              `[conductor] ${event.eventType}`,
+              JSON.stringify(event.payload)
+            );
+          } else if (process.env.ATLAS_LOG_CHECKPOINTS) {
+            console.log(`[conductor] ${event.eventType}`, JSON.stringify(event.payload));
+          }
+        })();
+
+        const results = await Promise.allSettled([publish, log]);
+        for (const r of results) {
+          if (r.status === "rejected") {
+            console.error("[conductor.checkpointSink] subscriber error:", r.reason);
+          }
         }
       }
     },
@@ -164,3 +190,23 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     }
   });
 });
+
+/** Map Conductor's checkpoint event types into the broker's RitualEventType
+ *  union. Returns null for checkpoint types we don't surface to the live
+ *  UI (e.g. dispatch.classified — internal routing detail). */
+function mapCheckpointToRitualType(eventType: string): RitualEventType | null {
+  switch (eventType) {
+    case "ritual.started":          return "ritual.started";
+    case "ritual.completed":        return "ritual.completed";
+    case "ritual.escalated":        return "ritual.escalated";
+    case "role.started":            return "role.started";
+    case "role.completed":          return "role.completed";
+    case "role.failed":             return "role.failed";
+    case "role.retrying":           return "role.retrying";
+    case "sandbox.provisioning":    return "sandbox.provisioning";
+    case "sandbox.provisioned":     return "sandbox.provisioned";
+    case "sandbox.apply.started":   return "sandbox.apply.started";
+    case "sandbox.apply.completed": return "sandbox.apply.completed";
+    default:                        return null;
+  }
+}
