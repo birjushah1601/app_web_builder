@@ -2,6 +2,7 @@ import { CanvasClient } from "@/components/CanvasClient";
 import { ChatPanel } from "@/components/ChatPanel";
 import { startRitual } from "@/lib/actions/startRitual";
 import { getSandboxFactory } from "@/lib/sandbox/factory";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { CanvasPreviewClient } from "./_components/CanvasPreviewClient";
 
 export default async function CanvasPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -26,6 +27,12 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
     previewError = err instanceof Error ? err.message : String(err);
   }
 
+  // Plan G: when live-events is on, [projectId]/layout.tsx mounts a
+  // persistent <RailShell /> that owns the ChatPanel. Mounting a second
+  // ChatPanel here would double-render the chat history and split the
+  // conversation across two trees — gate the local mount on the flag.
+  const liveEventsOn = isFeatureEnabled("live-events");
+
   return (
     <main className="flex h-full">
       <section className="flex-1 flex flex-col">
@@ -37,7 +44,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
         />
         <CanvasClient graph={graph} projectId={projectId} />
       </section>
-      <ChatPanel projectId={projectId} action={startRitual} />
+      {liveEventsOn ? null : <ChatPanel projectId={projectId} action={startRitual} />}
     </main>
   );
 }
