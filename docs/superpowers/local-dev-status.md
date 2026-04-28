@@ -44,6 +44,7 @@ Total wall time: ~45–60 seconds (5 LLM hops through the local proxy).
   - Architect's `graphSlice` injected post-hoc (model not asked to echo)
   - Developer's `testsAdded` / `filesModified` defaulted post-hoc (`filesModified` recovered from diff headers)
 - **Plan C: developer's diff applied to the live preview sandbox.** Every successful developer dispatch parses the diff via `parse-diff`, writes per-file via E2B SDK's `Sandbox.connect(sandboxId).files.*` to `/code/src/`, and Next.js HMR refreshes the iframe within ~3s. Per-file outcome rendered in ChatPanel as green/amber/red apply-status panel. `applyDiff` never throws — sandbox unavailable, hunk mismatch, path escape all become structured `FileApplyResult` entries.
+- **Plan G: persistent left-rail chat shell.** When `ATLAS_LIVE_EVENTS=true`, `apps/atlas-web/app/projects/[projectId]/layout.tsx` wraps every project sub-route with `<EventSourceProvider>` + a 360px `<RailShell />` containing `<ChatPanel />` and the `<RitualTimelineSlot />`. Chat history + textarea state survive navigation between `/canvas`, `/code`, `/run`. Switching projects re-keys the rail (fresh React tree). Flag-OFF path is unchanged: `/canvas/page.tsx` mounts its own ChatPanel as before; layout passes `{children}` through with no wrapper.
 
 ## What's NOT wired (deferred)
 
