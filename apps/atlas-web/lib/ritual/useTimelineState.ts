@@ -18,7 +18,9 @@
 
 import { useMemo } from "react";
 import { useEventStream } from "@/lib/events/EventSourceProvider";
-import { initialTimelineState, timelineReducer, type TimelineState } from "@/lib/ritual/timelineReducer";
+import { initialTimelineState, timelineReducer, type TimelineState, type Phase } from "@/lib/ritual/timelineReducer";
+
+export type { Phase };
 
 export function useTimelineState(): TimelineState {
   const { events } = useEventStream();
