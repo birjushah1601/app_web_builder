@@ -66,8 +66,23 @@ describe("listFlagStates", () => {
       "stripe-payments": true,
       "video-kling": false,
       "auth-keycloak": true,
-      "live-events": false
+      "live-events": false,
+      "ritual-hydration": false
     });
+  });
+});
+
+describe("ritual-hydration flag (Plan H)", () => {
+  it("is off when ATLAS_RITUAL_HYDRATION is unset", () => {
+    expect(isFeatureEnabled("ritual-hydration", sourceWith({}))).toBe(false);
+  });
+  it("is on when ATLAS_RITUAL_HYDRATION=true", () => {
+    expect(
+      isFeatureEnabled("ritual-hydration", sourceWith({ ATLAS_RITUAL_HYDRATION: "true" }))
+    ).toBe(true);
+  });
+  it("listFlagStates includes ritual-hydration", () => {
+    expect(listFlagStates(sourceWith({}))["ritual-hydration"]).toBe(false);
   });
 });
 
