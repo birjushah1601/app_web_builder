@@ -46,12 +46,92 @@ export const initialTimelineState: TimelineState = Object.freeze({
   })
 }) as TimelineState;
 
-/** Pure reducer. Returns the same reference when no transition applies so
- *  React's `useReducer` skips a re-render. Real transitions land in
- *  Tasks 3 + 4; this stub handles only unknown event types. */
 export function timelineReducer(state: TimelineState, event: RitualEvent): TimelineState {
   switch (event.type) {
+    case "ritual.started":
+      return initialTimelineState;
+
+    case "ritual.escalated":
+      if (state.escalated) return state;
+      return { ...state, escalated: true };
+
+    case "ritual.completed": {
+      const newRows = { ...state.rows };
+      let mutated = false;
+      for (const phase of ["architect", "developer", "sandbox"] as Phase[]) {
+        const row = newRows[phase];
+        if (row.status === "failed" || row.status === "done") continue;
+        const durationMs = row.startedAt !== undefined ? event.ts - row.startedAt : row.durationMs;
+        newRows[phase] = { ...row, status: "done", durationMs };
+        mutated = true;
+      }
+      return mutated ? { ...state, rows: newRows } : state;
+    }
+
+    case "role.started": {
+      const phase = phaseFromPayload(event.payload);
+      if (phase === null) return state;
+      const row = state.rows[phase];
+      const next: RowState = { ...row, status: "active", startedAt: event.ts };
+      return { ...state, rows: { ...state.rows, [phase]: next } };
+    }
+
+    case "role.completed": {
+      const phase = phaseFromPayload(event.payload);
+      if (phase === null) return state;
+      const row = state.rows[phase];
+      const meta = extractMeta(event.payload);
+      const durationMs = row.startedAt !== undefined ? event.ts - row.startedAt : row.durationMs;
+      const next: RowState = {
+        ...row,
+        status: "done",
+        durationMs,
+        ...(meta ? { meta } : {})
+      };
+      return { ...state, rows: { ...state.rows, [phase]: next } };
+    }
+
+    case "role.failed": {
+      const phase = phaseFromPayload(event.payload);
+      if (phase === null) return state;
+      const row = state.rows[phase];
+      const errorVal = event.payload.error;
+      const lastError = typeof errorVal === "string" ? errorVal : row.lastError;
+      const durationMs = row.startedAt !== undefined ? event.ts - row.startedAt : row.durationMs;
+      const next: RowState = { ...row, status: "failed", lastError, durationMs };
+      return { ...state, rows: { ...state.rows, [phase]: next } };
+    }
+
+    case "role.retrying": {
+      const phase = phaseFromPayload(event.payload);
+      if (phase === null) return state;
+      const row = state.rows[phase];
+      const errorVal = event.payload.error;
+      const lastError = typeof errorVal === "string" ? errorVal : row.lastError;
+      const next: RowState = { ...row, retries: row.retries + 1, lastError };
+      return { ...state, rows: { ...state.rows, [phase]: next } };
+    }
+
     default:
       return state;
   }
+}
+
+/** Read payload.role and narrow it to "architect" | "developer". Sandbox
+ *  events come in via the sandbox.* type prefixes, never as role.* with
+ *  role=sandbox, so this returns null for "sandbox" or any other value. */
+function phaseFromPayload(payload: Record<string, unknown>): "architect" | "developer" | null {
+  const r = payload.role;
+  if (r === "architect" || r === "developer") return r;
+  return null;
+}
+
+/** Pluck the spec-listed meta fields (winner, filesWritten) out of the
+ *  event payload. Returns undefined when neither is present so the
+ *  reducer can skip writing a meta key. */
+function extractMeta(payload: Record<string, unknown>): RowState["meta"] | undefined {
+  const winner = typeof payload.winner === "string" ? payload.winner : undefined;
+  const filesWritten = typeof payload.filesWritten === "number" ? payload.filesWritten : undefined;
+  if (winner === undefined && filesWritten === undefined) return undefined;
+  return { ...(winner !== undefined ? { winner } : {}), ...(filesWritten !== undefined ? { filesWritten } : {}) };
 }
