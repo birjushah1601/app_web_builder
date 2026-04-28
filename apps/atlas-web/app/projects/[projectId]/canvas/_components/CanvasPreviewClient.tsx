@@ -46,7 +46,7 @@ export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewE
             </span>
           </div>
         ) : (
-          <HmrIframe src={previewUrl} title="Live preview" />
+          <HmrIframe src={previewUrl} title="Live preview" projectId={projectId} />
         )}
       </div>
       <ShareableUrlModal

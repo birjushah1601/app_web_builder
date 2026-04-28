@@ -1,10 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HmrIframe } from "../app/projects/[projectId]/canvas/_components/HmrIframe";
+import { useEventStream } from "@/lib/events/EventSourceProvider";
+import type { RitualEvent } from "@/lib/events/EventBroker";
 
 // iframe-resizer is a DOM-side library; mock it in the test environment
 vi.mock("iframe-resizer", () => ({
   iframeResize: vi.fn(),
+}));
+
+// Plan F: HmrIframe consumes useReloadOnApplied which reads useEventStream.
+// Each test sets the return value via mockReturnValue / mockImplementation.
+vi.mock("@/lib/events/EventSourceProvider", () => ({
+  useEventStream: vi.fn(() => ({ events: [], status: "disabled", lastEventId: null }))
 }));
 
 describe("HmrIframe", () => {
@@ -13,6 +22,7 @@ describe("HmrIframe", () => {
       <HmrIframe
         src="https://3000-sbx_abc.e2b.app"
         title="Live preview"
+        projectId="proj-1"
       />
     );
     const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
@@ -21,7 +31,7 @@ describe("HmrIframe", () => {
   });
 
   it("renders a skeleton placeholder when src is undefined", () => {
-    const { container } = render(<HmrIframe src={undefined} title="Live preview" />);
+    const { container } = render(<HmrIframe src={undefined} title="Live preview" projectId="proj-1" />);
     expect(container.querySelector("[data-testid='hmr-iframe-skeleton']")).toBeTruthy();
     expect(container.querySelector("iframe")).toBeNull();
   });
@@ -29,10 +39,151 @@ describe("HmrIframe", () => {
   it("calls onLoad callback when iframe fires load event", async () => {
     const onLoad = vi.fn();
     render(
-      <HmrIframe src="https://3000-sbx_abc.e2b.app" title="Live preview" onLoad={onLoad} />
+      <HmrIframe src="https://3000-sbx_abc.e2b.app" title="Live preview" onLoad={onLoad} projectId="proj-1" />
     );
     const iframe = screen.getByTitle("Live preview");
     iframe.dispatchEvent(new Event("load"));
     expect(onLoad).toHaveBeenCalledOnce();
+  });
+});
+
+function applyOk(id: string): RitualEvent {
+  return {
+    id,
+    projectId: "proj-1",
+    ritualId: "r-1",
+    type: "sandbox.apply.completed",
+    payload: { ok: true },
+    ts: Date.now()
+  };
+}
+
+describe("HmrIframe — projectId prop + cache-buster src wiring", () => {
+  it("renders with no atlas-reload query param when cacheBuster is empty (no reload triggered yet)", () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    expect(iframe.src).not.toContain("atlas-reload=");
+  });
+
+  it("after an ok:true event + 500ms debounce, iframe.src contains atlas-reload=<eventId>", async () => {
+    vi.useFakeTimers();
+    try {
+      const evts: RitualEvent[] = [];
+      (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        events: [...evts], status: "open", lastEventId: evts.at(-1)?.id ?? null
+      }));
+
+      const { rerender } = render(
+        <HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />
+      );
+
+      evts.push(applyOk("proj-1:42"));
+      rerender(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+
+      const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+      expect(iframe.src).toContain("atlas-reload=proj-1%3A42"); // ":" is URL-encoded by the browser
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("appends with '&' when previewUrl already contains a '?'", async () => {
+    vi.useFakeTimers();
+    try {
+      const evts: RitualEvent[] = [];
+      (useEventStream as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+        events: [...evts], status: "open", lastEventId: evts.at(-1)?.id ?? null
+      }));
+
+      const { rerender } = render(
+        <HmrIframe src="https://3000-sbx.e2b.app/?foo=bar" title="Live preview" projectId="proj-1" />
+      );
+
+      evts.push(applyOk("proj-1:1"));
+      rerender(<HmrIframe src="https://3000-sbx.e2b.app/?foo=bar" title="Live preview" projectId="proj-1" />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+
+      const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+      expect(iframe.src).toContain("foo=bar&atlas-reload=");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("HmrIframe — manual Reload preview button", () => {
+  it("renders a 'Reload preview' button with data-testid='preview-reload-button'", () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    const button = screen.getByTestId("preview-reload-button");
+    expect(button).toBeTruthy();
+    expect(button.textContent).toBe("Reload preview");
+  });
+
+  it("clicking 'Reload preview' immediately mutates iframe.src to include atlas-reload=", async () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    const user = userEvent.setup();
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    const iframeBefore = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    const srcBefore = iframeBefore.src;
+    expect(srcBefore).not.toContain("atlas-reload=");
+
+    await user.click(screen.getByTestId("preview-reload-button"));
+
+    const iframeAfter = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    expect(iframeAfter.src).toContain("atlas-reload=");
+    expect(iframeAfter.src).not.toBe(srcBefore);
+  });
+
+  it("manual button works when flag is OFF (events empty + status='disabled')", async () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    const user = userEvent.setup();
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    await user.click(screen.getByTestId("preview-reload-button"));
+    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    expect(iframe.src).toContain("atlas-reload=");
+  });
+});
+
+describe("HmrIframe — failure toast renders, iframe src does NOT change", () => {
+  it("ok:false event with parseError renders a toast above the iframe AND leaves iframe.src untouched", () => {
+    const failure: RitualEvent = {
+      id: "proj-1:9",
+      projectId: "proj-1",
+      ritualId: "r-1",
+      type: "sandbox.apply.completed",
+      payload: { ok: false, parseError: "Could not parse diff at line 4" },
+      ts: Date.now()
+    };
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [failure], status: "open", lastEventId: failure.id
+    });
+
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+
+    const toast = screen.getByTestId("preview-reload-toast");
+    expect(toast.textContent).toBe("Could not parse diff at line 4");
+    expect(toast.getAttribute("role")).toBe("alert");
+
+    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    expect(iframe.src).not.toContain("atlas-reload=");
+  });
+
+  it("toast is NOT rendered when there is no failure event", () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    expect(screen.queryByTestId("preview-reload-toast")).toBeNull();
   });
 });
