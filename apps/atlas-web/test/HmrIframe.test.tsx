@@ -114,3 +114,76 @@ describe("HmrIframe — projectId prop + cache-buster src wiring", () => {
     }
   });
 });
+
+describe("HmrIframe — manual Reload preview button", () => {
+  it("renders a 'Reload preview' button with data-testid='preview-reload-button'", () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    const button = screen.getByTestId("preview-reload-button");
+    expect(button).toBeTruthy();
+    expect(button.textContent).toBe("Reload preview");
+  });
+
+  it("clicking 'Reload preview' immediately mutates iframe.src to include atlas-reload=", async () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    const user = userEvent.setup();
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    const iframeBefore = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    const srcBefore = iframeBefore.src;
+    expect(srcBefore).not.toContain("atlas-reload=");
+
+    await user.click(screen.getByTestId("preview-reload-button"));
+
+    const iframeAfter = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    expect(iframeAfter.src).toContain("atlas-reload=");
+    expect(iframeAfter.src).not.toBe(srcBefore);
+  });
+
+  it("manual button works when flag is OFF (events empty + status='disabled')", async () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    const user = userEvent.setup();
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    await user.click(screen.getByTestId("preview-reload-button"));
+    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    expect(iframe.src).toContain("atlas-reload=");
+  });
+});
+
+describe("HmrIframe — failure toast renders, iframe src does NOT change", () => {
+  it("ok:false event with parseError renders a toast above the iframe AND leaves iframe.src untouched", () => {
+    const failure: RitualEvent = {
+      id: "proj-1:9",
+      projectId: "proj-1",
+      ritualId: "r-1",
+      type: "sandbox.apply.completed",
+      payload: { ok: false, parseError: "Could not parse diff at line 4" },
+      ts: Date.now()
+    };
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [failure], status: "open", lastEventId: failure.id
+    });
+
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+
+    const toast = screen.getByTestId("preview-reload-toast");
+    expect(toast.textContent).toBe("Could not parse diff at line 4");
+    expect(toast.getAttribute("role")).toBe("alert");
+
+    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
+    expect(iframe.src).not.toContain("atlas-reload=");
+  });
+
+  it("toast is NOT rendered when there is no failure event", () => {
+    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
+      events: [], status: "disabled", lastEventId: null
+    });
+    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
+    expect(screen.queryByTestId("preview-reload-toast")).toBeNull();
+  });
+});
