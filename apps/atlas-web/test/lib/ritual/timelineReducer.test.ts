@@ -190,3 +190,77 @@ describe("timelineReducer — role.* events for developer", () => {
     expect(after).toBe(initialTimelineState);
   });
 });
+
+describe("timelineReducer — sandbox.* events", () => {
+  it("sandbox.provisioning marks sandbox active + stamps startedAt", () => {
+    const after = timelineReducer(initialTimelineState, evt("sandbox.provisioning", {}, 4_000));
+    expect(after.rows.sandbox.status).toBe("active");
+    expect(after.rows.sandbox.startedAt).toBe(4_000);
+  });
+
+  it("sandbox.provisioned marks sandbox active (still working — apply not yet started)", () => {
+    const after1 = timelineReducer(initialTimelineState, evt("sandbox.provisioning", {}, 4_000));
+    const after2 = timelineReducer(after1, evt("sandbox.provisioned", { sandboxId: "sbx-1" }, 4_500));
+    // We treat provisioned as "still active" — the row only completes on
+    // sandbox.apply.completed. provisioned is a checkpoint, not a finish line.
+    expect(after2.rows.sandbox.status).toBe("active");
+    expect(after2.rows.sandbox.startedAt).toBe(4_000); // unchanged
+  });
+
+  it("sandbox.apply.started keeps sandbox active (or activates it if pending) + bumps startedAt only when pending", () => {
+    // Case 1: row already active from provisioning — startedAt sticks
+    const provisioning = timelineReducer(initialTimelineState, evt("sandbox.provisioning", {}, 4_000));
+    const applyStarted1 = timelineReducer(provisioning, evt("sandbox.apply.started", {}, 5_000));
+    expect(applyStarted1.rows.sandbox.status).toBe("active");
+    expect(applyStarted1.rows.sandbox.startedAt).toBe(4_000); // sticks
+
+    // Case 2: never provisioned (rare — manual apply) — activate now
+    const applyStarted2 = timelineReducer(initialTimelineState, evt("sandbox.apply.started", {}, 5_000));
+    expect(applyStarted2.rows.sandbox.status).toBe("active");
+    expect(applyStarted2.rows.sandbox.startedAt).toBe(5_000);
+  });
+
+  it("sandbox.apply.completed with payload.ok=true marks sandbox done + records filesWritten in meta", () => {
+    const after1 = timelineReducer(initialTimelineState, evt("sandbox.provisioning", {}, 4_000));
+    const after2 = timelineReducer(after1, evt("sandbox.apply.completed", { ok: true, filesWritten: 6 }, 6_500));
+    expect(after2.rows.sandbox.status).toBe("done");
+    expect(after2.rows.sandbox.durationMs).toBe(2_500);
+    expect(after2.rows.sandbox.meta).toEqual({ filesWritten: 6 });
+  });
+
+  it("sandbox.apply.completed with payload.ok=false marks sandbox failed + stores error", () => {
+    const after1 = timelineReducer(initialTimelineState, evt("sandbox.provisioning", {}, 4_000));
+    const after2 = timelineReducer(
+      after1,
+      evt("sandbox.apply.completed", { ok: false, parseError: "hunk mismatch in /code/src/page.tsx" }, 6_500)
+    );
+    expect(after2.rows.sandbox.status).toBe("failed");
+    expect(after2.rows.sandbox.lastError).toBe("hunk mismatch in /code/src/page.tsx");
+    expect(after2.rows.sandbox.durationMs).toBe(2_500);
+  });
+});
+
+describe("timelineReducer — full happy-path event sequence", () => {
+  it("Architect → Developer → Sandbox produces 3 done rows, no escalation", () => {
+    const events: RitualEvent[] = [
+      evt("ritual.started", {}, 100),
+      evt("role.started", { role: "architect" }, 200),
+      evt("role.completed", { role: "architect" }, 1_400),
+      evt("role.started", { role: "developer" }, 1_500),
+      evt("role.completed", { role: "developer", winner: "anthropic", filesWritten: 6 }, 9_900),
+      evt("sandbox.provisioning", {}, 10_000),
+      evt("sandbox.provisioned", { sandboxId: "sbx-1" }, 10_500),
+      evt("sandbox.apply.started", {}, 10_600),
+      evt("sandbox.apply.completed", { ok: true, filesWritten: 6 }, 11_100),
+      evt("ritual.completed", {}, 11_200)
+    ];
+    const final = events.reduce(timelineReducer, initialTimelineState);
+    expect(final.escalated).toBe(false);
+    expect(final.rows.architect.status).toBe("done");
+    expect(final.rows.architect.durationMs).toBe(1_200);
+    expect(final.rows.developer.status).toBe("done");
+    expect(final.rows.developer.meta).toEqual({ winner: "anthropic", filesWritten: 6 });
+    expect(final.rows.sandbox.status).toBe("done");
+    expect(final.rows.sandbox.meta).toEqual({ filesWritten: 6 });
+  });
+});

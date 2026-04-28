@@ -112,6 +112,52 @@ export function timelineReducer(state: TimelineState, event: RitualEvent): Timel
       return { ...state, rows: { ...state.rows, [phase]: next } };
     }
 
+    case "sandbox.provisioning": {
+      const row = state.rows.sandbox;
+      const next: RowState = { ...row, status: "active", startedAt: event.ts };
+      return { ...state, rows: { ...state.rows, sandbox: next } };
+    }
+
+    case "sandbox.provisioned": {
+      // Provisioned is a milestone, not a finish — the row stays active until
+      // sandbox.apply.completed. We keep startedAt sticky so duration covers
+      // the full provision-to-apply window.
+      const row = state.rows.sandbox;
+      if (row.status === "active") return state; // no transition; preserve reference
+      const next: RowState = { ...row, status: "active" };
+      return { ...state, rows: { ...state.rows, sandbox: next } };
+    }
+
+    case "sandbox.apply.started": {
+      const row = state.rows.sandbox;
+      // Activate only if not already active. If active (e.g. from provisioning)
+      // keep the original startedAt so duration covers the entire window.
+      if (row.status === "active") return state;
+      const next: RowState = { ...row, status: "active", startedAt: event.ts };
+      return { ...state, rows: { ...state.rows, sandbox: next } };
+    }
+
+    case "sandbox.apply.completed": {
+      const row = state.rows.sandbox;
+      const ok = event.payload.ok === true;
+      const durationMs = row.startedAt !== undefined ? event.ts - row.startedAt : row.durationMs;
+      if (ok) {
+        const filesWrittenVal = event.payload.filesWritten;
+        const meta = typeof filesWrittenVal === "number" ? { filesWritten: filesWrittenVal } : row.meta;
+        const next: RowState = {
+          ...row,
+          status: "done",
+          durationMs,
+          ...(meta ? { meta } : {})
+        };
+        return { ...state, rows: { ...state.rows, sandbox: next } };
+      }
+      const errorVal = event.payload.parseError ?? event.payload.error;
+      const lastError = typeof errorVal === "string" ? errorVal : row.lastError;
+      const next: RowState = { ...row, status: "failed", lastError, durationMs };
+      return { ...state, rows: { ...state.rows, sandbox: next } };
+    }
+
     default:
       return state;
   }
