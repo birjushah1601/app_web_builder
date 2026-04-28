@@ -1,50 +1,26 @@
 "use client";
 
-import React, { lazy, Suspense } from "react";
+import React from "react";
 
 /**
- * RitualTimelineSlot — encapsulates the "is Plan E shipped yet?" decision.
+ * RitualTimelineSlot — placeholder until Plan E ships the real
+ * `<RitualTimeline />` at `@/components/ritual/RitualTimeline`.
  *
- * Plan G ships in parallel with Plan E; either order is merge-safe. To
- * avoid a hard dependency, the slot dynamic-imports the Plan E component
- * and falls back to a stable placeholder DOM element when the import
- * rejects. After Plan E lands, the placeholder is silently replaced by
- * the real timeline on next render — no edits to the slot needed.
+ * Earlier versions of this file used a dynamic `import()` to pick up Plan E
+ * at runtime if available. That pattern bundles cleanly under Vitest but
+ * trips Next.js's compiler worker pool ("Jest worker encountered N child
+ * process exceptions") because webpack/turbopack still try to resolve the
+ * path at build time and the `/* @vite-ignore *\/` pragma is Vite-only.
  *
- * The fallback (`<div data-testid="ritual-timeline-host" />`) is the
- * stable contract: e2e tests + unit tests for the rail target this id
- * regardless of which plan landed first.
+ * Plan E's task list explicitly updates this file to import the real
+ * component when the timeline ships. Until then, the rail renders this
+ * stable placeholder; the `data-testid="ritual-timeline-host"` contract is
+ * what unit + e2e tests target, so callers don't see the swap.
  */
-
 interface SlotProps {
   projectId: string;
 }
 
-function PlaceholderTimeline(_props: SlotProps): React.ReactElement {
+export function RitualTimelineSlot(_props: SlotProps): React.ReactElement {
   return <div data-testid="ritual-timeline-host" />;
-}
-
-// Use a string variable so the bundler cannot statically analyze the import
-// path. Plan E ships this module; until it does, the runtime import rejects
-// and the .catch yields the placeholder. The /* @vite-ignore */ pragma
-// suppresses Vite's parse-time resolution check.
-const LAZY_TIMELINE_PATH = "@/components/ritual/RitualTimeline";
-
-const LazyRitualTimeline = lazy<React.ComponentType<SlotProps>>(() =>
-  import(/* @vite-ignore */ LAZY_TIMELINE_PATH)
-    .then((mod: { RitualTimeline?: React.ComponentType<SlotProps> }) => {
-      if (!mod.RitualTimeline) {
-        return { default: PlaceholderTimeline };
-      }
-      return { default: mod.RitualTimeline };
-    })
-    .catch(() => ({ default: PlaceholderTimeline }))
-);
-
-export function RitualTimelineSlot({ projectId }: SlotProps): React.ReactElement {
-  return (
-    <Suspense fallback={<div data-testid="ritual-timeline-host" />}>
-      <LazyRitualTimeline projectId={projectId} />
-    </Suspense>
-  );
 }

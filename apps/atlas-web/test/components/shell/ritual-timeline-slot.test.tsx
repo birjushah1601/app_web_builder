@@ -1,44 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import React, { Suspense } from "react";
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import React from "react";
 
-beforeEach(() => {
-  vi.resetModules();
-});
+import { RitualTimelineSlot } from "@/components/shell/ritual-timeline-slot";
 
-describe("RitualTimelineSlot — placeholder branch (Plan E module not yet shipped)", () => {
-  it("renders <div data-testid='ritual-timeline-host' /> when @/components/ritual/RitualTimeline cannot be imported", async () => {
-    vi.doMock("@/components/ritual/RitualTimeline", () => {
-      throw new Error("module not found (test-forced)");
-    });
-    const { RitualTimelineSlot } = await import("@/components/shell/ritual-timeline-slot");
-    render(
-      <Suspense fallback={<div data-testid="suspense-fallback" />}>
-        <RitualTimelineSlot projectId="p-1" />
-      </Suspense>
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("ritual-timeline-host")).toBeInTheDocument();
-    });
+describe("RitualTimelineSlot — placeholder until Plan E ships", () => {
+  it("renders <div data-testid='ritual-timeline-host' /> as a stable contract for the rail's footer", () => {
+    render(<RitualTimelineSlot projectId="p-1" />);
+    expect(screen.getByTestId("ritual-timeline-host")).toBeInTheDocument();
   });
-});
 
-describe("RitualTimelineSlot — real component branch (Plan E shipped)", () => {
-  it("renders the real <RitualTimeline /> when the module resolves", async () => {
-    vi.doMock("@/components/ritual/RitualTimeline", () => ({
-      RitualTimeline: ({ projectId }: { projectId: string }) => (
-        <div data-testid="ritual-timeline-real">timeline for {projectId}</div>
-      )
-    }));
-    const { RitualTimelineSlot } = await import("@/components/shell/ritual-timeline-slot");
-    render(
-      <Suspense fallback={<div data-testid="suspense-fallback" />}>
-        <RitualTimelineSlot projectId="p-2" />
-      </Suspense>
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("ritual-timeline-real")).toBeInTheDocument();
-    });
-    expect(screen.getByText(/timeline for p-2/)).toBeInTheDocument();
+  it("ignores the projectId prop in the placeholder branch (Plan E will add real per-project rendering)", () => {
+    const { container: a } = render(<RitualTimelineSlot projectId="alpha" />);
+    const { container: b } = render(<RitualTimelineSlot projectId="beta" />);
+    expect(a.innerHTML).toBe(b.innerHTML);
   });
 });
