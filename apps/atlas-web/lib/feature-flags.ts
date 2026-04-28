@@ -10,13 +10,19 @@ export type FeatureFlag =
   | "figma-importer"
   | "stripe-payments"
   | "video-kling"
-  | "auth-keycloak";
+  | "auth-keycloak"
+  | "live-events";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
   "stripe-payments": "ATLAS_FF_STRIPE_PAYMENTS",
   "video-kling": "ATLAS_FF_VIDEO_KLING",
-  "auth-keycloak": "ATLAS_FF_AUTH_KEYCLOAK"
+  "auth-keycloak": "ATLAS_FF_AUTH_KEYCLOAK",
+  // Per spec 2026-04-28-live-events-and-preview-reload-design.md, this flag
+  // diverges from the ATLAS_FF_* convention — the spec mandates this exact
+  // env name so operators can flip live events on a deploy without learning
+  // the FF prefix convention.
+  "live-events": "ATLAS_LIVE_EVENTS"
 };
 
 export interface FeatureFlagSource {
@@ -45,6 +51,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "figma-importer": isFeatureEnabled("figma-importer", source),
     "stripe-payments": isFeatureEnabled("stripe-payments", source),
     "video-kling": isFeatureEnabled("video-kling", source),
-    "auth-keycloak": isFeatureEnabled("auth-keycloak", source)
+    "auth-keycloak": isFeatureEnabled("auth-keycloak", source),
+    "live-events": isFeatureEnabled("live-events", source)
   };
 }
