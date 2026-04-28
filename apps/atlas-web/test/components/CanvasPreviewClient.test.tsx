@@ -7,6 +7,11 @@ import { CanvasPreviewClient } from "@/app/projects/[projectId]/canvas/_componen
 // the dep installed at test time.
 vi.mock("iframe-resizer", () => ({ iframeResize: () => undefined }));
 
+// Plan F: HmrIframe consumes useReloadOnApplied which reads useEventStream.
+vi.mock("@/lib/events/EventSourceProvider", () => ({
+  useEventStream: vi.fn(() => ({ events: [], status: "disabled", lastEventId: null }))
+}));
+
 describe("CanvasPreviewClient", () => {
   it("renders the iframe when a previewUrl is supplied", () => {
     render(
@@ -61,5 +66,20 @@ describe("CanvasPreviewClient", () => {
     );
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(/spend cap, API key, sandbox quota/i);
+  });
+});
+
+describe("CanvasPreviewClient — forwards projectId to HmrIframe (plan F wiring)", () => {
+  it("passes projectId so HmrIframe can subscribe to the SSE stream", () => {
+    render(
+      <CanvasPreviewClient
+        projectId="proj-from-parent"
+        sandboxId="sbx-1"
+        previewUrl="https://3000-sbx.e2b.app"
+      />
+    );
+    // The Reload button is rendered by HmrIframe — its presence confirms
+    // HmrIframe mounted, and HmrIframe requires projectId to mount (TS-checked).
+    expect(screen.getByTestId("preview-reload-button")).toBeTruthy();
   });
 });
