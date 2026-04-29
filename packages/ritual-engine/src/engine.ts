@@ -22,7 +22,17 @@ export interface RitualEngineOptions {
    *  A gate-failing role (report.passed === false) escalates the ritual
    *  and stops the chain. Default [] preserves today's architect→developer-only flow. */
   postDeveloperChain?: string[];
+  /** Plan L: when true AND a chained gate fails, the engine auto-triggers
+   *  a refine() with the gate's report folded into PriorRitualContext as
+   *  a fix request. Capped at MAX_FIX_ATTEMPTS per ritual lineage.
+   *  Default false preserves Plan I's escalate-and-stop behavior. */
+  autoFixLoopEnabled?: boolean;
 }
+
+/** Plan L: hard cap on auto-fix attempts per ritual lineage to prevent
+ *  infinite retry loops on uncfixable issues. Each attempt re-runs the
+ *  full architect → developer → gates pipeline against the fresh diff. */
+const MAX_FIX_ATTEMPTS = 2;
 
 export interface StartInput {
   userTurn: string;
@@ -105,6 +115,10 @@ interface RitualRecord {
    *  the parent ritual whose snapshot was threaded into the architect's
    *  prompt as PriorRitualContext. */
   parentRitualId?: string;
+  /** Plan L: incremented each time the engine auto-triggers a refine() in
+   *  response to a chained gate failure. Inherited from parent for child
+   *  rituals so MAX_FIX_ATTEMPTS gates the whole lineage. */
+  fixAttempts?: number;
 }
 
 /** Read-only view of a ritual's persisted state. Returned by getRitual(). */
@@ -123,6 +137,9 @@ export interface RitualSnapshot {
   accessibilityReport?: unknown;
   /** Plan K: present when ritual was created via refine(); links lineage. */
   parentRitualId?: string;
+  /** Plan L: count of auto-fix attempts in this ritual's lineage. ChatPanel
+   *  uses this to render an "(auto-fix #N)" badge. */
+  fixAttempts?: number;
 }
 
 export class RitualEngine {
@@ -132,6 +149,7 @@ export class RitualEngine {
   private readonly applier?: SandboxApplier;
   private readonly hydrator?: RitualHydrator;
   private readonly postDeveloperChain: readonly string[];
+  private readonly autoFixLoopEnabled: boolean;
   private readonly rituals = new Map<string, RitualRecord>();
 
   constructor(opts: RitualEngineOptions) {
@@ -140,6 +158,7 @@ export class RitualEngine {
     this.prefs = opts.personaPreferences;
     this.applier = opts.sandboxApplier;
     this.postDeveloperChain = opts.postDeveloperChain ?? [];
+    this.autoFixLoopEnabled = opts.autoFixLoopEnabled ?? false;
     this.hydrator = opts.hydrator;
   }
 
@@ -186,6 +205,9 @@ export class RitualEngine {
   private async _runRitual(input: StartInput & {
     priorContext?: PriorRitualContext;
     parentRitualId?: string;
+    /** Plan L: when triggered by the auto-fix loop, the engine sets this to
+     *  parent.fixAttempts + 1 so the new ritual inherits the budget. */
+    fixAttempts?: number;
   }): Promise<string> {
     const ritualId = `r-${randomUUID()}`;
     const initialRecord: RitualRecord = {
@@ -195,6 +217,9 @@ export class RitualEngine {
     };
     if (input.parentRitualId) {
       initialRecord.parentRitualId = input.parentRitualId;
+    }
+    if (input.fixAttempts !== undefined) {
+      initialRecord.fixAttempts = input.fixAttempts;
     }
     this.rituals.set(ritualId, initialRecord);
 
@@ -337,6 +362,62 @@ export class RitualEngine {
                     requestedBy: roleId
                   }
                 });
+
+                // Plan L: auto-fix loop. When enabled AND budget remains,
+                // synthesize a fix-request userTurn from the issues + trigger
+                // _runRitual with the gate report folded into PriorRitualContext.
+                const currentAttempts = record.fixAttempts ?? 0;
+                if (this.autoFixLoopEnabled && currentAttempts < MAX_FIX_ATTEMPTS) {
+                  const issues = (payload.report as { issues?: Array<{ severity?: string; message?: string }> })?.issues ?? [];
+                  const issuesAsBullets = issues
+                    .map((i) => `- [${i.severity ?? "unknown"}] ${i.message ?? "(no message)"}`)
+                    .join("\n");
+                  const fixUserTurn = `Address the ${gateLabel} findings:\n${issuesAsBullets}`;
+                  const nextAttempt = currentAttempts + 1;
+
+                  await this.emit({
+                    type: "auto_fix.attempted",
+                    ritualId,
+                    ts: new Date().toISOString(),
+                    payload: { gate: gateLabel, attemptNumber: nextAttempt, parentRitualId: ritualId }
+                  });
+
+                  try {
+                    await this._runRitual({
+                      userTurn: fixUserTurn,
+                      editClass: "structural",
+                      projectId: input.projectId,
+                      userId: input.userId,
+                      priorContext: buildPriorRitualContext({
+                        ritualId,
+                        artifact: record.artifact,
+                        developerOutput: record.developerOutput,
+                        roleEvents: record.roleEvents,
+                        securityReport: record.securityReport,
+                        accessibilityReport: record.accessibilityReport
+                      }),
+                      parentRitualId: ritualId,
+                      fixAttempts: nextAttempt
+                    });
+                  } catch (err) {
+                    // Auto-fix infrastructure failed (LLM/conductor error).
+                    // Don't retry — emit a synthetic event and let the original
+                    // escalation stand.
+                    await this.emit({
+                      type: "auto_fix.failed",
+                      ritualId,
+                      ts: new Date().toISOString(),
+                      payload: { gate: gateLabel, error: err instanceof Error ? err.message : String(err) }
+                    });
+                  }
+                } else if (this.autoFixLoopEnabled && currentAttempts >= MAX_FIX_ATTEMPTS) {
+                  await this.emit({
+                    type: "auto_fix.budget_exhausted",
+                    ritualId,
+                    ts: new Date().toISOString(),
+                    payload: { gate: gateLabel, attempts: currentAttempts }
+                  });
+                }
                 break;
               }
             } catch (err) {
@@ -411,7 +492,8 @@ export class RitualEngine {
         sandboxApplyResult: r.sandboxApplyResult,
         securityReport: r.securityReport,
         accessibilityReport: r.accessibilityReport,
-        parentRitualId: r.parentRitualId
+        parentRitualId: r.parentRitualId,
+        fixAttempts: r.fixAttempts
       };
     }
     // Plan H: in-memory miss — fall back to hydrator if configured.

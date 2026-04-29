@@ -757,3 +757,18 @@ pnpm -F @atlas/ritual-engine test
 2. **Per-project MAX_FIX_ATTEMPTS override.** Today's hardcoded 2 may be too low for complex scenarios; users could set per-project budgets via PreferencesRepo.
 3. **Partial-fix tracking.** Today refining 3 issues either passes or fails as a whole — no bookkeeping of which 2/3 the model addressed. v2 could track per-issue resolution.
 4. **Streaming progress** — when the broker fires `auto_fix.attempted` events, the rail's RitualTimeline should show "AI auto-fixing 3 L4 findings…" inline. Plan E's reducer needs a new event handler.
+
+---
+
+## Shipped
+
+7 of 8 tasks executed inline + merged to `plan-l/developer-fix-loop` and then to `main`. `pnpm typecheck` clean across atlas-web + @atlas/ritual-engine + @atlas/role-architect. ritual-engine added 4 auto-fix-loop cases + 3 prior-context-gate-reports cases (98 total now). role-architect added 3 gate-findings cases (38 total). atlas-web added 3 auto-fix-loop flag cases. ChatPanel renders the "(auto-fix #N)" badge inline on fix-attempt rituals (existing 21 ChatPanel tests still pass post-wiring).
+
+Deviations from plan:
+- **Tasks 2-3 combined** into one commit (PriorRitualContext extension + architect prompt are tightly coupled).
+- **Tasks 4-5 combined** into one commit (engine auto-fix logic + factory wiring are a unit).
+- **Tasks 6-8 split into three commits**: badge + ChatPanel result-shape, env+docs, merge.
+- **No dedicated ChatPanel test added** for the auto-fix badge — the change is purely additive (a one-line prop forward + a 5-line conditional render); the 21 existing ChatPanel tests still pass and confirm no regression.
+- **Plan-text correction:** the `.env.example` block was authored saying "requires ATLAS_FF_MULTI_TURN". Wrong — the auto-fix loop fires inside the engine via `_runRitual`, NOT via the public `engine.refine()` Server Action. The user-facing refinement flow (Plan K) is independent. Documented the correction in both `.env.example` blocks.
+
+The cross-flag dependency that DOES hold: at least one of `ATLAS_FF_SECURITY_ROLE` / `ATLAS_FF_A11Y_ROLE` must be on (and the chain must run + fail) for the auto-fix to ever trigger.

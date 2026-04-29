@@ -18,6 +18,10 @@ export interface StartRitualResult {
   securityReport?: SecurityReport;
   /** Plan I: present when AccessibilityRole ran. */
   accessibilityReport?: AccessibilityReport;
+  /** Plan L: > 0 when this ritual was created by the engine's auto-fix
+   *  loop after a parent ritual's gate failed. ChatPanel renders an
+   *  "(auto-fix #N)" badge. */
+  fixAttempts?: number;
   developerOutput?: { diff: string; summary?: string };
   sandboxApplyResult?: {
     ok: boolean;
@@ -165,6 +169,16 @@ function ArchitectOutput({
 
   return (
     <>
+      {/* Plan L: badge fix-attempt rituals so users can tell at a glance which
+       *  cards in the conversation thread came from the engine's auto-fix loop
+       *  vs. the original user submission or a manual refinement. */}
+      {result.fixAttempts !== undefined && result.fixAttempts > 0 && (
+        <div className="mb-1">
+          <span data-testid="auto-fix-badge" className="text-xs font-mono text-amber-700">
+            (auto-fix #{result.fixAttempts})
+          </span>
+        </div>
+      )}
       {blockingQuestions.length > 0 ? (
         <div data-testid="architect-needs-input" className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs">
           <div className="mb-1 font-semibold text-amber-900">Architect needs more info:</div>

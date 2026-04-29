@@ -16,7 +16,8 @@ export type FeatureFlag =
   | "security-role"
   | "a11y-role"
   | "run-grafana"
-  | "multi-turn";
+  | "multi-turn"
+  | "auto-fix-loop";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -40,7 +41,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // to real Grafana queries. Standard ATLAS_FF_* convention.
   "run-grafana": "ATLAS_FF_RUN_GRAFANA",
   // Plan K — multi-turn refinement (chat-style follow-ups on the same ritual lineage).
-  "multi-turn": "ATLAS_FF_MULTI_TURN"
+  "multi-turn": "ATLAS_FF_MULTI_TURN",
+  // Plan L — auto-fix loop on gate failure (uses refine() under the hood; requires multi-turn).
+  "auto-fix-loop": "ATLAS_FF_AUTO_FIX_LOOP"
 };
 
 export interface FeatureFlagSource {
@@ -75,6 +78,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "security-role": isFeatureEnabled("security-role", source),
     "a11y-role": isFeatureEnabled("a11y-role", source),
     "run-grafana": isFeatureEnabled("run-grafana", source),
-    "multi-turn": isFeatureEnabled("multi-turn", source)
+    "multi-turn": isFeatureEnabled("multi-turn", source),
+    "auto-fix-loop": isFeatureEnabled("auto-fix-loop", source)
   };
 }

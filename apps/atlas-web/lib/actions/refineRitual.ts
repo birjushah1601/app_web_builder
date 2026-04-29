@@ -37,6 +37,7 @@ export async function refineRitual(input: RefineRitualInput): Promise<RefineRitu
     artifact: snapshot?.artifact,
     roleEvents: snapshot?.roleEvents ?? [],
     developerOutput: snapshot?.developerOutput,
-    sandboxApplyResult: snapshot?.sandboxApplyResult
+    sandboxApplyResult: snapshot?.sandboxApplyResult,
+    fixAttempts: snapshot?.fixAttempts
   };
 }
