@@ -58,6 +58,14 @@ export class SandboxFactory {
     this.sessions.delete(projectId);
   }
 
+  /** Drop the in-memory cache entry for a project without trying to terminate
+   *  the underlying sandbox. Call this when a downstream Sandbox.connect()
+   *  call throws "paused / not found" — E2B has already collected the
+   *  sandbox, so the next getOrProvision() will allocate a fresh one. */
+  evict(projectId: string): void {
+    this.sessions.delete(projectId);
+  }
+
   private async doProvision(projectId: string): Promise<SandboxSession> {
     await checkSpendCap(projectId, this.config.spendReader, this.config.spendCapConfig);
     const record = await this.config.lifecycle.provision(

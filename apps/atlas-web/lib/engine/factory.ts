@@ -224,7 +224,12 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     // engine's start() loop.
     sandboxApplier: {
       apply: async (sandboxProjectId, diff) => {
-        try {
+        // Single-retry loop. E2B auto-pauses sandboxes after idle TTL
+        // (~5 min); the in-memory cache then points at a sandbox that
+        // returns "Paused sandbox <id> not found" on Sandbox.connect().
+        // On that specific failure we evict and re-provision once;
+        // anything else propagates as a parseError.
+        const tryApply = async (): Promise<Awaited<ReturnType<typeof applyDiff>>> => {
           const session = await getSandboxFactory().getOrProvision(sandboxProjectId);
           const { Sandbox } = await import("@e2b/sdk");
           const sdk = await Sandbox.connect(session.record.sandboxId, {
@@ -235,7 +240,36 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
           // unused by applyDiff — narrow via cast rather than wrap each call.
           const fs = createSandboxFsAdapter(sdk as never);
           return await applyDiff(fs, diff);
+        };
+
+        const isStaleSandboxError = (err: unknown): boolean => {
+          const msg = err instanceof Error ? err.message : String(err);
+          return /paused\s+sandbox.*not\s+found|sandbox\s+not\s+found|sandbox.*was\s+killed/i.test(msg);
+        };
+
+        try {
+          return await tryApply();
         } catch (err) {
+          if (isStaleSandboxError(err)) {
+            console.warn(
+              `[atlas-web] sandbox stale for project ${sandboxProjectId}, evicting + reprovisioning:`,
+              err instanceof Error ? err.message : String(err)
+            );
+            getSandboxFactory().evict(sandboxProjectId);
+            try {
+              return await tryApply();
+            } catch (retryErr) {
+              return {
+                ok: false,
+                parsed: 0,
+                written: 0,
+                failed: 0,
+                skipped: 0,
+                files: [],
+                parseError: `sandbox unavailable after reprovision: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`
+              };
+            }
+          }
           return {
             ok: false,
             parsed: 0,
