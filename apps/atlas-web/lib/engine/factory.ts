@@ -68,7 +68,21 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     );
   }
 
-  if (llm) {
+  // Plan Q: demo-mode short-circuit. When ATLAS_FF_DEMO_MODE=true, swap
+  // architect + developer for canned-response stand-ins so the full UI
+  // flow runs end-to-end without any LLM call. Plan I gates (security/a11y)
+  // still run if their flags are on — they hit the real LLM via the existing
+  // role packages, so demo-mode + gate flags both on means gates still cost
+  // a small amount per ritual. To make demo-mode FULLY token-free, also
+  // leave ATLAS_FF_SECURITY_ROLE / ATLAS_FF_A11Y_ROLE off.
+  const { isFeatureEnabled: _ffq } = await import("@/lib/feature-flags");
+  if (_ffq("demo-mode")) {
+    const { DemoArchitectRole } = await import("./demo-mode/demo-architect-role");
+    const { DemoDeveloperRole } = await import("./demo-mode/demo-developer-role");
+    roles.set("architect", new DemoArchitectRole());
+    roles.set("developer", new DemoDeveloperRole());
+    console.warn("[atlas-web] DEMO MODE active — architect + developer return canned outputs (no LLM cost). Unset ATLAS_FF_DEMO_MODE for real LLM flow.");
+  } else if (llm) {
     const skillsRoot = resolve(process.cwd(), "..", "..", "packages", "skill-library", "skills");
     const skillSubdirs = ["architect", "developer", "ship", "reviewer", "debugger", "security", "accessibility"];
     const allSkills = (
