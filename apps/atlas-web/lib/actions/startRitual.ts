@@ -3,6 +3,8 @@
 import { auth } from "@/lib/auth/clerk-compat";
 import { getRitualEngine } from "@/lib/engine/factory";
 import type { EditClass } from "@atlas/ritual-engine";
+import type { SecurityReport } from "@/components/SecurityReportPanel";
+import type { AccessibilityReport } from "@/components/AccessibilityReportPanel";
 
 export interface StartRitualInput {
   projectId: string;
@@ -41,6 +43,11 @@ export interface StartRitualResult {
     }>;
     parseError?: string;
   };
+  /** Plan I: SecurityRole (L4 gate) report when ATLAS_FF_SECURITY_ROLE on
+   *  AND the developer produced a real diff. passed=false escalates the ritual. */
+  securityReport?: SecurityReport;
+  /** Plan I: AccessibilityRole (L5 gate) report when ATLAS_FF_A11Y_ROLE on. */
+  accessibilityReport?: AccessibilityReport;
 }
 
 export async function startRitual(input: StartRitualInput): Promise<StartRitualResult> {
@@ -62,6 +69,8 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
     artifact: snapshot?.artifact,
     roleEvents: snapshot?.roleEvents ?? [],
     developerOutput: snapshot?.developerOutput,
-    sandboxApplyResult: snapshot?.sandboxApplyResult
+    sandboxApplyResult: snapshot?.sandboxApplyResult,
+    securityReport: snapshot?.securityReport as SecurityReport | undefined,
+    accessibilityReport: snapshot?.accessibilityReport as AccessibilityReport | undefined
   };
 }
