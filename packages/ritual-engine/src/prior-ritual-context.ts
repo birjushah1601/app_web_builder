@@ -10,6 +10,12 @@ export interface PriorRitualContext {
   parentArtifact?: unknown;
   parentDeveloperOutput?: DeveloperOutputRecord;
   parentRoleEvents?: RoleEventRecord[];
+  /** Plan L: gate report from the parent's SecurityRole dispatch when the
+   *  chain failed. When present + passed=false, the architect prompt
+   *  prepends a "## Gate findings" section enumerating the issues. */
+  parentSecurityReport?: unknown;
+  /** Plan L: gate report from the parent's AccessibilityRole dispatch. Same shape contract. */
+  parentAccessibilityReport?: unknown;
 }
 
 const DIFF_TRUNCATE_MAX = 8000;
@@ -23,6 +29,9 @@ export function buildPriorRitualContext(input: {
   artifact?: unknown;
   developerOutput?: DeveloperOutputRecord;
   roleEvents?: RoleEventRecord[];
+  /** Plan L: gate reports from the parent ritual when the chain failed. */
+  securityReport?: unknown;
+  accessibilityReport?: unknown;
 }): PriorRitualContext {
   let parentDeveloperOutput = input.developerOutput;
   if (parentDeveloperOutput && parentDeveloperOutput.diff.length > DIFF_TRUNCATE_MAX) {
@@ -39,7 +48,9 @@ export function buildPriorRitualContext(input: {
     parentRitualId: input.ritualId,
     parentArtifact: input.artifact,
     parentDeveloperOutput,
-    parentRoleEvents: input.roleEvents
+    parentRoleEvents: input.roleEvents,
+    parentSecurityReport: input.securityReport,
+    parentAccessibilityReport: input.accessibilityReport
   };
 }
 

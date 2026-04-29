@@ -55,3 +55,51 @@ describe("buildArchitectUserTurn — PriorRitualContext threading (Plan K Task 4
     expect(out).not.toMatch(/previous turn/i);
   });
 });
+
+describe("buildArchitectUserTurn — gate findings (Plan L Task 3)", () => {
+  it("renders '## Gate findings' section when parentSecurityReport.passed === false", () => {
+    const prior = buildPriorRitualContext({
+      ritualId: "r-parent",
+      securityReport: {
+        passed: false,
+        issues: [{ severity: "critical", message: "Hardcoded API key in src/foo.ts" }]
+      }
+    });
+    const out = buildArchitectUserTurn({
+      userTurn: "address the security findings",
+      scope: "new-feature",
+      priorRitual: prior
+    });
+    expect(out).toMatch(/## Gate findings/);
+    expect(out).toContain("Hardcoded API key");
+    expect(out).toContain("L4 Security");
+  });
+
+  it("renders gate-findings for accessibility too", () => {
+    const prior = buildPriorRitualContext({
+      ritualId: "r-parent",
+      accessibilityReport: {
+        passed: false,
+        issues: [{ severity: "high", message: "Image missing alt text" }]
+      }
+    });
+    const out = buildArchitectUserTurn({
+      userTurn: "fix the a11y issues",
+      scope: "new-feature",
+      priorRitual: prior
+    });
+    expect(out).toContain("missing alt text");
+    expect(out).toContain("L5 Accessibility");
+  });
+
+  it("does NOT render '## Gate findings' when both reports are absent or passed", () => {
+    const prior = buildPriorRitualContext({
+      ritualId: "r-parent",
+      securityReport: { passed: true, issues: [] }
+    });
+    const out = buildArchitectUserTurn({
+      userTurn: "iterate", scope: "new-feature", priorRitual: prior
+    });
+    expect(out).not.toMatch(/## Gate findings/);
+  });
+});

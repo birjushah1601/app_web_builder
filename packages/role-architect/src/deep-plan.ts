@@ -38,11 +38,52 @@ export function buildArchitectUserTurn(input: {
 
   if (isPriorRitualContext(input.priorRitual)) {
     sections.push(renderPriorRitualSection(input.priorRitual));
+    // Plan L: when the prior ritual carries failed gate reports, render a
+    // dedicated "## Gate findings" section so the model sees the issues
+    // verbatim, not buried inside a JSON-dump artifact.
+    const gateFindings = renderGateFindingsSection(input.priorRitual);
+    if (gateFindings) sections.push(gateFindings);
   }
 
   sections.push(`Scope: ${input.scope}\n\nUser intent: ${input.userTurn}`);
 
   return sections.join("\n\n---\n\n");
+}
+
+interface GateIssue {
+  severity?: string;
+  message?: string;
+}
+interface GateReport {
+  passed?: boolean;
+  issues?: GateIssue[];
+}
+
+function renderGateFindingsSection(prior: PriorRitualContext): string | null {
+  const sec = prior.parentSecurityReport as GateReport | undefined;
+  const a11y = prior.parentAccessibilityReport as GateReport | undefined;
+  const secFails = sec && sec.passed === false && Array.isArray(sec.issues) && sec.issues.length > 0;
+  const a11yFails = a11y && a11y.passed === false && Array.isArray(a11y.issues) && a11y.issues.length > 0;
+  if (!secFails && !a11yFails) return null;
+
+  const lines: string[] = [
+    "## Gate findings",
+    "",
+    "The following gate failures must be addressed:"
+  ];
+  if (secFails) {
+    lines.push("", "### L4 Security");
+    for (const i of sec!.issues!) {
+      lines.push(`- [${i.severity ?? "unknown"}] ${i.message ?? "(no message)"}`);
+    }
+  }
+  if (a11yFails) {
+    lines.push("", "### L5 Accessibility");
+    for (const i of a11y!.issues!) {
+      lines.push(`- [${i.severity ?? "unknown"}] ${i.message ?? "(no message)"}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 function renderPriorRitualSection(prior: PriorRitualContext): string {
