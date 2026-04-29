@@ -253,6 +253,19 @@ function mapCheckpointToRitualType(eventType: string): RitualEventType | null {
     case "sandbox.provisioned":     return "sandbox.provisioned";
     case "sandbox.apply.started":   return "sandbox.apply.started";
     case "sandbox.apply.completed": return "sandbox.apply.completed";
+    // Plan P: forward gate + auto-fix events to the broker so the live UI
+    // shows them. Without this mapping these events emit to the engine's
+    // sink (Postgres) but never reach the broker → SSE → RitualTimeline path.
+    case "ritual.escalation_requested": return "ritual.escalation_requested";
+    case "security.started":        return "security.started";
+    case "security.completed":      return "security.completed";
+    case "security.failed":         return "security.failed";
+    case "accessibility.started":   return "accessibility.started";
+    case "accessibility.completed": return "accessibility.completed";
+    case "accessibility.failed":    return "accessibility.failed";
+    case "auto_fix.attempted":      return "auto_fix.attempted";
+    case "auto_fix.budget_exhausted": return "auto_fix.budget_exhausted";
+    case "auto_fix.failed":         return "auto_fix.failed";
     default:                        return null;
   }
 }

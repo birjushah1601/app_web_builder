@@ -19,6 +19,7 @@ export type RitualEventType =
   | "ritual.started"
   | "ritual.completed"
   | "ritual.escalated"
+  | "ritual.escalation_requested"
   | "role.started"
   | "role.completed"
   | "role.failed"
@@ -26,7 +27,18 @@ export type RitualEventType =
   | "sandbox.provisioning"
   | "sandbox.provisioned"
   | "sandbox.apply.started"
-  | "sandbox.apply.completed";
+  | "sandbox.apply.completed"
+  // Plan P: gate events (Plan I) — surface on the rail timeline as their own rows.
+  | "security.started"
+  | "security.completed"
+  | "security.failed"
+  | "accessibility.started"
+  | "accessibility.completed"
+  | "accessibility.failed"
+  // Plan P: auto-fix events (Plan L) — increment a meta-state counter on the timeline.
+  | "auto_fix.attempted"
+  | "auto_fix.budget_exhausted"
+  | "auto_fix.failed";
 
 /** A published event. The broker assigns `id` on publish; it is opaque to
  *  clients (they echo it back via Last-Event-ID for resume). Format today
