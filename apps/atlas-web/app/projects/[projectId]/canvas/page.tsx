@@ -1,6 +1,7 @@
 import { CanvasClient } from "@/components/CanvasClient";
 import { ChatPanel } from "@/components/ChatPanel";
 import { startRitual } from "@/lib/actions/startRitual";
+import { refineRitual } from "@/lib/actions/refineRitual";
 import { getSandboxFactory } from "@/lib/sandbox/factory";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { CanvasPreviewClient } from "./_components/CanvasPreviewClient";
@@ -32,6 +33,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // ChatPanel here would double-render the chat history and split the
   // conversation across two trees — gate the local mount on the flag.
   const liveEventsOn = isFeatureEnabled("live-events");
+  const multiTurnOn = isFeatureEnabled("multi-turn");
 
   return (
     <main className="flex h-full">
@@ -44,7 +46,14 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
         />
         <CanvasClient graph={graph} projectId={projectId} />
       </section>
-      {liveEventsOn ? null : <ChatPanel projectId={projectId} action={startRitual} />}
+      {liveEventsOn ? null : (
+        <ChatPanel
+          projectId={projectId}
+          action={startRitual}
+          multiTurnFlagEnabled={multiTurnOn}
+          refineAction={refineRitual}
+        />
+      )}
     </main>
   );
 }

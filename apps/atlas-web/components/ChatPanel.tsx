@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SecurityReportPanel, type SecurityReport } from "@/components/SecurityReportPanel";
 import { AccessibilityReportPanel, type AccessibilityReport } from "@/components/AccessibilityReportPanel";
+import { RefinementInputBar } from "@/components/RefinementInputBar";
 
 export interface RoleEvent {
   eventType: string;
@@ -46,6 +47,17 @@ export interface ChatPanelProps {
     userTurn: string;
     editClass: "structural" | "cosmetic";
   }) => Promise<StartRitualResult>;
+  /** Plan K: when ATLAS_FF_MULTI_TURN is on (read server-side), render
+   *  the <RefinementInputBar /> beneath each developer-output card so the
+   *  user can iterate on the prior result. */
+  multiTurnFlagEnabled?: boolean;
+  /** Plan K: server action that creates a child ritual linked to the
+   *  given parentRitualId. Required when multiTurnFlagEnabled is true. */
+  refineAction?: (input: {
+    projectId: string;
+    parentRitualId: string;
+    userTurn: string;
+  }) => Promise<StartRitualResult & { parentRitualId: string }>;
 }
 
 interface HistoryEntry {
@@ -54,7 +66,7 @@ interface HistoryEntry {
   result?: StartRitualResult;
 }
 
-export function ChatPanel({ projectId, action }: ChatPanelProps) {
+export function ChatPanel({ projectId, action, multiTurnFlagEnabled = false, refineAction }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +98,20 @@ export function ChatPanel({ projectId, action }: ChatPanelProps) {
           m.role === "user" ? (
             <div key={i} className="mb-2 text-sm"><strong>You:</strong> {m.text}</div>
           ) : (
-            <ArchitectOutput key={i} result={m.result!} />
+            <ArchitectOutput
+              key={i}
+              result={m.result!}
+              projectId={projectId}
+              multiTurnFlagEnabled={multiTurnFlagEnabled}
+              onRefine={refineAction ? async (userTurn: string) => {
+                const child = await refineAction({
+                  projectId,
+                  parentRitualId: m.result!.ritualId,
+                  userTurn
+                });
+                setHistory((h) => [...h, { role: "user", text: userTurn }, { role: "architect", result: child }]);
+              } : undefined}
+            />
           )
         ))}
       </div>
@@ -120,7 +145,17 @@ export function ChatPanel({ projectId, action }: ChatPanelProps) {
  *   3. Neither (rare; role threw mid-pass1) → show "no output" diagnostic
  *  Plus a fourth panel below for developer output / failure when present.
  */
-function ArchitectOutput({ result }: { result: StartRitualResult }) {
+function ArchitectOutput({
+  result,
+  projectId,
+  multiTurnFlagEnabled,
+  onRefine
+}: {
+  result: StartRitualResult;
+  projectId: string;
+  multiTurnFlagEnabled?: boolean;
+  onRefine?: (userTurn: string) => Promise<void>;
+}) {
   const blockingQuestions = result.roleEvents.filter(
     (e) => e.eventType === "architect.triage.needs_input"
   );
@@ -169,6 +204,18 @@ function ArchitectOutput({ result }: { result: StartRitualResult }) {
 
       {result.securityReport && <SecurityReportPanel report={result.securityReport} />}
       {result.accessibilityReport && <AccessibilityReportPanel report={result.accessibilityReport} />}
+
+      {/* Plan K: render the refinement input bar under each ritual's developer
+       *  output so the user can iterate. flagEnabled gates visibility; onRefine
+       *  is undefined when ChatPanel wasn't passed a refineAction. */}
+      {result.developerOutput && onRefine && (
+        <RefinementInputBar
+          projectId={projectId}
+          parentRitualId={result.ritualId}
+          flagEnabled={multiTurnFlagEnabled ?? false}
+          onRefine={onRefine}
+        />
+      )}
     </>
   );
 }
