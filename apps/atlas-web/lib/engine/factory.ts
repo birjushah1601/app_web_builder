@@ -194,6 +194,12 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     personaPreferences: prefs,
     hydrator,
     postDeveloperChain,
+    // Plan L: when ATLAS_FF_AUTO_FIX_LOOP is on, the engine auto-triggers
+    // refine() in response to a chained gate failure. Capped at MAX_FIX_ATTEMPTS
+    // per ritual lineage. Cross-flag dependency: refine() only works when
+    // the postDeveloperChain has actually run, which itself is gated by
+    // ATLAS_FF_SECURITY_ROLE / ATLAS_FF_A11Y_ROLE.
+    autoFixLoopEnabled: isFeatureEnabled("auto-fix-loop"),
     // Plan C: when the developer role lands a diff, the engine writes it
     // into the project's E2B sandbox. The applier resolves the live
     // sandbox session via SandboxFactory, reattaches to the running E2B

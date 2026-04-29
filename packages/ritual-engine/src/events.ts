@@ -96,6 +96,37 @@ const RitualCompletedSchema = z.object({
   payload: z.object({ finalState: z.enum(["done", "escalated", "aborted"]) })
 });
 
+// Plan L: emitted when the engine auto-triggers a refine() in response to
+// a chained gate failure (when ATLAS_FF_AUTO_FIX_LOOP is on).
+const AutoFixAttemptedSchema = z.object({
+  type: z.literal("auto_fix.attempted"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({
+    gate: z.string(),
+    attemptNumber: z.number().int().positive(),
+    parentRitualId: z.string()
+  })
+});
+
+// Plan L: emitted when the auto-fix budget (MAX_FIX_ATTEMPTS) is hit
+// without the gate passing — the chain stops and the ritual stays escalated.
+const AutoFixBudgetExhaustedSchema = z.object({
+  type: z.literal("auto_fix.budget_exhausted"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({ gate: z.string(), attempts: z.number().int().nonnegative() })
+});
+
+// Plan L: emitted when the auto-fix infrastructure itself fails (LLM error,
+// conductor refusal, etc.) — distinct from a gate that failed cleanly.
+const AutoFixFailedSchema = z.object({
+  type: z.literal("auto_fix.failed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({ gate: z.string(), error: z.string() })
+});
+
 export const RitualEventSchema = z.discriminatedUnion("type", [
   RitualStartedSchema,
   RitualTransitionedSchema,
@@ -105,7 +136,10 @@ export const RitualEventSchema = z.discriminatedUnion("type", [
   RitualRiskAcceptedSchema,
   RitualEscalationRequestedSchema,
   RitualMergeGateResultSchema,
-  RitualCompletedSchema
+  RitualCompletedSchema,
+  AutoFixAttemptedSchema,
+  AutoFixBudgetExhaustedSchema,
+  AutoFixFailedSchema
 ]);
 export type RitualEvent = z.infer<typeof RitualEventSchema>;
 
