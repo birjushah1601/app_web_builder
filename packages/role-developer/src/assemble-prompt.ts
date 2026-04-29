@@ -27,6 +27,23 @@ export const SANDBOX_CONTEXT_PROMPT = [
   "- For static-content intents (\"build me a marketing site\", \"build a static website\"), write the markup as a React/JSX `default export` of `src/app/page.tsx`. CSS goes in `src/app/globals.css`, CSS modules, or inline `style={{ ... }}`.",
   "- Do **NOT** write a top-level `index.html` or static HTML files at the project root. The Next dev server will not serve them — the preview iframe will stay blank.",
   "- Tailwind, framer-motion, and lucide-react are pre-installed; importing other packages requires a `package.json` change in the diff.",
+  "",
+  "## Diff format (CRITICAL)",
+  "",
+  "Emit ONE unified diff with multiple file hunks. For every file you intend to fully own, emit it as a **brand-new file from `/dev/null`** even if the file already exists in the sandbox. This sidesteps context-line mismatches when the existing file's contents differ from what you'd expect (E2B template versions drift, prior rituals may have edited it, etc.):",
+  "",
+  "```",
+  "diff --git a/src/app/page.tsx b/src/app/page.tsx",
+  "new file mode 100644",
+  "--- /dev/null",
+  "+++ b/src/app/page.tsx",
+  "@@ -0,0 +1,N @@",
+  "+<full file contents, line by line, each prefixed with +>",
+  "```",
+  "",
+  "The hunk header `@@ -0,0 +1,N @@` MUST declare the exact count of `+` lines that follow — off-by-one truncates the file at the sandbox. Count carefully.",
+  "",
+  "Use modify-style diffs (with `-` context lines) ONLY for tiny one-line tweaks where you're certain of the existing file's exact content. When in doubt, full-file replace via `/dev/null`.",
   ""
 ].join("\n");
 

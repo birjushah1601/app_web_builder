@@ -38,7 +38,9 @@ export async function googlePass(input: GooglePassInput): Promise<DeveloperOutpu
     completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
   }).completeWithToolUse(messages, {
     model: input.model ?? DEVELOPER_GOOGLE_MODEL,
-    maxTokens: 8192,
+    // See anthropic-pass for rationale: 8192 truncates mid-file on full-page
+    // diffs. 32k gives full-page-plus-CSS headroom without hitting the cap.
+    maxTokens: 32_000,
     tools: [{ name: "emit_developer_output", description: "Emit the diff + summary + tests", input_schema: DEVELOPER_TOOL_SCHEMA }],
     toolChoice: { type: "tool", name: "emit_developer_output" }
   });

@@ -37,7 +37,11 @@ export async function anthropicPass(input: AnthropicPassInput): Promise<Develope
     completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
   }).completeWithToolUse(messages, {
     model: input.model ?? DEVELOPER_ANTHROPIC_MODEL,
-    maxTokens: 8192,
+    // 8192 truncated mid-page on real "build a website" requests (page.tsx
+    // ran out before the closing `}`, breaking Next.js parse). Sonnet supports
+    // up to 64k output; 32k gives us headroom for full-page diffs +
+    // multi-file changes without hitting the limit.
+    maxTokens: 32_000,
     tools: [{ name: "emit_developer_output", description: "Emit the diff + summary + tests", input_schema: DEVELOPER_TOOL_SCHEMA }],
     toolChoice: { type: "tool", name: "emit_developer_output" }
   });
