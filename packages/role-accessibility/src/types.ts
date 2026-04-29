@@ -5,12 +5,15 @@ export type Severity = z.infer<typeof SeveritySchema>;
 
 export const AccessibilityIssueSchema = z.object({
   severity: SeveritySchema,
-  // Accept both Atlas's house format (A11Y-CAT-NNN) and W3C's canonical
-  // WCAG references (WCAG-1.4.3, WCAG_1_4_3, WCAG-1.4.3-CONTRAST). The
-  // real LLM emits WCAG-* references naturally; the schema was tightening
-  // to A11Y-* without prompt support, which made every model run fail
-  // schema validation and escalate the ritual after 3 retries.
-  code: z.string().regex(/^(?:A11Y-[A-Z]+-\d{3}|WCAG[-_]\d+(?:[._]\d+)*(?:[-_][A-Za-z0-9_]+)?)$/),
+  // Display-only label for the issue. The schema previously enforced an
+  // Atlas-house taxonomy (A11Y-CAT-NNN), which neither the prompt nor the
+  // tool input_schema instructed the model to follow — every real model
+  // run produced free-form codes (WCAG-1.4.3, CONTRAST_TEXT, etc.) and
+  // failed schema validation, escalating the ritual after 3 retries.
+  // Nothing downstream dispatches on this value (UI just renders the
+  // string), so accept any non-empty label and let the model pick its
+  // own taxonomy.
+  code: z.string().min(1),
   message: z.string().min(1),
   file: z.string().optional(),
   line: z.number().int().positive().optional()

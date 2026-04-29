@@ -43,15 +43,19 @@ describe("AccessibilityReport types", () => {
     expect(() => AccessibilityIssueSchema.parse({ severity: "info", code: "A11Y-WCAG-001", message: "x" })).toThrow();
   });
 
-  it("accepts canonical WCAG-x.y.z codes (LLM's natural output format)", () => {
-    for (const code of ["WCAG-1.4.3", "WCAG-2.1.1", "WCAG_1_4_3", "WCAG-1.4.3-CONTRAST", "WCAG_1_3_1_SEMANTIC_STRUCTURE"]) {
+  it("accepts free-form code labels (model picks taxonomy: A11Y, WCAG, descriptive)", () => {
+    for (const code of [
+      "A11Y-WCAG-001",                  // Atlas house format
+      "WCAG-1.4.3",                     // canonical WCAG reference
+      "WCAG_1_3_1_SEMANTIC_STRUCTURE",  // underscored variant w/ description
+      "CONTRAST_TEXT",                  // free-form descriptive
+      "missing-alt"                     // kebab-case freeform
+    ]) {
       expect(AccessibilityIssueSchema.parse({ severity: "critical", code, message: "x" })).toMatchObject({ code });
     }
   });
 
-  it("still rejects junk codes that match neither Atlas nor WCAG shape", () => {
-    for (const code of ["WCAG", "wcag-1.4.3", "RANDOM-001", "A11Y-low-001"]) {
-      expect(() => AccessibilityIssueSchema.parse({ severity: "critical", code, message: "x" }), `should reject: ${code}`).toThrow();
-    }
+  it("still rejects empty string code", () => {
+    expect(() => AccessibilityIssueSchema.parse({ severity: "critical", code: "", message: "x" })).toThrow();
   });
 });
