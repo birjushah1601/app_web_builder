@@ -71,8 +71,23 @@ describe("listFlagStates", () => {
       "security-role": false,
       "a11y-role": false,
       "run-grafana": false,
-      "multi-turn": false
+      "multi-turn": false,
+      "auto-fix-loop": false
     });
+  });
+});
+
+describe("auto-fix-loop flag (Plan L)", () => {
+  it("is off when ATLAS_FF_AUTO_FIX_LOOP is unset", () => {
+    expect(isFeatureEnabled("auto-fix-loop", sourceWith({}))).toBe(false);
+  });
+  it("is on when ATLAS_FF_AUTO_FIX_LOOP=true", () => {
+    expect(
+      isFeatureEnabled("auto-fix-loop", sourceWith({ ATLAS_FF_AUTO_FIX_LOOP: "true" }))
+    ).toBe(true);
+  });
+  it("listFlagStates includes auto-fix-loop", () => {
+    expect(listFlagStates(sourceWith({}))["auto-fix-loop"]).toBe(false);
   });
 });
 
