@@ -70,8 +70,23 @@ describe("listFlagStates", () => {
       "ritual-hydration": false,
       "security-role": false,
       "a11y-role": false,
-      "run-grafana": false
+      "run-grafana": false,
+      "multi-turn": false
     });
+  });
+});
+
+describe("multi-turn flag (Plan K)", () => {
+  it("is off when ATLAS_FF_MULTI_TURN is unset", () => {
+    expect(isFeatureEnabled("multi-turn", sourceWith({}))).toBe(false);
+  });
+  it("is on when ATLAS_FF_MULTI_TURN=true", () => {
+    expect(
+      isFeatureEnabled("multi-turn", sourceWith({ ATLAS_FF_MULTI_TURN: "true" }))
+    ).toBe(true);
+  });
+  it("listFlagStates includes multi-turn", () => {
+    expect(listFlagStates(sourceWith({}))["multi-turn"]).toBe(false);
   });
 });
 

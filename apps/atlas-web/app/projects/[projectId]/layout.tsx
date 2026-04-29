@@ -25,6 +25,7 @@ export default async function ProjectLayout({
     override ?? (user?.publicMetadata?.defaultPersona as string | undefined) ?? "ama";
 
   const liveEventsOn = isFeatureEnabled("live-events");
+  const multiTurnOn = isFeatureEnabled("multi-turn");
 
   const topNav = (
     <nav className="flex items-center gap-4 border-b border-slate-200 px-4 py-2">
@@ -48,7 +49,7 @@ export default async function ProjectLayout({
       <div className="flex h-screen flex-col">
         {topNav}
         <div className="flex flex-1 min-h-0">
-          <RailShell projectId={projectId} />
+          <RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} />
           <main className="flex-1 min-w-0 overflow-auto">{children}</main>
         </div>
       </div>

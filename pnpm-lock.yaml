@@ -554,6 +554,9 @@ importers:
       '@atlas/llm-provider':
         specifier: workspace:*
         version: link:../llm-provider
+      '@atlas/ritual-engine':
+        specifier: workspace:*
+        version: link:../ritual-engine
       '@atlas/skill-runtime':
         specifier: workspace:*
         version: link:../skill-runtime

@@ -21,6 +21,7 @@
   "dependencies": {
     "@atlas/conductor": "workspace:*",
     "@atlas/llm-provider": "workspace:*",
+    "@atlas/ritual-engine": "workspace:*",
     "@atlas/skill-runtime": "workspace:*",
     "@atlas/spec-graph-schema": "workspace:*",
     "zod": "3.23.8"

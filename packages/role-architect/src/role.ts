@@ -60,7 +60,10 @@ export class ArchitectRole implements Role {
         ambiguity: report,
         skills: this.skills,
         llm: this.llm,
-        deepPlanModel: this.deepPlanModel
+        deepPlanModel: this.deepPlanModel,
+        // Plan K: when refining, the engine threads PriorRitualContext via priorArtifact.
+        // deepPlan checks the shape with isPriorRitualContext and ignores any other shape.
+        priorRitual: inv.priorArtifact
       });
     } catch (err) {
       events.push({ eventType: "architect.pass2.failed", payload: { error: (err as Error).message, scope: report.scope } });

@@ -30,6 +30,9 @@ vi.mock("@/components/ChatPanel", () => ({
 vi.mock("@/lib/actions/startRitual", () => ({
   startRitual: vi.fn()
 }));
+vi.mock("@/lib/actions/refineRitual", () => ({
+  refineRitual: vi.fn()
+}));
 
 const isFeatureEnabledMock = vi.fn();
 vi.mock("@/lib/feature-flags", async () => {

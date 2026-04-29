@@ -1,6 +1,7 @@
 import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import { buildPromptCacheBlocks } from "@atlas/conductor";
 import type { SkillRegistry } from "@atlas/skill-runtime";
+import { isPriorRitualContext, type PriorRitualContext } from "@atlas/ritual-engine";
 import { assembleArchitectPrompt } from "./assemble-prompt.js";
 import { DeepPlanFailedError } from "./errors.js";
 import {
@@ -18,6 +19,60 @@ export interface DeepPlanInput {
   skills: SkillRegistry;
   llm: LLMProvider;
   deepPlanModel?: string;
+  /** Plan K: when refining a prior ritual, the engine threads the parent's
+   *  PriorRitualContext through here. The prompt prepends a "Previous turn"
+   *  section so the model builds on the prior plan + diff instead of starting
+   *  from scratch. Other shapes are silently ignored. */
+  priorRitual?: unknown;
+}
+
+/** Plan K: pure helper that builds the architect's userTurn string. When
+ *  priorRitual is a real PriorRitualContext, prepends a "Previous turn"
+ *  preamble with parent's plan + diff. Exported for unit testing. */
+export function buildArchitectUserTurn(input: {
+  userTurn: string;
+  scope: string;
+  priorRitual?: unknown;
+}): string {
+  const sections: string[] = [];
+
+  if (isPriorRitualContext(input.priorRitual)) {
+    sections.push(renderPriorRitualSection(input.priorRitual));
+  }
+
+  sections.push(`Scope: ${input.scope}\n\nUser intent: ${input.userTurn}`);
+
+  return sections.join("\n\n---\n\n");
+}
+
+function renderPriorRitualSection(prior: PriorRitualContext): string {
+  const lines: string[] = [
+    "## Previous turn",
+    "",
+    `In a prior turn (ritualId=${prior.parentRitualId}), you produced this plan:`,
+    "",
+    "```json",
+    JSON.stringify(prior.parentArtifact ?? null, null, 2),
+    "```"
+  ];
+  if (prior.parentDeveloperOutput) {
+    lines.push(
+      "",
+      "And the developer wrote this diff:",
+      "",
+      "```diff",
+      prior.parentDeveloperOutput.diff,
+      "```"
+    );
+    if (prior.parentDeveloperOutput.summary) {
+      lines.push("", `Summary: ${prior.parentDeveloperOutput.summary}`);
+    }
+  }
+  lines.push(
+    "",
+    "The user has now provided a follow-up request — produce an updated plan that builds on the previous work."
+  );
+  return lines.join("\n");
 }
 
 const DEEP_PLAN_ROLE_PROMPT = `You are the Architect's deep-plan pass. Given a clarified user intent
@@ -63,7 +118,11 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
   const messages = buildPromptCacheBlocks({
     rolePrompt: roleSystem,
     graphSlice: input.graphSlice,
-    userTurn: `Scope: ${input.ambiguity.scope}\n\nUser intent: ${input.userTurn}`
+    userTurn: buildArchitectUserTurn({
+      userTurn: input.userTurn,
+      scope: input.ambiguity.scope,
+      priorRitual: input.priorRitual
+    })
   });
 
   let result;

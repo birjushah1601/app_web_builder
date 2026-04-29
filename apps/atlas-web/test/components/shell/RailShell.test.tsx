@@ -19,9 +19,13 @@ vi.mock("@/components/shell/ritual-timeline-slot", () => ({
   )
 }));
 
-// Mock the server action so the test does not need to evaluate it.
+// Mock the server actions so the test does not evaluate them (they pull in
+// react.cache which is server-only).
 vi.mock("@/lib/actions/startRitual", () => ({
   startRitual: vi.fn()
+}));
+vi.mock("@/lib/actions/refineRitual", () => ({
+  refineRitual: vi.fn()
 }));
 
 import { RailShell } from "@/components/shell/RailShell";

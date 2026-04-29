@@ -3,15 +3,19 @@
 import React from "react";
 import Link from "next/link";
 import { startRitual } from "@/lib/actions/startRitual";
+import { refineRitual } from "@/lib/actions/refineRitual";
 import { ChatPanel } from "@/components/ChatPanel";
 import { RAIL_SHELL_CONFIG } from "./rail-config";
 import { RitualTimelineSlot } from "./ritual-timeline-slot";
 
 interface RailShellProps {
   projectId: string;
+  /** Plan K: server-evaluated flag passed in by the [projectId]/layout. When
+   *  true, ChatPanel renders <RefinementInputBar /> beneath developer outputs. */
+  multiTurnFlagEnabled?: boolean;
 }
 
-export function RailShell({ projectId }: RailShellProps): React.ReactElement {
+export function RailShell({ projectId, multiTurnFlagEnabled = false }: RailShellProps): React.ReactElement {
   const cfg = RAIL_SHELL_CONFIG;
   return (
     <aside
@@ -35,7 +39,12 @@ export function RailShell({ projectId }: RailShellProps): React.ReactElement {
         </div>
       </header>
       <div className="flex flex-1 min-h-0 flex-col">
-        <ChatPanel projectId={projectId} action={startRitual} />
+        <ChatPanel
+          projectId={projectId}
+          action={startRitual}
+          multiTurnFlagEnabled={multiTurnFlagEnabled}
+          refineAction={refineRitual}
+        />
       </div>
       <footer className="border-t border-slate-200 p-2">
         <RitualTimelineSlot projectId={projectId} />
