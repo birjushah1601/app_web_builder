@@ -48,6 +48,8 @@ export interface StartRitualResult {
   securityReport?: SecurityReport;
   /** Plan I: AccessibilityRole (L5 gate) report when ATLAS_FF_A11Y_ROLE on. */
   accessibilityReport?: AccessibilityReport;
+  /** Plan L: > 0 when this ritual was created by the engine's auto-fix loop. */
+  fixAttempts?: number;
 }
 
 export async function startRitual(input: StartRitualInput): Promise<StartRitualResult> {
@@ -71,6 +73,7 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
     developerOutput: snapshot?.developerOutput,
     sandboxApplyResult: snapshot?.sandboxApplyResult,
     securityReport: snapshot?.securityReport as SecurityReport | undefined,
-    accessibilityReport: snapshot?.accessibilityReport as AccessibilityReport | undefined
+    accessibilityReport: snapshot?.accessibilityReport as AccessibilityReport | undefined,
+    fixAttempts: snapshot?.fixAttempts
   };
 }
