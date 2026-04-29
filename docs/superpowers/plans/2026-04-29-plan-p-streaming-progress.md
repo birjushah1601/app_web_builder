@@ -720,3 +720,15 @@ git branch -d plan-p/streaming-progress
 1. **Sub-phase visualization** — split architect into "triage" + "deep-plan" sub-rows once `architect.pass1.*` / `architect.pass2.*` event types are added to the broker.
 2. **Token-stream progress** — surface `role.token` events when LLM streaming lands (Plan E.0's broker is event-shape-agnostic; a future plan can add token events).
 3. **Per-attempt timeline replay** — when `fixAttempts > 1`, render a small history of the prior failed gate reports so users can see what each attempt addressed.
+
+---
+
+## Shipped
+
+All 6 tasks executed inline + merged to `plan-p/streaming-progress` and then to `main`. `pnpm typecheck` clean across atlas-web + @atlas/ritual-engine. Atlas-web added 9 reducer cases (8 spec + 1 escalation_requested) + 4 RitualTimeline cases = 13 new tests. Ritual-engine added 2 hydrator-fold cases (auto_fix.attempted increments fixAttempts; auto_fix.* events accumulate into roleEvents). EventBroker.types test updated with the extended union; Phase + TimelineState type-tests updated with the 5-phase + autoFix fields.
+
+Deviations from plan:
+- **Tasks 1-2 combined** into one commit (RitualEventType union + factory mapper are interlocked).
+- **Tasks 5-6 split into hydrator commit + docs+merge commit** (matches the per-package commit boundary).
+- **Existing `ritual.completed` reducer behavior preserved** for the 3 core phases (pending → done) but the new gate phases skip auto-flip when pending. Means flag-OFF rituals look pixel-identical to pre-Plan-P.
+- **Existing reducer fixture-state literals updated** in 4 places to include the new `security` + `accessibility` rows + `autoFixAttempts: 0, autoFixExhausted: false`. The TS strict shape check in the type-test file caught this immediately.
