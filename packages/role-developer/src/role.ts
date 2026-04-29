@@ -97,6 +97,11 @@ export class DeveloperRole implements Role {
       winner = googleResult.output;
       events.push({ eventType: "developer.walkover", payload: { picked: "google", reason: "anthropic-failed" } });
     } else {
+      // Surface the underlying provider errors on stderr so dev-server logs
+      // show what actually failed. Without this, the only visible message is
+      // the BothProvidersFailedError wrap which loses diagnostic info.
+      console.error("[role-developer] anthropic error:", anthropicResult.error.message);
+      console.error("[role-developer] google error:    ", googleResult.error.message);
       events.push({ eventType: "developer.both_failed", payload: { anthropicError: anthropicResult.error.message, googleError: googleResult.error.message } });
       throw new BothProvidersFailedError("Both Anthropic and Google providers failed", { causes: [anthropicResult.error, googleResult.error] });
     }
