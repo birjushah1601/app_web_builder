@@ -70,7 +70,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
 
   if (llm) {
     const skillsRoot = resolve(process.cwd(), "..", "..", "packages", "skill-library", "skills");
-    const skillSubdirs = ["architect", "developer", "ship", "reviewer", "debugger"];
+    const skillSubdirs = ["architect", "developer", "ship", "reviewer", "debugger", "security", "accessibility"];
     const allSkills = (
       await Promise.all(skillSubdirs.map((sub) => loadSkillsFromDir(resolve(skillsRoot, sub))))
     ).flat();
@@ -108,7 +108,30 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
         parallelMode: process.env.ATLAS_DEVELOPER_SEQUENTIAL === "true" ? "sequential" : "parallel"
       })
     );
+
+    // Plan I: register Security + Accessibility roles based on per-role
+    // flags. Each role implements the Role interface from @atlas/conductor;
+    // the engine dispatches them via forceRoleId after a successful
+    // developer pass (per the postDeveloperChain option below).
+    if (isFeatureEnabled("security-role")) {
+      const { SecurityRole } = await import("@atlas/role-security");
+      const securityModel = process.env.ATLAS_LLM_SECURITY_MODEL ?? deepPlanModel;
+      roles.set("security", new SecurityRole({ llm, skills: skillRegistry, model: securityModel }));
+    }
+    if (isFeatureEnabled("a11y-role")) {
+      const { AccessibilityRole } = await import("@atlas/role-accessibility");
+      const a11yModel = process.env.ATLAS_LLM_A11Y_MODEL ?? deepPlanModel;
+      roles.set("accessibility", new AccessibilityRole({ llm, skills: skillRegistry, model: a11yModel }));
+    }
   }
+
+  // Plan I: build the postDeveloperChain from the per-role flags. Order
+  // is fixed: security first (more critical — secret-leak blocks the
+  // whole branch), then accessibility (advisory-grade). Empty chain = no
+  // post-developer dispatch, today's behavior.
+  const postDeveloperChain: string[] = [];
+  if (isFeatureEnabled("security-role")) postDeveloperChain.push("security");
+  if (isFeatureEnabled("a11y-role"))     postDeveloperChain.push("accessibility");
 
   const conductor = new Conductor({
     classifier: { classify: async () => ({ roleId: "architect", confidence: 0.9 }) },
@@ -170,6 +193,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     eventSink: new SpecEventsSink(specEventRepo, projectId),
     personaPreferences: prefs,
     hydrator,
+    postDeveloperChain,
     // Plan C: when the developer role lands a diff, the engine writes it
     // into the project's E2B sandbox. The applier resolves the live
     // sandbox session via SandboxFactory, reattaches to the running E2B
