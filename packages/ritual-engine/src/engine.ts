@@ -6,6 +6,7 @@ import { applyTransition, isTerminal, type RitualState, type RitualTransition } 
 import { applyApproval, type ApprovalDecision } from "./approval.js";
 import { enforcePersonaGate, type RiskAccepted } from "./risk-accept.js";
 import type { RitualHydrator } from "./hydrator.js";
+import { buildPriorRitualContext, type PriorRitualContext } from "./prior-ritual-context.js";
 
 export interface RitualEngineOptions {
   conductor: Conductor;
@@ -28,6 +29,16 @@ export interface StartInput {
   editClass: EditClass;
   projectId: string;
   userId: string;
+}
+
+/** Plan K: refine starts a NEW ritual linked to the parent via
+ *  parentRitualId. The parent's snapshot is hydrated and packaged as
+ *  PriorRitualContext, then threaded into the architect's priorArtifact. */
+export interface RefineInput {
+  parentRitualId: string;
+  projectId: string;
+  userId: string;
+  userTurn: string;
 }
 
 /** Events emitted by the role during dispatch. Plain JSON-serializable; safe
@@ -90,6 +101,10 @@ interface RitualRecord {
   securityReport?: unknown;
   /** Plan I: present when AccessibilityRole ran in the post-developer chain. */
   accessibilityReport?: unknown;
+  /** Plan K: when this ritual was created via refine(), points back to
+   *  the parent ritual whose snapshot was threaded into the architect's
+   *  prompt as PriorRitualContext. */
+  parentRitualId?: string;
 }
 
 /** Read-only view of a ritual's persisted state. Returned by getRitual(). */
@@ -106,6 +121,8 @@ export interface RitualSnapshot {
   securityReport?: unknown;
   /** Plan I: present when AccessibilityRole ran. Same shape contract. */
   accessibilityReport?: unknown;
+  /** Plan K: present when ritual was created via refine(); links lineage. */
+  parentRitualId?: string;
 }
 
 export class RitualEngine {
@@ -127,8 +144,60 @@ export class RitualEngine {
   }
 
   async start(input: StartInput): Promise<string> {
+    return this._runRitual({ ...input });
+  }
+
+  /** Plan K: start a NEW ritual linked to a parent. The parent's snapshot
+   *  is hydrated and packaged as PriorRitualContext, then threaded into
+   *  the architect's priorArtifact for context-aware planning. */
+  async refine(input: RefineInput): Promise<string> {
+    const parent = await this.getRitual(input.parentRitualId);
+    if (!parent) {
+      throw new Error(`refine: parent ritual ${input.parentRitualId} not found`);
+    }
+    if (parent.projectId !== input.projectId) {
+      throw new Error(
+        `refine: project mismatch — parent.projectId=${parent.projectId} input.projectId=${input.projectId}`
+      );
+    }
+
+    const priorContext = buildPriorRitualContext({
+      ritualId: input.parentRitualId,
+      artifact: parent.artifact,
+      developerOutput: parent.developerOutput,
+      roleEvents: parent.roleEvents
+    });
+
+    // Refinement of a structural ritual stays structural; cosmetic stays cosmetic.
+    const editClass: EditClass = parent.developerOutput?.diff
+      ? "structural"
+      : "cosmetic";
+
+    return this._runRitual({
+      userTurn: input.userTurn,
+      editClass,
+      projectId: input.projectId,
+      userId: input.userId,
+      priorContext,
+      parentRitualId: input.parentRitualId
+    });
+  }
+
+  private async _runRitual(input: StartInput & {
+    priorContext?: PriorRitualContext;
+    parentRitualId?: string;
+  }): Promise<string> {
     const ritualId = `r-${randomUUID()}`;
-    this.rituals.set(ritualId, { state: "visualize", projectId: input.projectId, userId: input.userId });
+    const initialRecord: RitualRecord = {
+      state: "visualize",
+      projectId: input.projectId,
+      userId: input.userId
+    };
+    if (input.parentRitualId) {
+      initialRecord.parentRitualId = input.parentRitualId;
+    }
+    this.rituals.set(ritualId, initialRecord);
+
     await this.emit({
       type: "ritual.started",
       ritualId,
@@ -137,20 +206,24 @@ export class RitualEngine {
         intent: input.userTurn,
         editClass: input.editClass,
         projectId: input.projectId,
-        userId: input.userId
+        userId: input.userId,
+        // Plan K: parentRitualId in the started event lets hydrator + thread API recover lineage.
+        ...(input.parentRitualId ? { parentRitualId: input.parentRitualId } : {})
       }
     });
 
-    // Dispatch Architect role for the Visualize step.
-    // ritualId is cast to RitualId via the brand-bypass below; Conductor's
-    // RitualIdSchema expects a branded string, but the brand is purely a
-    // compile-time tag — the runtime value is just the string we generated.
-    const result = await this.conductor.dispatch({
-      ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
-      graphVersion: 0,
-      userTurn: input.userTurn,
-      projectId: input.projectId
-    });
+    // Dispatch Architect role for the Visualize step. When refining, pass
+    // the PriorRitualContext as priorArtifact so the architect's prompt
+    // assembly can prepend a "Previous turn" preamble.
+    const result = await this.conductor.dispatch(
+      {
+        ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+        graphVersion: 0,
+        userTurn: input.userTurn,
+        projectId: input.projectId
+      },
+      input.priorContext ? { priorArtifact: input.priorContext } : undefined
+    );
 
     // Pull the artifact from the role's pass2.completed event (D.2 contract)
     const completed = result.output.events.find((e) => e.eventType.endsWith(".pass2.completed"));
@@ -337,7 +410,8 @@ export class RitualEngine {
         developerOutput: r.developerOutput,
         sandboxApplyResult: r.sandboxApplyResult,
         securityReport: r.securityReport,
-        accessibilityReport: r.accessibilityReport
+        accessibilityReport: r.accessibilityReport,
+        parentRitualId: r.parentRitualId
       };
     }
     // Plan H: in-memory miss — fall back to hydrator if configured.
