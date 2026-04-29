@@ -16,18 +16,16 @@
  * UX plumbing, not the model's iteration ability.
  */
 
+// Diff is emitted as a "new file from /dev/null" patch so apply-diff's
+// `create` kind triggers (unconditional overwrite). This avoids hunk-mismatch
+// errors when the E2B template's existing src/app/page.tsx differs from
+// what we'd otherwise need as `-` context lines (Page() vs Home(), Next
+// version differences, etc.).
 export const CANNED_DEMO_DIFF = `diff --git a/src/app/page.tsx b/src/app/page.tsx
---- a/src/app/page.tsx
+new file mode 100644
+--- /dev/null
 +++ b/src/app/page.tsx
-@@ -1,10 +1,52 @@
--export default function Home() {
--  return (
--    <main>
--      <h1>Welcome to Atlas Sandbox</h1>
--      <p>This is the default page. Click Send in the chat to build something.</p>
--    </main>
--  );
--}
+@@ -0,0 +1,52 @@
 +"use client";
 +
 +import { useState } from "react";
