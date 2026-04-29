@@ -71,10 +71,14 @@ describe("timelineReducer — ritual.* events", () => {
   it("ritual.started returns initialTimelineState (resets prior runs)", () => {
     const polluted: TimelineState = {
       escalated: true,
+      autoFixAttempts: 0,
+      autoFixExhausted: false,
       rows: {
         architect: { phase: "architect", status: "done", retries: 5 },
         developer: { phase: "developer", status: "failed", retries: 1 },
-        sandbox:   { phase: "sandbox",   status: "active", retries: 0 }
+        sandbox:   { phase: "sandbox",   status: "active", retries: 0 },
+        security:      { phase: "security",      status: "pending", retries: 0 },
+        accessibility: { phase: "accessibility", status: "pending", retries: 0 }
       }
     };
     const out = timelineReducer(polluted, evt("ritual.started"));
@@ -84,10 +88,14 @@ describe("timelineReducer — ritual.* events", () => {
   it("ritual.escalated flips state.escalated to true (rows untouched)", () => {
     const before: TimelineState = {
       escalated: false,
+      autoFixAttempts: 0,
+      autoFixExhausted: false,
       rows: {
         architect: { phase: "architect", status: "done", retries: 0, durationMs: 1200 },
         developer: { phase: "developer", status: "active", retries: 1 },
-        sandbox:   { phase: "sandbox",   status: "pending", retries: 0 }
+        sandbox:   { phase: "sandbox",   status: "pending", retries: 0 },
+        security:      { phase: "security",      status: "pending", retries: 0 },
+        accessibility: { phase: "accessibility", status: "pending", retries: 0 }
       }
     };
     const after = timelineReducer(before, evt("ritual.escalated", { gate: "ritual" }));
@@ -98,10 +106,14 @@ describe("timelineReducer — ritual.* events", () => {
   it("ritual.completed marks all non-failed pending|active rows as done", () => {
     const before: TimelineState = {
       escalated: false,
+      autoFixAttempts: 0,
+      autoFixExhausted: false,
       rows: {
         architect: { phase: "architect", status: "done", retries: 0, durationMs: 1200 },
         developer: { phase: "developer", status: "active", retries: 0, startedAt: 500 },
-        sandbox:   { phase: "sandbox",   status: "pending", retries: 0 }
+        sandbox:   { phase: "sandbox",   status: "pending", retries: 0 },
+        security:      { phase: "security",      status: "pending", retries: 0 },
+        accessibility: { phase: "accessibility", status: "pending", retries: 0 }
       }
     };
     const after = timelineReducer(before, evt("ritual.completed", {}, 2_000));
@@ -114,10 +126,14 @@ describe("timelineReducer — ritual.* events", () => {
   it("ritual.completed leaves a failed row failed", () => {
     const before: TimelineState = {
       escalated: false,
+      autoFixAttempts: 0,
+      autoFixExhausted: false,
       rows: {
         architect: { phase: "architect", status: "failed", retries: 2, lastError: "oops" },
         developer: { phase: "developer", status: "pending", retries: 0 },
-        sandbox:   { phase: "sandbox",   status: "pending", retries: 0 }
+        sandbox:   { phase: "sandbox",   status: "pending", retries: 0 },
+        security:      { phase: "security",      status: "pending", retries: 0 },
+        accessibility: { phase: "accessibility", status: "pending", retries: 0 }
       }
     };
     const after = timelineReducer(before, evt("ritual.completed"));
