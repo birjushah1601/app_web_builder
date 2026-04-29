@@ -139,3 +139,25 @@ describe("replayEventsToSnapshot — pure fold (Plan H Tasks 3-5)", () => {
     expect(snap!.state).toBe("escalated");
   });
 });
+
+describe("replayEventsToSnapshot — auto_fix events (Plan P Task 5)", () => {
+  it("auto_fix.attempted increments fixAttempts on the snapshot", () => {
+    const rows = [
+      row(1n, "ritual.started",     { ritualId: "r-1", ts: 1, projectId: "p", userId: "u" }),
+      row(2n, "auto_fix.attempted", { ritualId: "r-1", ts: 2, gate: "L4-security", attemptNumber: 1, parentRitualId: "r-prev" })
+    ];
+    const snap = replayEventsToSnapshot(rows);
+    expect(snap?.fixAttempts).toBe(1);
+  });
+
+  it("auto_fix.* events accumulate into roleEvents for diagnostic listing", () => {
+    const rows = [
+      row(1n, "ritual.started",            { ritualId: "r-1", ts: 1, projectId: "p", userId: "u" }),
+      row(2n, "auto_fix.attempted",        { ritualId: "r-1", ts: 2, gate: "L4-security", attemptNumber: 1 }),
+      row(3n, "auto_fix.budget_exhausted", { ritualId: "r-1", ts: 3, gate: "L4-security", attempts: 2 })
+    ];
+    const snap = replayEventsToSnapshot(rows);
+    expect(snap?.roleEvents.some((e) => e.eventType === "auto_fix.attempted")).toBe(true);
+    expect(snap?.roleEvents.some((e) => e.eventType === "auto_fix.budget_exhausted")).toBe(true);
+  });
+});
