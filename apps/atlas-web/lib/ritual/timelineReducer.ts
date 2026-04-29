@@ -232,11 +232,15 @@ export function timelineReducer(state: TimelineState, event: RitualEvent): Timel
   }
 }
 
-/** Read payload.role and narrow it to "architect" | "developer". Sandbox
- *  events come in via the sandbox.* type prefixes, never as role.* with
- *  role=sandbox, so this returns null for "sandbox" or any other value. */
+/** Read the role identifier from the event payload and narrow it to
+ *  "architect" | "developer". Conductor emits `roleId` (see
+ *  packages/conductor/src/conductor.ts); some older fixtures + tests use
+ *  `role`. Accept either so the live SSE path lights up rows in production
+ *  AND the existing reducer tests stay green. Sandbox events come in via
+ *  the sandbox.* type prefixes, never as role.* with role=sandbox, so this
+ *  returns null for "sandbox" or any other value. */
 function phaseFromPayload(payload: Record<string, unknown>): "architect" | "developer" | null {
-  const r = payload.role;
+  const r = payload.roleId ?? payload.role;
   if (r === "architect" || r === "developer") return r;
   return null;
 }

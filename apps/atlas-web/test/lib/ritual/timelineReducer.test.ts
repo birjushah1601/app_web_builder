@@ -175,6 +175,19 @@ describe("timelineReducer — role.* events for architect", () => {
     expect(after2.rows.architect.lastError).toBe("timeout 300s");
     expect(after2.rows.architect.status).toBe("active"); // still in flight
   });
+
+  // Regression: production conductor (packages/conductor/src/conductor.ts)
+  // emits role.* checkpoints with `roleId`, not `role`. The reducer must
+  // accept both — without this, the SSE pipeline delivers events but no
+  // rows ever flip out of pending.
+  it("role.started/completed with payload.roleId (conductor's actual key) light up rows", () => {
+    const after1 = timelineReducer(initialTimelineState, evt("role.started", { roleId: "architect" }, 1_000));
+    expect(after1.rows.architect.status).toBe("active");
+    expect(after1.rows.architect.startedAt).toBe(1_000);
+    const after2 = timelineReducer(after1, evt("role.completed", { roleId: "architect" }, 2_500));
+    expect(after2.rows.architect.status).toBe("done");
+    expect(after2.rows.architect.durationMs).toBe(1_500);
+  });
 });
 
 describe("timelineReducer — role.* events for developer", () => {
