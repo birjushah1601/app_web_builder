@@ -106,4 +106,36 @@ describe("replayEventsToSnapshot — pure fold (Plan H Tasks 3-5)", () => {
     const snap = replayEventsToSnapshot(rows);
     expect(snap!.state).toBe("done");
   });
+
+  it("Plan I follow-up: captures securityReport from security.completed payload", () => {
+    const report = { passed: true, issues: [], skillsRun: ["secrets-scan"] };
+    const rows = [
+      row(1n, "ritual.started",     { ritualId: "r-1", ts: 1, projectId: "p", userId: "u" }),
+      row(2n, "security.completed", { ritualId: "r-1", ts: 2, passed: true, report })
+    ];
+    const snap = replayEventsToSnapshot(rows);
+    expect(snap!.securityReport).toEqual(report);
+    // Also accumulated into roleEvents (for diagnostic listing).
+    expect(snap!.roleEvents.some((e) => e.eventType === "security.completed")).toBe(true);
+  });
+
+  it("Plan I follow-up: captures accessibilityReport from accessibility.completed payload", () => {
+    const report = { passed: false, issues: [{ severity: "high", message: "missing alt" }] };
+    const rows = [
+      row(1n, "ritual.started",          { ritualId: "r-1", ts: 1, projectId: "p", userId: "u" }),
+      row(2n, "accessibility.completed", { ritualId: "r-1", ts: 2, passed: false, report })
+    ];
+    const snap = replayEventsToSnapshot(rows);
+    expect(snap!.accessibilityReport).toEqual(report);
+    expect(snap!.roleEvents.some((e) => e.eventType === "accessibility.completed")).toBe(true);
+  });
+
+  it("Plan I follow-up: ritual.escalation_requested also flips state to escalated", () => {
+    const rows = [
+      row(1n, "ritual.started",              { ritualId: "r-1", ts: 1, projectId: "p", userId: "u" }),
+      row(2n, "ritual.escalation_requested", { ritualId: "r-1", ts: 2, reason: "L4-security-gate-failed", requestedBy: "security" })
+    ];
+    const snap = replayEventsToSnapshot(rows);
+    expect(snap!.state).toBe("escalated");
+  });
 });

@@ -60,14 +60,28 @@ function applyOne(snap: RitualSnapshot, r: SpecEventRowLike): void {
       files:  Array.isArray(p.files) ? (p.files as never[]) : [],
       parseError: typeof p.parseError === "string" ? p.parseError : undefined
     };
-  } else if (t === "ritual.escalated") {
+  } else if (t === "security.completed" && p && "report" in p) {
+    // Plan I follow-up: capture security gate report on replay.
+    snap.securityReport = p.report;
+  } else if (t === "accessibility.completed" && p && "report" in p) {
+    // Plan I follow-up: capture accessibility gate report on replay.
+    snap.accessibilityReport = p.report;
+  } else if (t === "ritual.escalation_requested" || t === "ritual.escalated") {
+    // Plan I emits ritual.escalation_requested when a chained gate fails;
+    // ritual.escalated is the legacy terminal-state event name.
     snap.state = "escalated";
   } else if (t === "ritual.completed") {
     // RitualStateSchema enum value for the "ritual finished" terminal state is "done".
     snap.state = "done";
   }
 
-  if (t.startsWith("role.") || t.startsWith("architect.") || t.startsWith("developer.")) {
+  if (
+    t.startsWith("role.") ||
+    t.startsWith("architect.") ||
+    t.startsWith("developer.") ||
+    t.startsWith("security.") ||
+    t.startsWith("accessibility.")
+  ) {
     const rec: RoleEventRecord = { eventType: t, payload: r.payload };
     snap.roleEvents.push(rec);
   }
