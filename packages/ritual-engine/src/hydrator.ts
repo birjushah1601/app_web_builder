@@ -73,6 +73,13 @@ function applyOne(snap: RitualSnapshot, r: SpecEventRowLike): void {
   } else if (t === "ritual.completed") {
     // RitualStateSchema enum value for the "ritual finished" terminal state is "done".
     snap.state = "done";
+  } else if (t === "auto_fix.attempted") {
+    // Plan P follow-up: fixAttempts increments on each auto-fix attempt.
+    // The engine sets fixAttempts on the CHILD ritual when triggering the
+    // loop (via _runRitual({ ..., fixAttempts: nextAttempt })), so a single
+    // ritual's spec_events stream sees ONE auto_fix.attempted at most. We
+    // increment defensively in case of future multi-attempt rituals.
+    snap.fixAttempts = (snap.fixAttempts ?? 0) + 1;
   }
 
   if (
@@ -80,7 +87,8 @@ function applyOne(snap: RitualSnapshot, r: SpecEventRowLike): void {
     t.startsWith("architect.") ||
     t.startsWith("developer.") ||
     t.startsWith("security.") ||
-    t.startsWith("accessibility.")
+    t.startsWith("accessibility.") ||
+    t.startsWith("auto_fix.")
   ) {
     const rec: RoleEventRecord = { eventType: t, payload: r.payload };
     snap.roleEvents.push(rec);

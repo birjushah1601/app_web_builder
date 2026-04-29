@@ -7,12 +7,18 @@ import type {
 } from "@/lib/events/EventBroker";
 
 describe("EventBroker types (Plan E.0 contract)", () => {
-  it("RitualEventType is the exact 11-value union from the spec", () => {
+  it("RitualEventType is the union from Plan E.0 spec + Plan P additions (gates + auto-fix)", () => {
     type Expected =
       | "ritual.started" | "ritual.completed" | "ritual.escalated"
+      | "ritual.escalation_requested"
       | "role.started" | "role.completed" | "role.failed" | "role.retrying"
       | "sandbox.provisioning" | "sandbox.provisioned"
-      | "sandbox.apply.started" | "sandbox.apply.completed";
+      | "sandbox.apply.started" | "sandbox.apply.completed"
+      // Plan P: gate events surface as their own RitualTimeline rows.
+      | "security.started" | "security.completed" | "security.failed"
+      | "accessibility.started" | "accessibility.completed" | "accessibility.failed"
+      // Plan P: auto-fix events drive the meta-state counter.
+      | "auto_fix.attempted" | "auto_fix.budget_exhausted" | "auto_fix.failed";
     expectTypeOf<RitualEventType>().toEqualTypeOf<Expected>();
   });
 

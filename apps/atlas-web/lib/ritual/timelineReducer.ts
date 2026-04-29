@@ -16,7 +16,7 @@
 
 import type { RitualEvent } from "@/lib/events/EventBroker";
 
-export type Phase = "architect" | "developer" | "sandbox";
+export type Phase = "architect" | "developer" | "sandbox" | "security" | "accessibility";
 
 export interface RowState {
   phase: Phase;
@@ -33,16 +33,27 @@ export interface RowState {
 export interface TimelineState {
   rows: Record<Phase, RowState>;
   escalated: boolean;
+  /** Plan P: counter incremented on auto_fix.attempted; rendered as a
+   *  "(auto-fix #N)" indicator in <RitualTimeline />. Reset by ritual.started. */
+  autoFixAttempts: number;
+  /** Plan P: true after auto_fix.budget_exhausted (MAX_FIX_ATTEMPTS reached). */
+  autoFixExhausted: boolean;
+  /** Plan P: error string from auto_fix.failed (LLM/conductor error during fix). */
+  autoFixFailed?: string;
 }
 
 /** Frozen so React's strict-mode double-render and accidental mutations in
  *  tests both surface as TypeErrors instead of silent state corruption. */
 export const initialTimelineState: TimelineState = Object.freeze({
   escalated: false,
+  autoFixAttempts: 0,
+  autoFixExhausted: false,
   rows: Object.freeze({
-    architect: Object.freeze({ phase: "architect" as const, status: "pending" as const, retries: 0 }),
-    developer: Object.freeze({ phase: "developer" as const, status: "pending" as const, retries: 0 }),
-    sandbox:   Object.freeze({ phase: "sandbox"   as const, status: "pending" as const, retries: 0 })
+    architect:     Object.freeze({ phase: "architect"     as const, status: "pending" as const, retries: 0 }),
+    developer:     Object.freeze({ phase: "developer"     as const, status: "pending" as const, retries: 0 }),
+    sandbox:       Object.freeze({ phase: "sandbox"       as const, status: "pending" as const, retries: 0 }),
+    security:      Object.freeze({ phase: "security"      as const, status: "pending" as const, retries: 0 }),
+    accessibility: Object.freeze({ phase: "accessibility" as const, status: "pending" as const, retries: 0 })
   })
 }) as TimelineState;
 
@@ -58,9 +69,24 @@ export function timelineReducer(state: TimelineState, event: RitualEvent): Timel
     case "ritual.completed": {
       const newRows = { ...state.rows };
       let mutated = false;
+      // For the 3 core phases, preserve the original behavior: flip ANY
+      // non-failed/non-done row to done at completion (whether pending or
+      // active). Cosmetic edits skip the developer + sandbox phases without
+      // emitting started/completed for them — the ritual.completed terminal
+      // event was the original signal to mark them done.
       for (const phase of ["architect", "developer", "sandbox"] as Phase[]) {
         const row = newRows[phase];
         if (row.status === "failed" || row.status === "done") continue;
+        const durationMs = row.startedAt !== undefined ? event.ts - row.startedAt : row.durationMs;
+        newRows[phase] = { ...row, status: "done", durationMs };
+        mutated = true;
+      }
+      // For Plan I gate phases, only flip rows that actually saw an *.started
+      // event (status === "active"). Pending rows mean the flag was off and
+      // the gate didn't run — leave them pending so the UI hides them.
+      for (const phase of ["security", "accessibility"] as Phase[]) {
+        const row = newRows[phase];
+        if (row.status !== "active") continue;
         const durationMs = row.startedAt !== undefined ? event.ts - row.startedAt : row.durationMs;
         newRows[phase] = { ...row, status: "done", durationMs };
         mutated = true;
@@ -156,6 +182,49 @@ export function timelineReducer(state: TimelineState, event: RitualEvent): Timel
       const lastError = typeof errorVal === "string" ? errorVal : row.lastError;
       const next: RowState = { ...row, status: "failed", lastError, durationMs };
       return { ...state, rows: { ...state.rows, sandbox: next } };
+    }
+
+    case "security.started":
+    case "accessibility.started": {
+      const phase = (event.type === "security.started" ? "security" : "accessibility") as Phase;
+      const next: RowState = { ...state.rows[phase], status: "active", startedAt: event.ts };
+      return { ...state, rows: { ...state.rows, [phase]: next } };
+    }
+
+    case "security.completed":
+    case "accessibility.completed": {
+      const phase = (event.type === "security.completed" ? "security" : "accessibility") as Phase;
+      const row = state.rows[phase];
+      const durationMs = row.startedAt !== undefined ? event.ts - row.startedAt : row.durationMs;
+      const next: RowState = { ...row, status: "done", durationMs };
+      return { ...state, rows: { ...state.rows, [phase]: next } };
+    }
+
+    case "security.failed":
+    case "accessibility.failed": {
+      const phase = (event.type === "security.failed" ? "security" : "accessibility") as Phase;
+      const row = state.rows[phase];
+      const errorVal = event.payload.error;
+      const lastError = typeof errorVal === "string" ? errorVal : row.lastError;
+      const durationMs = row.startedAt !== undefined ? event.ts - row.startedAt : row.durationMs;
+      const next: RowState = { ...row, status: "failed", lastError, durationMs };
+      return { ...state, rows: { ...state.rows, [phase]: next } };
+    }
+
+    case "ritual.escalation_requested":
+      // Plan I emits this on gate failure; treat as escalation for the rail.
+      if (state.escalated) return state;
+      return { ...state, escalated: true };
+
+    case "auto_fix.attempted":
+      return { ...state, autoFixAttempts: state.autoFixAttempts + 1 };
+
+    case "auto_fix.budget_exhausted":
+      return { ...state, autoFixExhausted: true };
+
+    case "auto_fix.failed": {
+      const error = (event.payload.error as string | undefined) ?? "unknown";
+      return { ...state, autoFixFailed: error };
     }
 
     default:
