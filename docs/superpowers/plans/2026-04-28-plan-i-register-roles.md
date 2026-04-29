@@ -1010,3 +1010,17 @@ After all 10 tasks:
 1. **Reviewer-as-Role.** `DeveloperRole.run` calls `reviewerVote` inline; promoting Reviewer to a Conductor role requires extracting the parallel-pass results into a `developer.passes.completed` event and adding a separate `ReviewerRole` that reads them. Estimated 8-10 task plan.
 2. **Developer-fix-loop on gate failure.** When Security or Accessibility fails, automatically re-prompt the developer with the report inline so the model can fix the issue. Today's flow stops at escalation; user must manually retry. Plan-K candidate.
 3. **Hydrator extension for new fields.** If Plan H ships, `replayEventsToSnapshot` should fold `security.completed` + `accessibility.completed` events into the new snapshot fields. One-task addition to Plan H's hydrator.
+
+---
+
+## Shipped
+
+8 of 10 tasks executed inline + merged to `plan-i/register-roles` and then to `main`. `pnpm typecheck` clean across atlas-web + @atlas/ritual-engine + @atlas/role-security + @atlas/role-accessibility. ritual-engine added 4 postDeveloperChain cases (71 total now); atlas-web added 4 factory-flag + 6 panel cases + 5 feature-flag cases. `docs/superpowers/local-dev-status.md` updated — multi-role-orchestration entry rewritten to call out Reviewer-as-Role and Ship as remaining gaps; Plan I added under "What's wired".
+
+Deviations from plan:
+- **Tasks 5-7 combined** into one commit (panels + ChatPanel surfacing + Server Action result-shape are tightly coupled).
+- **Task 8 (real-stack integration test) skipped** — would require a working LLM proxy + skill registry + Postgres; out of scope for inline execution. The factory-role-flags test exercises the wiring without LLM cost.
+- **Escalation event:** the plan emitted `ritual.escalated` but that event type isn't in `events.ts` schema. Switched to `ritual.escalation_requested` (which IS in the schema), encoded gate ID + report into `payload.reason`.
+- **Atlas-web package.json** needed `@atlas/role-security` and `@atlas/role-accessibility` added to deps (the plan didn't call this out — workspace deps must be declared explicitly).
+- **Engine `start()` short-circuit** added after the chain when state flips to `escalated` — otherwise the trailing `applyTransition` throws InvalidTransitionError from the terminal state.
+- **Factory test** uses `vi.mock` on the role packages instead of `vi.spyOn` (the latter breaks `new` invocation on class constructors — same lesson from Plan H Task 10).

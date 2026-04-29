@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { SecurityReportPanel, type SecurityReport } from "@/components/SecurityReportPanel";
+import { AccessibilityReportPanel, type AccessibilityReport } from "@/components/AccessibilityReportPanel";
 
 export interface RoleEvent {
   eventType: string;
@@ -11,6 +13,10 @@ export interface StartRitualResult {
   ritualId: string;
   artifact?: unknown;
   roleEvents: RoleEvent[];
+  /** Plan I: present when SecurityRole ran in the post-developer chain. */
+  securityReport?: SecurityReport;
+  /** Plan I: present when AccessibilityRole ran. */
+  accessibilityReport?: AccessibilityReport;
   developerOutput?: { diff: string; summary?: string };
   sandboxApplyResult?: {
     ok: boolean;
@@ -160,6 +166,9 @@ function ArchitectOutput({ result }: { result: StartRitualResult }) {
           </div>
         </div>
       ) : null}
+
+      {result.securityReport && <SecurityReportPanel report={result.securityReport} />}
+      {result.accessibilityReport && <AccessibilityReportPanel report={result.accessibilityReport} />}
     </>
   );
 }

@@ -15,6 +15,12 @@ export interface RitualEngineOptions {
   /** Plan H: optional fallback for getRitual on in-memory miss.
    *  When omitted, getRitual returns undefined for unknown IDs (today's behavior). */
   hydrator?: RitualHydrator;
+  /** Plan I: ordered list of role IDs to dispatch after a successful
+   *  developer pass (when developerOutput.diff is non-empty). Each role
+   *  is dispatched via Conductor.dispatch({ forceRoleId, priorArtifact }).
+   *  A gate-failing role (report.passed === false) escalates the ritual
+   *  and stops the chain. Default [] preserves today's architect→developer-only flow. */
+  postDeveloperChain?: string[];
 }
 
 export interface StartInput {
@@ -80,6 +86,10 @@ interface RitualRecord {
   /** Set when the developer role chained successfully after architect. */
   developerOutput?: DeveloperOutputRecord;
   sandboxApplyResult?: SandboxApplyResult;
+  /** Plan I: present when SecurityRole ran in the post-developer chain. */
+  securityReport?: unknown;
+  /** Plan I: present when AccessibilityRole ran in the post-developer chain. */
+  accessibilityReport?: unknown;
 }
 
 /** Read-only view of a ritual's persisted state. Returned by getRitual(). */
@@ -91,6 +101,11 @@ export interface RitualSnapshot {
   roleEvents: RoleEventRecord[];
   developerOutput?: DeveloperOutputRecord;
   sandboxApplyResult?: SandboxApplyResult;
+  /** Plan I: present when SecurityRole ran. The role's full report.
+   *  passed=false means a critical issue → ritual.escalated. */
+  securityReport?: unknown;
+  /** Plan I: present when AccessibilityRole ran. Same shape contract. */
+  accessibilityReport?: unknown;
 }
 
 export class RitualEngine {
@@ -99,6 +114,7 @@ export class RitualEngine {
   private readonly prefs: PersonaPreferences;
   private readonly applier?: SandboxApplier;
   private readonly hydrator?: RitualHydrator;
+  private readonly postDeveloperChain: readonly string[];
   private readonly rituals = new Map<string, RitualRecord>();
 
   constructor(opts: RitualEngineOptions) {
@@ -106,6 +122,7 @@ export class RitualEngine {
     this.sink = opts.eventSink;
     this.prefs = opts.personaPreferences;
     this.applier = opts.sandboxApplier;
+    this.postDeveloperChain = opts.postDeveloperChain ?? [];
     this.hydrator = opts.hydrator;
   }
 
@@ -189,6 +206,81 @@ export class RitualEngine {
             };
           }
         }
+
+        // Plan I: post-developer chain (Security → Accessibility per factory
+        // config). Runs only when developer produced a real diff. A
+        // gate-failing role (report.passed === false) escalates the ritual
+        // and stops the chain. Empty chain = today's behavior.
+        if (
+          record.developerOutput?.diff &&
+          this.postDeveloperChain.length > 0
+        ) {
+          for (const roleId of this.postDeveloperChain) {
+            try {
+              const chainResult = await this.conductor.dispatch(
+                {
+                  ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+                  graphVersion: 0,
+                  userTurn: record.developerOutput.diff,
+                  projectId: input.projectId
+                },
+                { forceRoleId: roleId, priorArtifact: record.developerOutput }
+              );
+
+              record.roleEvents = [
+                ...(record.roleEvents ?? []),
+                ...chainResult.output.events.map((e) => ({
+                  eventType: e.eventType,
+                  payload: e.payload as unknown
+                }))
+              ];
+
+              const completed = chainResult.output.events.find(
+                (e) => e.eventType === `${roleId}.completed`
+              );
+              const payload = completed?.payload as
+                | { passed?: boolean; report?: unknown }
+                | undefined;
+
+              if (roleId === "security") {
+                record.securityReport = payload?.report;
+              } else if (roleId === "accessibility") {
+                record.accessibilityReport = payload?.report;
+              }
+
+              if (payload?.passed === false) {
+                record.state = "escalated";
+                // Use the existing ritual.escalation_requested event shape
+                // — its payload is { reason, requestedBy }. Encode the
+                // gate ID + report into reason (JSON-stringified) so
+                // downstream consumers can recover the structured info.
+                const gateLabel = roleId === "security" ? "L4-security" : "L5-compliance";
+                await this.emit({
+                  type: "ritual.escalation_requested",
+                  ritualId,
+                  ts: new Date().toISOString(),
+                  payload: {
+                    reason: `${gateLabel}-gate-failed: ${JSON.stringify(payload.report)}`,
+                    requestedBy: roleId
+                  }
+                });
+                break;
+              }
+            } catch (err) {
+              // Chain dispatch failure (unknown-role, provider error, etc.)
+              // — record a synthetic event and stop the chain. Don't escalate
+              // since the underlying gate didn't actually fail.
+              record.roleEvents = [
+                ...(record.roleEvents ?? []),
+                {
+                  eventType: `${roleId}.dispatch.failed`,
+                  payload: { error: err instanceof Error ? err.message : String(err) }
+                }
+              ];
+              break;
+            }
+          }
+        }
       } catch (err) {
         // unknown-role (developer not registered) or BothProvidersFailedError
         // etc. Record a synthetic event so the UI can show what went wrong
@@ -201,6 +293,15 @@ export class RitualEngine {
           }
         ];
       }
+    }
+
+    // Plan I: if the post-developer chain escalated (gate failure), skip
+    // the artifact_emitted transition — the ritual is already terminal
+    // (state === "escalated"), and applyTransition would throw
+    // InvalidTransitionError on a non-escalate transition from a terminal
+    // state.
+    if (record.state === "escalated") {
+      return ritualId;
     }
 
     await this.emit({
@@ -234,7 +335,9 @@ export class RitualEngine {
         artifact: r.artifact,
         roleEvents: r.roleEvents ?? [],
         developerOutput: r.developerOutput,
-        sandboxApplyResult: r.sandboxApplyResult
+        sandboxApplyResult: r.sandboxApplyResult,
+        securityReport: r.securityReport,
+        accessibilityReport: r.accessibilityReport
       };
     }
     // Plan H: in-memory miss — fall back to hydrator if configured.

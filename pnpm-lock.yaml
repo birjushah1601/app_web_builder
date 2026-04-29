@@ -28,12 +28,18 @@ importers:
       '@atlas/ritual-engine':
         specifier: workspace:*
         version: link:../../packages/ritual-engine
+      '@atlas/role-accessibility':
+        specifier: workspace:*
+        version: link:../../packages/role-accessibility
       '@atlas/role-architect':
         specifier: workspace:*
         version: link:../../packages/role-architect
       '@atlas/role-developer':
         specifier: workspace:*
         version: link:../../packages/role-developer
+      '@atlas/role-security':
+        specifier: workspace:*
+        version: link:../../packages/role-security
       '@atlas/run-dashboard':
         specifier: workspace:*
         version: link:../../packages/run-dashboard
