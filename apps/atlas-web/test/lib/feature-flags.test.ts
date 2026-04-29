@@ -69,8 +69,23 @@ describe("listFlagStates", () => {
       "live-events": false,
       "ritual-hydration": false,
       "security-role": false,
-      "a11y-role": false
+      "a11y-role": false,
+      "run-grafana": false
     });
+  });
+});
+
+describe("run-grafana flag (Plan J)", () => {
+  it("is off when ATLAS_FF_RUN_GRAFANA is unset", () => {
+    expect(isFeatureEnabled("run-grafana", sourceWith({}))).toBe(false);
+  });
+  it("is on when ATLAS_FF_RUN_GRAFANA=true", () => {
+    expect(
+      isFeatureEnabled("run-grafana", sourceWith({ ATLAS_FF_RUN_GRAFANA: "true" }))
+    ).toBe(true);
+  });
+  it("listFlagStates includes run-grafana", () => {
+    expect(listFlagStates(sourceWith({}))["run-grafana"]).toBe(false);
   });
 });
 
