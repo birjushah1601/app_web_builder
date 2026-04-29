@@ -756,3 +756,16 @@ After all 7 tasks:
 1. **Configurable health window selector.** Today the page uses a fixed 60-minute window. A small selector ("1h / 6h / 24h / 7d") + URL param wiring is a 4-task plan.
 2. **`queryInstantVector` on the GrafanaClient interface.** Today's interface returns scalar from `queryInstant`; LogQL trace-id extraction needs vector results. A small extension to `@atlas/run-dashboard` plus an HttpGrafanaClient implementation lands the real Priya trace links.
 3. **C-6 cost dashboards.** Once Plan J is bedded in, the same `getGrafanaClient` helper composes with cost-specific PromQL queries to populate the per-project spend pane.
+
+---
+
+## Shipped
+
+5 of 7 tasks executed inline + merged to `plan-j/run-grafana` and then to `main`. `pnpm typecheck` clean across atlas-web + @atlas/run-dashboard. atlas-web added 3 run-grafana flag cases + 4 grafana-helper cases + 4 query cases + 5 page-flag-branch cases (16 total). Flag-OFF behavioural lock preserved — placeholder render unchanged when `ATLAS_FF_RUN_GRAFANA` unset OR when env vars missing. `docs/superpowers/local-dev-status.md` updated — Plan J added under "What's wired".
+
+Deviations from plan:
+- **Tasks 2-3 combined** into one commit (helper + queries are tightly coupled and small).
+- **Tasks 4-6 combined**: the page wiring is one logical change; tests cover all three personas in one file.
+- **Endpoint stats + trace links scope-down**: `computeEndpointStats` takes pre-parsed `Record<string, number>` maps (not a GrafanaClient directly), so wiring it requires multiple separate queries + parsing. Plan J v1 just wires `computeHealthSummary` (the only Grafana-aware function in the package); endpoint + trace wiring deferred to follow-up #2 (queryInstantVector extension).
+- **D11 closeout annotation** in known-deferrals.md skipped — future cleanup pass can annotate D11 once endpoint-stats wiring also lands.
+- **Manual smoke** not exercised (no live Grafana in this environment); documented in completion checklist for the user to verify.

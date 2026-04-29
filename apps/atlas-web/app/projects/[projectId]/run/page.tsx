@@ -1,7 +1,9 @@
-import type { HealthSummary, EndpointStat, TraceLink } from "@atlas/run-dashboard";
+import { computeHealthSummary, type HealthSummary, type EndpointStat, type TraceLink } from "@atlas/run-dashboard";
 import { HealthLightsAma } from "./_components/HealthLightsAma";
 import { EndpointTableDiego } from "./_components/EndpointTableDiego";
 import { TraceExplorerPriya } from "./_components/TraceExplorerPriya";
+import { getGrafanaClient } from "@/lib/observability/grafana";
+import { AVAILABILITY_QUERY, OPEN_ALERTS_QUERY } from "@/lib/observability/queries";
 
 type Persona = "ama" | "diego" | "priya";
 
@@ -15,16 +17,38 @@ export default async function RunDashboardPage({
   const { projectId } = await params;
   const { persona = "ama" } = await searchParams;
 
-  // Server-side placeholder: a real GrafanaClient ships as a C-2 follow-up.
-  // Until the HTTP client lands, render an explicit "telemetry not yet wired"
-  // state so the UI is discoverable without pretending data exists.
-  const summary: HealthSummary = {
-    light: "unknown",
-    availabilityRatio: 0,
-    openAlerts: 0,
-    windowFromIso: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    windowToIso: new Date().toISOString()
-  };
+  // Plan J: when ATLAS_FF_RUN_GRAFANA + ATLAS_GRAFANA_URL + ATLAS_GRAFANA_TOKEN
+  // are all set, query real telemetry. Otherwise render today's "unknown"
+  // placeholder so the page stays renderable without ops setup.
+  const grafana = getGrafanaClient();
+  const windowToIso = new Date().toISOString();
+  const windowFromIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  let summary: HealthSummary;
+  if (grafana) {
+    // computeHealthSummary already wraps a try/catch that returns
+    // light: "unknown" on Grafana failure — runtime outage degrades like
+    // flag-OFF without crashing the page.
+    summary = await computeHealthSummary(grafana, {
+      windowFromIso,
+      windowToIso,
+      availabilityQuery: AVAILABILITY_QUERY,
+      alertsQuery: OPEN_ALERTS_QUERY
+    });
+  } else {
+    summary = {
+      light: "unknown",
+      availabilityRatio: 0,
+      openAlerts: 0,
+      windowFromIso,
+      windowToIso
+    };
+  }
+
+  // Endpoint stats + trace links are deferred to a follow-up plan —
+  // computeEndpointStats() takes pre-parsed metric maps (not a GrafanaClient),
+  // so wiring it requires multiple separate queries + parsing. v1 leaves
+  // these empty arrays so Diego and Priya panels render without data.
   const endpointStats: EndpointStat[] = [];
   const traces: TraceLink[] = [];
 

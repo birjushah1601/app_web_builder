@@ -14,7 +14,8 @@ export type FeatureFlag =
   | "live-events"
   | "ritual-hydration"
   | "security-role"
-  | "a11y-role";
+  | "a11y-role"
+  | "run-grafana";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -33,7 +34,10 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan I — per-role flags so an operator can flip Security on for an
   // audit run, leave Accessibility off while iterating on its prompts, etc.
   "security-role": "ATLAS_FF_SECURITY_ROLE",
-  "a11y-role": "ATLAS_FF_A11Y_ROLE"
+  "a11y-role": "ATLAS_FF_A11Y_ROLE",
+  // Plan J — gates the Run page's switch from placeholder HealthSummary
+  // to real Grafana queries. Standard ATLAS_FF_* convention.
+  "run-grafana": "ATLAS_FF_RUN_GRAFANA"
 };
 
 export interface FeatureFlagSource {
@@ -66,6 +70,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "live-events": isFeatureEnabled("live-events", source),
     "ritual-hydration": isFeatureEnabled("ritual-hydration", source),
     "security-role": isFeatureEnabled("security-role", source),
-    "a11y-role": isFeatureEnabled("a11y-role", source)
+    "a11y-role": isFeatureEnabled("a11y-role", source),
+    "run-grafana": isFeatureEnabled("run-grafana", source)
   };
 }
