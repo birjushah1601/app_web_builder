@@ -5,7 +5,12 @@ export type Severity = z.infer<typeof SeveritySchema>;
 
 export const AccessibilityIssueSchema = z.object({
   severity: SeveritySchema,
-  code: z.string().regex(/^A11Y-[A-Z]+-\d{3}$/),
+  // Accept both Atlas's house format (A11Y-CAT-NNN) and W3C's canonical
+  // WCAG references (WCAG-1.4.3, WCAG_1_4_3, WCAG-1.4.3-CONTRAST). The
+  // real LLM emits WCAG-* references naturally; the schema was tightening
+  // to A11Y-* without prompt support, which made every model run fail
+  // schema validation and escalate the ritual after 3 retries.
+  code: z.string().regex(/^(?:A11Y-[A-Z]+-\d{3}|WCAG[-_]\d+(?:[._]\d+)*(?:[-_][A-Za-z0-9_]+)?)$/),
   message: z.string().min(1),
   file: z.string().optional(),
   line: z.number().int().positive().optional()
