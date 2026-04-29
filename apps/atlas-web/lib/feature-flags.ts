@@ -15,7 +15,8 @@ export type FeatureFlag =
   | "ritual-hydration"
   | "security-role"
   | "a11y-role"
-  | "run-grafana";
+  | "run-grafana"
+  | "multi-turn";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -37,7 +38,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "a11y-role": "ATLAS_FF_A11Y_ROLE",
   // Plan J — gates the Run page's switch from placeholder HealthSummary
   // to real Grafana queries. Standard ATLAS_FF_* convention.
-  "run-grafana": "ATLAS_FF_RUN_GRAFANA"
+  "run-grafana": "ATLAS_FF_RUN_GRAFANA",
+  // Plan K — multi-turn refinement (chat-style follow-ups on the same ritual lineage).
+  "multi-turn": "ATLAS_FF_MULTI_TURN"
 };
 
 export interface FeatureFlagSource {
@@ -71,6 +74,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "ritual-hydration": isFeatureEnabled("ritual-hydration", source),
     "security-role": isFeatureEnabled("security-role", source),
     "a11y-role": isFeatureEnabled("a11y-role", source),
-    "run-grafana": isFeatureEnabled("run-grafana", source)
+    "run-grafana": isFeatureEnabled("run-grafana", source),
+    "multi-turn": isFeatureEnabled("multi-turn", source)
   };
 }
