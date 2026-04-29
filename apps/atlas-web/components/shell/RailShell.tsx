@@ -38,6 +38,15 @@ export function RailShell({ projectId, multiTurnFlagEnabled = false }: RailShell
           {projectId}
         </div>
       </header>
+      <section
+        aria-label="Live progress"
+        className="border-b border-slate-200 p-2"
+      >
+        <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          Live progress
+        </div>
+        <RitualTimelineSlot projectId={projectId} />
+      </section>
       <div className="flex flex-1 min-h-0 flex-col">
         <ChatPanel
           projectId={projectId}
@@ -46,9 +55,6 @@ export function RailShell({ projectId, multiTurnFlagEnabled = false }: RailShell
           refineAction={refineRitual}
         />
       </div>
-      <footer className="border-t border-slate-200 p-2">
-        <RitualTimelineSlot projectId={projectId} />
-      </footer>
     </aside>
   );
 }
