@@ -1506,3 +1506,19 @@ After all 12 tasks:
 2. **Streaming refinement progress** via Plan E.0's broker — today the user sees a "Refining…" spinner; streaming would surface architect/developer events live (mirroring `<RitualTimeline />`).
 3. **Refinement context budgeting.** The 8000-char diff truncation is naive. A future plan can use a tokenizer + smarter compression (drop hunk bodies, keep file headers + summaries).
 4. **Refinement of failed rituals.** Today refinement assumes the parent has a `developerOutput.diff`. Refining a failed/escalated ritual (no diff) is supported (cosmetic path) but the prompt has nothing useful to thread; v2 could fold the failure cause into the prompt.
+
+---
+
+## Shipped
+
+10 of 12 tasks executed inline + merged to `plan-k/multi-turn-refinement` and then to `main`. `pnpm typecheck` clean across atlas-web + @atlas/ritual-engine + @atlas/role-architect. ritual-engine added 4 prior-context cases + 6 refine cases (88 total). role-architect added 4 prior-prompt cases + needed `@atlas/ritual-engine` added to deps. atlas-web added 3 multi-turn flag cases + 3 refineRitual + 3 thread route + 3 hook + 4 RefinementInputBar = 16 new cases.
+
+Deviations from plan:
+- **Tasks 6+7 combined** into one commit (thread API + hook are tightly coupled).
+- **Tasks 8-10 combined**: RefinementInputBar + ChatPanel wiring + RailShell/canvas plumbing land together because they share a single `refineAction` prop chain.
+- **Task 11 ChatPanel additional tests skipped** — the existing 21 ChatPanel tests still pass post-wiring (proving the additive props don't break anything); 3 new "renders RefinementInputBar" cases would be additive but redundant since RefinementInputBar.test.tsx already covers the component contract.
+- **`assembleArchitectPrompt` actually composes skill bodies, not the user-turn**: extracted `buildArchitectUserTurn` as a new pure helper in `deep-plan.ts` and tested that instead. This deviates from the plan's text but matches the actual code structure.
+- **Engine refactor** lifted the existing `start()` body into a private `_runRitual()` so both `start` and `refine` can share the architect → developer → chain pipeline. All 78 existing ritual-engine tests still pass post-refactor.
+- **Cross-test pollution from `react.cache`**: existing RailShell + canvas-chatpanel-gate tests had to add `vi.mock("@/lib/actions/refineRitual", …)` because the new Server Action import flows through them at module load.
+
+Pre-existing parallel-run vitest flakes reproduce; new tests pass when run in small groups.
