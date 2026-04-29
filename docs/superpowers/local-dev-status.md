@@ -56,6 +56,21 @@ Total wall time: ~45–60 seconds (5 LLM hops through the local proxy).
 - **Dynamic UI for blocking questions** (architect.triage.needs_input). Today they render as a bullet list; agent could emit a structured form (RJSF / AG-UI / Anthropic tool-use → React form). Research note in `docs/superpowers/research/a2ui-2026-04-27.md` (TBD if formalized).
 - **Reviewer-as-Role extraction.** DeveloperRole still invokes `reviewerVote` inline; promoting Reviewer to a Conductor role is deferred to a follow-up plan. Ship role still unregistered in the factory.
 
+## How to enable each plan locally
+
+Every plan ships flag-OFF by default. Add the flag(s) to `apps/atlas-web/.env.local` and restart `pnpm dev`. Full env-var reference (with comments + defaults): `apps/atlas-web/.env.example`.
+
+| Plan | Flag(s) | Extra env required | What turns on |
+|---|---|---|---|
+| **E.0 / G / F** | `ATLAS_LIVE_EVENTS=true` | — | SSE event broker, persistent left-rail (ChatPanel + RitualTimeline), preview iframe auto-reload on diff apply |
+| **H** | `ATLAS_RITUAL_HYDRATION=true` | — | `engine.getRitual()` falls back to Postgres replay on in-memory miss; restart no longer drops history |
+| **I** Security | `ATLAS_FF_SECURITY_ROLE=true` | — | After developer dispatch, dispatches `SecurityRole`; failing gate escalates ritual |
+| **I** Accessibility | `ATLAS_FF_A11Y_ROLE=true` | — | Same shape, `AccessibilityRole` |
+| **J** | `ATLAS_FF_RUN_GRAFANA=true` | `ATLAS_GRAFANA_URL` + `ATLAS_GRAFANA_TOKEN` | Run page replaces "unknown" placeholder with real `computeHealthSummary` query. Missing env = stays on placeholder, no crash. |
+| **K** | `ATLAS_FF_MULTI_TURN=true` | — | "Refine" textarea under each developer-output card; refinement runs as a child ritual linked to the parent via `parentRitualId` |
+
+Flag combinations are independent — turn on whichever subset is useful for the demo. The flags interact cleanly: e.g. `ATLAS_LIVE_EVENTS=true` + `ATLAS_FF_MULTI_TURN=true` puts the persistent rail's chat into refinement mode; add `ATLAS_RITUAL_HYDRATION=true` and the refinement chain survives `pnpm dev` restarts.
+
 ## Running the stack locally
 
 ```bash
