@@ -8,8 +8,8 @@ import {
 } from "@/lib/ritual/timelineReducer";
 
 describe("TimelineState — types and initial value", () => {
-  it("Phase is exactly the 3-value union architect | developer | sandbox", () => {
-    expectTypeOf<Phase>().toEqualTypeOf<"architect" | "developer" | "sandbox">();
+  it("Phase is the 5-value union (Plan P added security + accessibility for gate rows)", () => {
+    expectTypeOf<Phase>().toEqualTypeOf<"architect" | "developer" | "sandbox" | "security" | "accessibility">();
   });
 
   it("RowState has the expected shape", () => {
@@ -24,10 +24,13 @@ describe("TimelineState — types and initial value", () => {
     }>();
   });
 
-  it("TimelineState has rows keyed by phase + escalated boolean", () => {
+  it("TimelineState has rows + escalated + Plan P autoFix fields", () => {
     expectTypeOf<TimelineState>().toEqualTypeOf<{
       rows: Record<Phase, RowState>;
       escalated: boolean;
+      autoFixAttempts: number;
+      autoFixExhausted: boolean;
+      autoFixFailed?: string;
     }>();
   });
 
