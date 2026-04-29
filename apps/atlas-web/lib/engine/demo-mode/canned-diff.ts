@@ -25,7 +25,7 @@ export const CANNED_DEMO_DIFF = `diff --git a/src/app/page.tsx b/src/app/page.ts
 new file mode 100644
 --- /dev/null
 +++ b/src/app/page.tsx
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,54 @@
 +"use client";
 +
 +import { useState } from "react";
