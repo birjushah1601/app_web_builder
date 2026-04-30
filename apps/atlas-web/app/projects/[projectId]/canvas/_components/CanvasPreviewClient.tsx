@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { HmrIframe } from "./HmrIframe";
-import { ViewportToggle, type ViewportId, VIEWPORTS } from "./ViewportToggle";
+import { VIEWPORTS } from "./ViewportToggle";
 import { ShareableUrlModal } from "./ShareableUrlModal";
+import { CanvasPreviewToolbar, type ViewportId } from "./CanvasPreviewToolbar";
 
 interface CanvasPreviewClientProps {
   projectId: string;
@@ -16,19 +17,17 @@ interface CanvasPreviewClientProps {
 export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewError }: CanvasPreviewClientProps) {
   const [viewport, setViewport] = useState<ViewportId>("desktop");
   const [shareOpen, setShareOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between border-b px-4 py-2">
-        <ViewportToggle viewport={viewport} onViewportChange={setViewport} />
-        <button
-          type="button"
-          onClick={() => setShareOpen(true)}
-          className="rounded px-3 py-1.5 text-sm border hover:bg-muted"
-        >
-          Share
-        </button>
-      </div>
+      <CanvasPreviewToolbar
+        viewport={viewport}
+        onViewportChange={setViewport}
+        previewUrl={previewUrl}
+        onReload={() => setReloadKey((k) => k + 1)}
+        onShare={() => setShareOpen(true)}
+      />
       <div
         className="flex-1 overflow-auto flex justify-center"
         style={{ maxWidth: VIEWPORTS[viewport].width }}
@@ -46,7 +45,7 @@ export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewE
             </span>
           </div>
         ) : (
-          <HmrIframe src={previewUrl} title="Live preview" projectId={projectId} />
+          <HmrIframe key={reloadKey} src={previewUrl} title="Live preview" projectId={projectId} />
         )}
       </div>
       <ShareableUrlModal
