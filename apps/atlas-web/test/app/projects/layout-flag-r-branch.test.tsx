@@ -17,6 +17,14 @@ vi.mock("@/lib/events/EventSourceProvider", () => ({
 vi.mock("@/components/shell/RailShell", () => ({
   RailShell: () => <aside data-testid="rail-shell">RailShell stub</aside>
 }));
+vi.mock("@/components/ritual/RitualStatusStrip", () => ({
+  RitualStatusStrip: () => <div data-testid="ritual-status-strip">strip stub</div>
+}));
+vi.mock("@/components/shell/EditorShell", () => ({
+  EditorShell: ({ left, right }: { left: React.ReactNode; right: React.ReactNode }) => (
+    <div data-testid="editor-shell">{left}{right}</div>
+  )
+}));
 
 const flagState = { "editor-layout-v2": false, "live-events": true, "multi-turn": false };
 vi.mock("@/lib/feature-flags", () => ({
@@ -46,5 +54,16 @@ describe("ProjectLayout — Plan R flag-OFF behavioural lock", () => {
     expect(screen.queryByTestId("ritual-status-strip")).not.toBeInTheDocument();
     expect(screen.queryByTestId("editor-shell")).not.toBeInTheDocument();
     expect(screen.queryByTestId("editor-shell-handle")).not.toBeInTheDocument();
+  });
+
+  it("renders Plan R chrome when editor-layout-v2 is ON", async () => {
+    flagState["editor-layout-v2"] = true;
+    await renderLayout();
+    expect(screen.getByTestId("ritual-status-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("editor-shell")).toBeInTheDocument();
+    // RailShell stub still mounts as the LEFT panel content
+    expect(screen.getByTestId("rail-shell")).toBeInTheDocument();
+    // Page children mount as the RIGHT panel content
+    expect(screen.getByTestId("page-children")).toBeInTheDocument();
   });
 });
