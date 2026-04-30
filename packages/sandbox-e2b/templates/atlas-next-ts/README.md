@@ -1,6 +1,17 @@
 # atlas-next-ts E2B template
 
-The Next.js 15 sandbox image used by Atlas's live-preview iframe. Builds a Node 22 + pnpm 9 + Next 15 + Tailwind environment with `pnpm dev` auto-starting on port 3000.
+The Next.js 15 sandbox image used by Atlas's live-preview iframe. Builds a Node 22 + pnpm 9 + Next 15 + Tailwind 3 + lucide-react + framer-motion environment with `pnpm dev` auto-starting on port 3000.
+
+## Pre-installed runtime deps
+
+The developer role's prompt assumes these are available; rebuild the template after editing `package.json`:
+
+- **next 15.5** + **react 18.3** + **react-dom 18.3**
+- **tailwindcss 3.4** (with `tailwind.config.ts` + `postcss.config.js`; `globals.css` ships `@tailwind` directives)
+- **lucide-react 0.460** (icons)
+- **framer-motion 11.11** (animations)
+
+If you add or remove a dep here, also update `SANDBOX_CONTEXT_PROMPT` in `packages/role-developer/src/assemble-prompt.ts` so the developer model knows what's actually importable.
 
 ## Build + push
 

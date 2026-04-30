@@ -18,7 +18,7 @@ WORKDIR /code
 # Hand-author the app structure so the build is deterministic.
 RUN mkdir -p src/app
 
-COPY package.json tsconfig.json next.config.mjs ./
+COPY package.json tsconfig.json next.config.mjs tailwind.config.ts postcss.config.js ./
 COPY src/app/layout.tsx src/app/page.tsx src/app/globals.css ./src/app/
 
 # Install via pnpm (matches Atlas's monorepo PM choice).
