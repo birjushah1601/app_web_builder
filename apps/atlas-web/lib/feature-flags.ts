@@ -18,7 +18,8 @@ export type FeatureFlag =
   | "run-grafana"
   | "multi-turn"
   | "auto-fix-loop"
-  | "demo-mode";
+  | "demo-mode"
+  | "editor-layout-v2";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -47,7 +48,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "auto-fix-loop": "ATLAS_FF_AUTO_FIX_LOOP",
   // Plan Q — demo mode: bypass LLM entirely, use canned architect+developer outputs.
   // Lets operators iterate on UI/UX without burning OpenRouter / Anthropic credits.
-  "demo-mode": "ATLAS_FF_DEMO_MODE"
+  "demo-mode": "ATLAS_FF_DEMO_MODE",
+  // Plan R — editor layout v2 (two-zone resizable shell + status strip).
+  "editor-layout-v2": "ATLAS_EDITOR_LAYOUT_V2"
 };
 
 export interface FeatureFlagSource {
@@ -84,6 +87,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "run-grafana": isFeatureEnabled("run-grafana", source),
     "multi-turn": isFeatureEnabled("multi-turn", source),
     "auto-fix-loop": isFeatureEnabled("auto-fix-loop", source),
-    "demo-mode": isFeatureEnabled("demo-mode", source)
+    "demo-mode": isFeatureEnabled("demo-mode", source),
+    "editor-layout-v2": isFeatureEnabled("editor-layout-v2", source)
   };
 }
