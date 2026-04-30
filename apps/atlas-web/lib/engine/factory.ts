@@ -160,13 +160,13 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     checkpointSink: {
       emit: async (event) => {
         const broker = getEventBroker();
-        const ritualType = mapCheckpointToRitualType(event.eventType);
-        const publish = ritualType
+        const mapped = mapCheckpointToBrokerEvent(event.eventType, event.payload);
+        const publish = mapped
           ? broker.publish({
               projectId,
               ritualId: event.ritualId,
-              type: ritualType,
-              payload: event.payload,
+              type: mapped.type,
+              payload: mapped.payload,
               ts: Date.parse(event.ts) || Date.now()
             })
           : Promise.resolve(null);
@@ -285,35 +285,69 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   });
 });
 
-/** Map Conductor's checkpoint event types into the broker's RitualEventType
- *  union. Returns null for checkpoint types we don't surface to the live
- *  UI (e.g. dispatch.classified — internal routing detail). */
-function mapCheckpointToRitualType(eventType: string): RitualEventType | null {
+/** Map a Conductor checkpoint event into a `(type, payload)` pair the
+ *  broker can publish. Returns null when the event isn't surfaced on the
+ *  live UI (e.g. dispatch.classified — internal routing detail).
+ *
+ *  Many role-internal events get translated into the broker's flat
+ *  role.started/completed/failed types so the existing reducer can fold
+ *  them without learning every role's internal event vocabulary. The
+ *  reducer's phaseFromPayload reads either `role` or `roleId`; we set
+ *  `role` here so the rail rows (architect, developer) light up. */
+function mapCheckpointToBrokerEvent(
+  eventType: string,
+  payload: Record<string, unknown>
+): { type: RitualEventType; payload: Record<string, unknown> } | null {
   switch (eventType) {
-    case "ritual.started":          return "ritual.started";
-    case "ritual.completed":        return "ritual.completed";
-    case "ritual.escalated":        return "ritual.escalated";
-    case "role.started":            return "role.started";
-    case "role.completed":          return "role.completed";
-    case "role.failed":             return "role.failed";
-    case "role.retrying":           return "role.retrying";
-    case "sandbox.provisioning":    return "sandbox.provisioning";
-    case "sandbox.provisioned":     return "sandbox.provisioned";
-    case "sandbox.apply.started":   return "sandbox.apply.started";
-    case "sandbox.apply.completed": return "sandbox.apply.completed";
-    // Plan P: forward gate + auto-fix events to the broker so the live UI
-    // shows them. Without this mapping these events emit to the engine's
-    // sink (Postgres) but never reach the broker → SSE → RitualTimeline path.
-    case "ritual.escalation_requested": return "ritual.escalation_requested";
-    case "security.started":        return "security.started";
-    case "security.completed":      return "security.completed";
-    case "security.failed":         return "security.failed";
-    case "accessibility.started":   return "accessibility.started";
-    case "accessibility.completed": return "accessibility.completed";
-    case "accessibility.failed":    return "accessibility.failed";
-    case "auto_fix.attempted":      return "auto_fix.attempted";
-    case "auto_fix.budget_exhausted": return "auto_fix.budget_exhausted";
-    case "auto_fix.failed":         return "auto_fix.failed";
+    // Ritual-level lifecycle
+    case "ritual.started":          return { type: "ritual.started",          payload };
+    case "ritual.completed":        return { type: "ritual.completed",        payload };
+    case "ritual.escalated":        return { type: "ritual.escalated",        payload };
+    case "ritual.escalation_requested": return { type: "ritual.escalation_requested", payload };
+
+    // Conductor-emitted fallback (used by some retry paths)
+    case "role.started":            return { type: "role.started",            payload };
+    case "role.completed":          return { type: "role.completed",          payload };
+    case "role.failed":             return { type: "role.failed",             payload };
+    case "role.retrying":           return { type: "role.retrying",           payload };
+
+    // Architect role internal events → translate to role.* with role=architect.
+    // The conductor doesn't emit role.started/completed itself for the
+    // architect; it just forwards the role's own events. Without this
+    // translation the rail's architect row never leaves "pending".
+    case "architect.pass1.started":   return { type: "role.started",   payload: { ...payload, role: "architect" } };
+    case "architect.pass2.completed": return { type: "role.completed", payload: { ...payload, role: "architect" } };
+    case "architect.pass1.failed":
+    case "architect.pass2.failed":    return { type: "role.failed",    payload: { ...payload, role: "architect" } };
+
+    // Developer role internal events → translate to role.* with role=developer.
+    // developer.dispatch.started fires when the developer role begins; the
+    // role emits developer.completed at the end (winner picked). The
+    // *.failed variants light the row red.
+    case "developer.dispatch.started": return { type: "role.started",   payload: { ...payload, role: "developer" } };
+    case "developer.completed":        return { type: "role.completed", payload: { ...payload, role: "developer" } };
+    case "developer.both_failed":
+    case "developer.dispatch.failed":  return { type: "role.failed",    payload: { ...payload, role: "developer" } };
+
+    // Sandbox events
+    case "sandbox.provisioning":    return { type: "sandbox.provisioning",    payload };
+    case "sandbox.provisioned":     return { type: "sandbox.provisioned",     payload };
+    case "sandbox.apply.started":   return { type: "sandbox.apply.started",   payload };
+    case "sandbox.apply.completed": return { type: "sandbox.apply.completed", payload };
+
+    // Plan I gate events
+    case "security.started":        return { type: "security.started",        payload };
+    case "security.completed":      return { type: "security.completed",      payload };
+    case "security.failed":         return { type: "security.failed",         payload };
+    case "accessibility.started":   return { type: "accessibility.started",   payload };
+    case "accessibility.completed": return { type: "accessibility.completed", payload };
+    case "accessibility.failed":    return { type: "accessibility.failed",    payload };
+
+    // Plan L auto-fix events
+    case "auto_fix.attempted":        return { type: "auto_fix.attempted",        payload };
+    case "auto_fix.budget_exhausted": return { type: "auto_fix.budget_exhausted", payload };
+    case "auto_fix.failed":           return { type: "auto_fix.failed",           payload };
+
     default:                        return null;
   }
 }
