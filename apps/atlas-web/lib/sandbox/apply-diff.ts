@@ -11,6 +11,14 @@ export function parseDiff(diff: string): { ops: FileOp[]; error?: string } {
     return { ops: [] };
   }
 
+  // LLM-generated diffs frequently mis-state the hunk-header line count
+  // for /dev/null creates: `@@ -0,0 +1,52 @@` followed by 54 `+` lines.
+  // parse-diff respects the declared count and silently truncates the
+  // file to N lines, dropping the closing braces and producing
+  // syntactically invalid TypeScript at the sandbox. Repair the headers
+  // before parse-diff sees them so the full content always lands.
+  diff = repairCreateHunkCounts(diff);
+
   let parsed: ReturnType<typeof parseDiffLib>;
   try {
     parsed = parseDiffLib(diff);
@@ -36,6 +44,39 @@ export function parseDiff(diff: string): { ops: FileOp[]; error?: string } {
   }
 
   return { ops };
+}
+
+/**
+ * Walk a unified diff line-by-line and rewrite `@@ -0,0 +1,N @@` headers
+ * so N matches the actual count of `+` lines in the chunk that follows.
+ * Touches ONLY new-file-from-/dev/null hunks (the `-0,0` shape) so we
+ * don't fight context-line counting on real modifies.
+ *
+ * The chunk ends at the next line starting with `@@`, `diff --git`,
+ * `Index:`, or `--- `, OR end of input. `+++ b/<path>` lines (which also
+ * start with `+`) are inside the file header above the `@@` line so they
+ * never appear inside the chunk we're counting.
+ */
+export function repairCreateHunkCounts(diff: string): string {
+  const lines = diff.split("\n");
+  const HEADER_RE = /^@@\s+-0,0\s+\+1,(\d+)\s+@@/;
+  const CHUNK_END_RE = /^(@@|diff --git |Index: |--- )/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = HEADER_RE.exec(lines[i]!);
+    if (!m) continue;
+    const declared = Number(m[1]);
+    let added = 0;
+    let j = i + 1;
+    while (j < lines.length && !CHUNK_END_RE.test(lines[j]!)) {
+      if (lines[j]!.startsWith("+")) added++;
+      j++;
+    }
+    if (added !== declared) {
+      lines[i] = lines[i]!.replace(HEADER_RE, `@@ -0,0 +1,${added} @@`);
+    }
+  }
+  return lines.join("\n");
 }
 
 function classifyKind(file: parseDiffLib.File): FileOp["kind"] {

@@ -1,5 +1,91 @@
 import { describe, it, expect } from "vitest";
-import { parseDiff, sanitizePath } from "@/lib/sandbox/apply-diff";
+import { parseDiff, sanitizePath, repairCreateHunkCounts } from "@/lib/sandbox/apply-diff";
+
+describe("repairCreateHunkCounts — heals LLM hunk-count mistakes", () => {
+  it("rewrites @@ -0,0 +1,N @@ to match the actual + line count", () => {
+    // 3 actual `+` lines but header lies and says 1
+    const diff =
+      "diff --git a/x.ts b/x.ts\n" +
+      "new file mode 100644\n" +
+      "--- /dev/null\n" +
+      "+++ b/x.ts\n" +
+      "@@ -0,0 +1,1 @@\n" +
+      "+export function f() {\n" +
+      "+  return 1;\n" +
+      "+}\n";
+    const repaired = repairCreateHunkCounts(diff);
+    expect(repaired).toContain("@@ -0,0 +1,3 @@");
+  });
+
+  it("leaves a correct header alone", () => {
+    const diff =
+      "diff --git a/x.ts b/x.ts\n" +
+      "new file mode 100644\n" +
+      "--- /dev/null\n" +
+      "+++ b/x.ts\n" +
+      "@@ -0,0 +1,2 @@\n" +
+      "+a\n" +
+      "+b\n";
+    expect(repairCreateHunkCounts(diff)).toBe(diff);
+  });
+
+  it("touches only /dev/null create headers, not real modifies", () => {
+    const diff =
+      "diff --git a/y.ts b/y.ts\n" +
+      "--- a/y.ts\n" +
+      "+++ b/y.ts\n" +
+      "@@ -1,3 +1,3 @@\n" +
+      " line1\n" +
+      "-line2\n" +
+      "+line2-new\n" +
+      " line3\n";
+    expect(repairCreateHunkCounts(diff)).toBe(diff);
+  });
+
+  it("repairs multiple create hunks in the same diff independently", () => {
+    const diff =
+      "diff --git a/a.ts b/a.ts\n" +
+      "--- /dev/null\n" +
+      "+++ b/a.ts\n" +
+      "@@ -0,0 +1,1 @@\n" +
+      "+a1\n" +
+      "+a2\n" +
+      "diff --git a/b.ts b/b.ts\n" +
+      "--- /dev/null\n" +
+      "+++ b/b.ts\n" +
+      "@@ -0,0 +1,5 @@\n" +
+      "+b1\n" +
+      "+b2\n" +
+      "+b3\n";
+    const out = repairCreateHunkCounts(diff);
+    expect(out).toContain("@@ -0,0 +1,2 @@");
+    expect(out).toContain("@@ -0,0 +1,3 @@");
+  });
+});
+
+describe("parseDiff — repairs truncation before extracting newContent", () => {
+  it("recovers the dropped trailing lines when the model lies in the hunk header", () => {
+    // Header says 1 line; actual content is 3. Without repair, parse-diff
+    // would give us only the first line and the file at the sandbox would
+    // be a 1-line truncation.
+    const diff =
+      "diff --git a/src/app/layout.tsx b/src/app/layout.tsx\n" +
+      "new file mode 100644\n" +
+      "--- /dev/null\n" +
+      "+++ b/src/app/layout.tsx\n" +
+      "@@ -0,0 +1,1 @@\n" +
+      "+export default function Layout({ children }) {\n" +
+      "+  return <html><body>{children}</body></html>;\n" +
+      "+}\n";
+    const { ops, error } = parseDiff(diff);
+    expect(error).toBeUndefined();
+    expect(ops[0]!.newContent).toBe(
+      "export default function Layout({ children }) {\n" +
+      "  return <html><body>{children}</body></html>;\n" +
+      "}\n"
+    );
+  });
+});
 
 describe("parseDiff — create operation", () => {
   it("extracts a new file from a create-only diff", () => {
