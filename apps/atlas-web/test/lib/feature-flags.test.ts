@@ -62,17 +62,19 @@ describe("listFlagStates", () => {
       ATLAS_FF_AUTH_KEYCLOAK: "true"
     });
     expect(listFlagStates(env)).toEqual({
-      "figma-importer": false,
-      "stripe-payments": true,
-      "video-kling": false,
-      "auth-keycloak": true,
-      "live-events": false,
-      "ritual-hydration": false,
-      "security-role": false,
       "a11y-role": false,
-      "run-grafana": false,
+      "auth-keycloak": true,
+      "auto-fix-loop": false,
+      "demo-mode": false,
+      "editor-layout-v2": false,
+      "figma-importer": false,
+      "live-events": false,
       "multi-turn": false,
-      "auto-fix-loop": false
+      "ritual-hydration": false,
+      "run-grafana": false,
+      "security-role": false,
+      "stripe-payments": true,
+      "video-kling": false
     });
   });
 });
