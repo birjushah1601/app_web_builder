@@ -32,7 +32,7 @@ describe("HmrIframe", () => {
 
   it("renders a skeleton placeholder when src is undefined", () => {
     const { container } = render(<HmrIframe src={undefined} title="Live preview" projectId="proj-1" />);
-    expect(container.querySelector("[data-testid='hmr-iframe-skeleton']")).toBeTruthy();
+    expect(container.querySelector("[data-testid='empty-preview-backdrop']")).toBeTruthy();
     expect(container.querySelector("iframe")).toBeNull();
   });
 

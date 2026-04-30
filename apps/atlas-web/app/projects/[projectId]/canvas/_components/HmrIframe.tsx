@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useReloadOnApplied, RELOAD_PARAM } from "@/lib/canvas/useReloadOnApplied";
+import { EmptyPreviewBackdrop } from "./EmptyPreviewBackdrop";
 
 interface HmrIframeProps {
   src: string | undefined;
@@ -42,13 +43,7 @@ export function HmrIframe({ src, title, projectId, onLoad, className }: HmrIfram
   }, [effectiveSrc]);
 
   if (!src) {
-    return (
-      <div
-        data-testid="hmr-iframe-skeleton"
-        className="animate-pulse bg-muted rounded-lg w-full h-full min-h-[400px]"
-        aria-label="Sandbox preview loading"
-      />
-    );
+    return <EmptyPreviewBackdrop status="provisioning sandbox · ~5s" />;
   }
 
   return (
