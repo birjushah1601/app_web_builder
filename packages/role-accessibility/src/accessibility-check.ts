@@ -59,6 +59,10 @@ export async function runAccessibilityCheck(input: AccessibilityCheckInput): Pro
     throw new AccessibilityCheckFailedError("accessibility LLM call failed", { cause: err });
   }
   const parse = AccessibilityReportSchema.safeParse(result.input);
-  if (!parse.success) throw new AccessibilityCheckFailedError("accessibility tool_use payload failed schema", { cause: parse.error });
+  if (!parse.success) {
+    console.error("[role-accessibility] tool_use payload:", JSON.stringify(result.input).slice(0, 800));
+    console.error("[role-accessibility] zod issues:    ", JSON.stringify(parse.error.issues));
+    throw new AccessibilityCheckFailedError("accessibility tool_use payload failed schema", { cause: parse.error });
+  }
   return parse.data;
 }
