@@ -31,7 +31,7 @@ describe("RitualTimeline — gates + auto-fix (Plan P Task 4)", () => {
         accessibility: { phase: "accessibility", status: "pending", retries: 0 }
       }
     });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     expect(screen.getByTestId("row-security")).toBeInTheDocument();
     expect(screen.queryByTestId("row-accessibility")).not.toBeInTheDocument();
   });
@@ -49,7 +49,7 @@ describe("RitualTimeline — gates + auto-fix (Plan P Task 4)", () => {
         accessibility: { phase: "accessibility", status: "pending", retries: 0 }
       }
     });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     expect(screen.queryByTestId("row-security")).not.toBeInTheDocument();
     expect(screen.queryByTestId("row-accessibility")).not.toBeInTheDocument();
     // Core 3 rows always render.
@@ -71,7 +71,7 @@ describe("RitualTimeline — gates + auto-fix (Plan P Task 4)", () => {
         accessibility: { phase: "accessibility", status: "pending", retries: 0 }
       }
     });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     expect(screen.getByTestId("auto-fix-indicator")).toBeInTheDocument();
     expect(screen.getByTestId("auto-fix-indicator").textContent).toMatch(/Auto-fix #1 in progress/);
   });
@@ -89,7 +89,7 @@ describe("RitualTimeline — gates + auto-fix (Plan P Task 4)", () => {
         accessibility: { phase: "accessibility", status: "pending", retries: 0 }
       }
     });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     expect(screen.getByTestId("auto-fix-indicator").textContent).toMatch(/budget reached \(2 attempts\)/);
   });
 });
