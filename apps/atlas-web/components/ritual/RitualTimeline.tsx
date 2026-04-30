@@ -7,10 +7,12 @@
  * on escalation and a Plan P auto-fix indicator when the engine's auto-fix
  * loop is active.
  *
- * Reads no props; subscribes to the ambient EventSourceProvider via the
- * useTimelineState hook. Mount this component below ANY EventSourceProvider
- * — Plan G's RailShell mounts the rail-footer slot which dynamic-imports
- * this component.
+ * Subscribes to the ambient EventSourceProvider via the useTimelineState
+ * hook AND uses Plan R's useTimelineCollapse (sessionStorage-backed,
+ * auto-collapses on first sandbox.apply.completed). Requires `projectId`
+ * so per-project collapse state stays distinct. Mount this component below
+ * ANY EventSourceProvider — Plan G's RailShell mounts the rail-footer slot
+ * which dynamic-imports this component.
  */
 
 import { useTimelineState, type Phase } from "@/lib/ritual/useTimelineState";
@@ -49,9 +51,20 @@ export function RitualTimeline({ projectId }: { projectId: string }) {
         <summary
           data-testid="ritual-timeline-summary"
           className="cursor-pointer select-none px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-slate-500"
+          // Both onClick (mouse) and onKeyDown (keyboard) call preventDefault
+          // and route through setOpen so React fully owns the `open` attribute.
+          // Without the keyboard handler, Space/Enter on the summary would
+          // toggle natively but our state would not update — visible state
+          // and React state would drift apart for keyboard-only users.
           onClick={(e) => {
             e.preventDefault();
             setOpen(!open);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === " " || e.key === "Enter") {
+              e.preventDefault();
+              setOpen(!open);
+            }
           }}
         >
           Live progress

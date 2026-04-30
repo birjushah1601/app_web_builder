@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
 import React from "react";
 
 const streamState = {
@@ -44,5 +44,20 @@ describe("RitualTimeline — Plan R collapsible wrapper", () => {
     // Re-mount: sessionStorage retains the user's open choice
     render(<RitualTimeline projectId="p-1" />);
     expect(screen.getByTestId("ritual-timeline-details").hasAttribute("open")).toBe(true);
+  });
+
+  // a11y regression test: keyboard users (Space/Enter on the summary) must
+  // get the same toggle behaviour as a mouse click. The onClick + preventDefault
+  // pattern alone leaves keyboard users with native toggle that doesn't update
+  // React state — visible state and React state would drift apart.
+  it("toggles open via keyboard (Space and Enter) on the summary", () => {
+    streamState.events = [evt("sandbox.apply.completed", { ok: true, filesWritten: 1 }, 5_000)];
+    render(<RitualTimeline projectId="p-1" />);
+    const summary = screen.getByTestId("ritual-timeline-summary");
+    expect(screen.getByTestId("ritual-timeline-details").hasAttribute("open")).toBe(false);
+    act(() => { fireEvent.keyDown(summary, { key: " " }); });
+    expect(screen.getByTestId("ritual-timeline-details").hasAttribute("open")).toBe(true);
+    act(() => { fireEvent.keyDown(summary, { key: "Enter" }); });
+    expect(screen.getByTestId("ritual-timeline-details").hasAttribute("open")).toBe(false);
   });
 });
