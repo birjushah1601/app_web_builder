@@ -19,7 +19,7 @@ describe("RitualTimeline", () => {
 
   it("renders all three rows on first mount (all pending)", () => {
     mockUseEventStream.mockReturnValue({ events: [], status: "open", lastEventId: null });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     expect(screen.getByTestId("ritual-row-architect")).toBeInTheDocument();
     expect(screen.getByTestId("ritual-row-developer")).toBeInTheDocument();
     expect(screen.getByTestId("ritual-row-sandbox")).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe("RitualTimeline", () => {
       ],
       status: "open", lastEventId: "p-1:4"
     });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     const architect = screen.getByTestId("ritual-row-architect");
     const developer = screen.getByTestId("ritual-row-developer");
     expect(architect).toHaveTextContent("✓");
@@ -46,7 +46,7 @@ describe("RitualTimeline", () => {
 
   it("renders the standard human-readable titles in row order", () => {
     mockUseEventStream.mockReturnValue({ events: [], status: "open", lastEventId: null });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     expect(screen.getByText("Architect planning")).toBeInTheDocument();
     expect(screen.getByText("Developer writing")).toBeInTheDocument();
     expect(screen.getByText("Applying to sandbox")).toBeInTheDocument();
@@ -60,14 +60,14 @@ describe("RitualTimeline", () => {
       ],
       status: "open", lastEventId: "p-1:2"
     });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText(/not authorised/i)).toBeInTheDocument();
   });
 
   it("does NOT mount EscalationCallout when escalated is false", () => {
     mockUseEventStream.mockReturnValue({ events: [], status: "open", lastEventId: null });
-    render(<RitualTimeline />);
+    render(<RitualTimeline projectId="p-1" />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

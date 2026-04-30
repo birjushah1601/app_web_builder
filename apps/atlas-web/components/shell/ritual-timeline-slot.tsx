@@ -20,7 +20,7 @@ interface SlotProps {
 export function RitualTimelineSlot(_props: SlotProps): React.ReactElement {
   return (
     <div data-testid="ritual-timeline-host">
-      <RitualTimeline />
+      <RitualTimeline projectId={_props.projectId} />
     </div>
   );
 }
