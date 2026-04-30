@@ -28,10 +28,7 @@ export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewE
         onReload={() => setReloadKey((k) => k + 1)}
         onShare={() => setShareOpen(true)}
       />
-      <div
-        className="flex-1 overflow-auto flex justify-center"
-        style={{ maxWidth: VIEWPORTS[viewport].width }}
-      >
+      <div className="flex-1 overflow-auto flex items-start justify-center bg-slate-50 p-4">
         {previewError ? (
           <div
             role="alert"
@@ -45,7 +42,18 @@ export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewE
             </span>
           </div>
         ) : (
-          <HmrIframe key={reloadKey} src={previewUrl} title="Live preview" projectId={projectId} />
+          <div
+            data-testid="canvas-preview-frame"
+            className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col transition-all duration-200"
+            style={{
+              width: VIEWPORTS[viewport].width,
+              maxWidth: "100%",
+              height: VIEWPORTS[viewport].height,
+              maxHeight: "100%"
+            }}
+          >
+            <HmrIframe key={reloadKey} src={previewUrl} title="Live preview" projectId={projectId} />
+          </div>
         )}
       </div>
       <ShareableUrlModal

@@ -26,7 +26,7 @@ describe("CanvasPreviewClient", () => {
     expect(screen.getByRole("button", { name: /share/i })).toBeInTheDocument();
   });
 
-  it("renders the loading skeleton when previewUrl is undefined and no error", () => {
+  it("renders the empty preview backdrop when previewUrl is undefined and no error", () => {
     render(
       <CanvasPreviewClient
         projectId="p-1"
@@ -35,7 +35,8 @@ describe("CanvasPreviewClient", () => {
       />
     );
     expect(screen.queryByTestId("canvas-preview-error")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/sandbox preview loading/i)).toBeInTheDocument();
+    // Plan R Task 9 replaced the animate-pulse skeleton with EmptyPreviewBackdrop.
+    expect(screen.getByTestId("empty-preview-backdrop")).toBeInTheDocument();
   });
 
   it("surfaces the previewError instead of the loading skeleton when provision failed", () => {
@@ -50,9 +51,9 @@ describe("CanvasPreviewClient", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(/Preview unavailable/);
     expect(alert).toHaveTextContent(/E2B spend cap exceeded/);
-    // Loading skeleton must NOT be rendered when an error is shown — that's
-    // the whole point of this fix (no more forever-spinner).
-    expect(screen.queryByLabelText(/sandbox preview loading/i)).not.toBeInTheDocument();
+    // Empty backdrop must NOT be rendered when an error is shown — that's
+    // the whole point of this fix (no more forever-spinner under an error).
+    expect(screen.queryByTestId("empty-preview-backdrop")).not.toBeInTheDocument();
   });
 
   it("error panel includes a recovery hint pointing at common causes", () => {
