@@ -5,6 +5,11 @@ import { refineRitual } from "@/lib/actions/refineRitual";
 import { getSandboxFactory } from "@/lib/sandbox/factory";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { CanvasPreviewClient } from "./_components/CanvasPreviewClient";
+import { CanvasShell } from "@/components/canvas/CanvasShell";
+// Side-effect import — populates the canvasModeRegistry singleton at module
+// load time (atlas-web only mounts CanvasShell when the canvas-v1 flag is on,
+// but the registration runs unconditionally so the registry is always ready).
+import "@/components/canvas/register-renderers";
 
 export default async function CanvasPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -34,16 +39,26 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // conversation across two trees — gate the local mount on the flag.
   const liveEventsOn = isFeatureEnabled("live-events");
   const multiTurnOn = isFeatureEnabled("multi-turn");
+  // Plan S.4: when canvas-v1 is on, replace the preview-only right pane
+  // with the polymorphic <CanvasShell>. No manifest is wired in this commit
+  // (the engine-integration plan ships the manifest source); CanvasShell
+  // renders <EmptyCanvas> until the manifest arrives. Flag-OFF preserves
+  // today's preview-only tree byte-for-byte.
+  const canvasV1On = isFeatureEnabled("canvas-v1");
 
   return (
     <main className="flex h-full">
       <section className="flex-1 flex flex-col">
-        <CanvasPreviewClient
-          projectId={projectId}
-          sandboxId={sandboxId}
-          previewUrl={previewUrl}
-          previewError={previewError}
-        />
+        {canvasV1On ? (
+          <CanvasShell manifest={undefined} persona="ama" />
+        ) : (
+          <CanvasPreviewClient
+            projectId={projectId}
+            sandboxId={sandboxId}
+            previewUrl={previewUrl}
+            previewError={previewError}
+          />
+        )}
         <CanvasClient graph={graph} projectId={projectId} />
       </section>
       {liveEventsOn ? null : (
