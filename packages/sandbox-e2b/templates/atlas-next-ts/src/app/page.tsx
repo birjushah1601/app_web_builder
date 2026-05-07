@@ -1,26 +1,29 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Sparkles } from "lucide-react";
+
 export default function Page() {
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        padding: "2rem",
-        textAlign: "center"
-      }}
-    >
-      <h1 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>Atlas sandbox is live</h1>
-      <p style={{ color: "#475569", marginBottom: "1.5rem" }}>
-        This blank Next.js app is the starting point. Atlas's developer role
-        will write code into <code>/code/src/</code>; the dev server picks it
-        up via HMR and you'll see it here.
-      </p>
-      <p style={{ color: "#94a3b8", fontSize: "0.875rem" }}>
-        next.js 15 · port 3000 · {new Date().getFullYear()}
-      </p>
+    <main className="container mx-auto flex min-h-screen items-center justify-center p-8">
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Sparkles className="text-primary" />
+            <CardTitle>Atlas sandbox is live</CardTitle>
+            <Badge variant="secondary">v0.2 · shadcn-ready</Badge>
+          </div>
+          <CardDescription>
+            This blank Next.js + Tailwind + shadcn/ui app is the starting point. Atlas&apos;s developer
+            role will write code into <code className="rounded bg-muted px-1 py-0.5 text-xs">/code/src/</code>;
+            the dev server picks it up via HMR and you&apos;ll see it here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-2">
+          <Button>Primary action</Button>
+          <Button variant="outline">Secondary</Button>
+        </CardContent>
+      </Card>
     </main>
   );
 }
