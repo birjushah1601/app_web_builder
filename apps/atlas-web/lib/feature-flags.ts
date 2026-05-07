@@ -19,7 +19,8 @@ export type FeatureFlag =
   | "multi-turn"
   | "auto-fix-loop"
   | "demo-mode"
-  | "editor-layout-v2";
+  | "editor-layout-v2"
+  | "designer";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -50,7 +51,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Lets operators iterate on UI/UX without burning OpenRouter / Anthropic credits.
   "demo-mode": "ATLAS_FF_DEMO_MODE",
   // Plan R — editor layout v2 (two-zone resizable shell + status strip).
-  "editor-layout-v2": "ATLAS_EDITOR_LAYOUT_V2"
+  "editor-layout-v2": "ATLAS_EDITOR_LAYOUT_V2",
+  // Plan S.3 — Designer role + A2UI primitive (proposal LLM call gated; A2UI components are unconditionally compiled but only mounted when canvas wires them in S.4).
+  "designer": "ATLAS_FF_DESIGNER"
 };
 
 export interface FeatureFlagSource {
@@ -88,6 +91,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "multi-turn": isFeatureEnabled("multi-turn", source),
     "auto-fix-loop": isFeatureEnabled("auto-fix-loop", source),
     "demo-mode": isFeatureEnabled("demo-mode", source),
-    "editor-layout-v2": isFeatureEnabled("editor-layout-v2", source)
+    "editor-layout-v2": isFeatureEnabled("editor-layout-v2", source),
+    "designer": isFeatureEnabled("designer", source)
   };
 }

@@ -22,6 +22,7 @@
     "@atlas/ritual-engine": "workspace:*",
     "@atlas/role-accessibility": "workspace:*",
     "@atlas/role-architect": "workspace:*",
+    "@atlas/role-designer": "workspace:*",
     "@atlas/role-developer": "workspace:*",
     "@atlas/role-researcher": "workspace:*",
     "@atlas/role-security": "workspace:*",
