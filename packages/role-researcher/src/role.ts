@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { LLMProvider } from "@atlas/llm-provider";
@@ -12,11 +13,17 @@ export interface ResearcherRoleOptions {
   catalogDir?: string;
   webAdapter?: WebFetchAdapter | null;
   mode?: "fast" | "considered";
+  /** Plan T.1 — skill markdown root used to look up per-`artifactKind`
+   *  brief fragments (`assemble-brief-${artifactKind}.md`). Optional;
+   *  when unset or the file is missing the role falls back to the
+   *  generic `assemble-brief` skill. */
+  skillsDir?: string;
 }
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DEFAULT_CATALOG_DIR = path.resolve(__dirname, "..", "catalog");
+const GENERIC_BRIEF_SKILL = "assemble-brief";
 
 export class ResearcherRole implements Role {
   readonly id = "researcher";
@@ -24,6 +31,7 @@ export class ResearcherRole implements Role {
   private readonly catalogDir: string;
   private readonly webAdapter: WebFetchAdapter | null;
   private readonly mode: "fast" | "considered";
+  private readonly skillsDir: string | null;
   private catalogPromise: Promise<Map<string, CatalogEntry>> | null = null;
 
   constructor(opts: ResearcherRoleOptions) {
@@ -31,6 +39,7 @@ export class ResearcherRole implements Role {
     this.catalogDir = opts.catalogDir ?? DEFAULT_CATALOG_DIR;
     this.webAdapter = opts.webAdapter ?? null;
     this.mode = opts.mode ?? "considered";
+    this.skillsDir = opts.skillsDir ?? null;
   }
 
   async run(inv: RoleInvocation): Promise<RoleOutput> {
@@ -40,6 +49,12 @@ export class ResearcherRole implements Role {
       events.push({ eventType: "researcher.brief.skipped", payload: { reason: "no designIntent in priorArtifact" } });
       return { events, diff: { kind: "none" } };
     }
+
+    const composedSkillNames = this.composeSkillNames(designIntent);
+    events.push({
+      eventType: "researcher.skills.composed",
+      payload: { skills: composedSkillNames, artifactKind: designIntent.artifactKind ?? null }
+    });
 
     events.push({ eventType: "researcher.brief.started", payload: { category: designIntent.category, mode: this.mode } });
 
@@ -87,6 +102,30 @@ export class ResearcherRole implements Role {
       this.catalogPromise = loadCatalog(this.catalogDir);
     }
     return this.catalogPromise;
+  }
+
+  /** Plan T.1 — prepend `assemble-brief-${artifactKind}` when a per-kind
+   *  skill markdown exists on disk, otherwise compose with the generic
+   *  `assemble-brief` only. The on-disk check (a) is best-effort: when no
+   *  `skillsDir` is configured we just emit the generic skill (the existing
+   *  S.2 behavior). When the per-kind file is missing we fall back to the
+   *  generic skill alone. */
+  private composeSkillNames(designIntent: DesignIntent): string[] {
+    const names = [GENERIC_BRIEF_SKILL];
+    const kind = designIntent.artifactKind;
+    if (!kind || !this.skillsDir) return names;
+
+    const perKind = `${GENERIC_BRIEF_SKILL}-${kind}`;
+    const candidate = path.join(this.skillsDir, `${perKind}.md`);
+    try {
+      if (fs.existsSync(candidate)) {
+        return [perKind, ...names];
+      }
+    } catch {
+      // existsSync rarely throws, but treat any I/O hiccup as "missing" so
+      // the role keeps running with the generic fragment.
+    }
+    return names;
   }
 }
 
