@@ -66,3 +66,95 @@ describe("factory visual-quality integration", () => {
     expect(role).toBeNull();
   });
 });
+
+// Heavy module mocks for the engine smoke test. Top-level vi.mock so Vite's
+// import-analysis sees the stubs before resolving the real packages (some of
+// which lack a built `dist/` in CI vitest, or have zod-circular import
+// issues that crash at module load — see the canvas-runtime alias note in
+// vitest.config.ts).
+vi.mock("pg", () => ({ Pool: vi.fn().mockImplementation(() => ({})) }));
+vi.mock("@atlas/spec-graph-data", () => ({
+  PreferencesRepo: vi.fn().mockImplementation(() => ({})),
+  SpecEventRepo: vi.fn().mockImplementation(() => ({}))
+}));
+vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn(async () => ({})) }));
+vi.mock("@atlas/role-architect", () => ({
+  ArchitectRole: vi.fn().mockImplementation(() => ({ id: "architect" })),
+  ARCHITECT_TRIAGE_MODEL: "claude-haiku-4-5",
+  ARCHITECT_DEEP_PLAN_MODEL: "claude-sonnet-4"
+}));
+vi.mock("@atlas/role-developer", () => ({
+  DeveloperRole: vi.fn().mockImplementation(() => ({ id: "developer" }))
+}));
+vi.mock("@atlas/role-security", () => ({
+  SecurityRole: vi.fn().mockImplementation(() => ({
+    id: "security",
+    run: async () => ({ events: [], diff: { kind: "none" } })
+  }))
+}));
+vi.mock("@atlas/role-accessibility", () => ({
+  AccessibilityRole: vi.fn().mockImplementation(() => ({
+    id: "accessibility",
+    run: async () => ({ events: [], diff: { kind: "none" } })
+  }))
+}));
+vi.mock("@atlas/gate-visual-quality", () => ({
+  // Capture constructor opts on the instance so the model-override test
+  // can inspect what was passed in (mirrors the real role's `this.opts`).
+  VisualQualityRole: vi.fn().mockImplementation((opts: unknown) => ({
+    id: "visual-quality",
+    opts,
+    run: async () => ({ events: [], diff: { kind: "none" } })
+  }))
+}));
+// SkillRegistry + loadSkillsFromDir: avoid disk I/O during the smoke test.
+vi.mock("@atlas/skill-runtime", () => ({
+  SkillRegistry: vi.fn().mockImplementation(() => ({})),
+  loadSkillsFromDir: vi.fn().mockResolvedValue([])
+}));
+// Sandbox factory's getOrProvision is called when constructing the
+// visual-quality role (lazy previewUrl resolution); stub to a benign null.
+vi.mock("@/lib/sandbox/factory", () => ({
+  getSandboxFactory: () => ({
+    getOrProvision: async () => null,
+    evict: () => {}
+  })
+}));
+// ritual-engine + conductor — both are imported at the top of factory.ts.
+// Mock the bits the engine uses; postDeveloperChain is exposed as a public
+// readable field on the instance.
+vi.mock("@atlas/conductor", async () => {
+  const actual = await vi.importActual<Record<string, unknown>>("@atlas/conductor");
+  return { ...actual, Conductor: vi.fn().mockImplementation(() => ({})) };
+});
+vi.mock("@atlas/ritual-engine", () => ({
+  RitualEngine: vi.fn().mockImplementation((opts: { postDeveloperChain?: string[] }) => ({
+    postDeveloperChain: opts.postDeveloperChain ?? []
+  }))
+}));
+
+describe("getRitualEngine — visual-quality flag wiring (Plan S.5)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env.ATLAS_LLM_BASE_URL = "http://localhost:3456";
+  });
+
+  it("with security + a11y + visual-quality flags ON, engine constructs and chain is ['security','accessibility','visual-quality']", async () => {
+    process.env.ATLAS_FF_SECURITY_ROLE = "true";
+    process.env.ATLAS_FF_A11Y_ROLE = "true";
+    process.env.ATLAS_FF_VISUAL_QUALITY_GATE = "true";
+
+    const { getRitualEngine } = await import("@/lib/engine/factory");
+    const engine = await getRitualEngine("p-smoke");
+    expect(engine).toBeDefined();
+    expect((engine as unknown as { postDeveloperChain: string[] }).postDeveloperChain).toEqual([
+      "security",
+      "accessibility",
+      "visual-quality"
+    ]);
+
+    delete process.env.ATLAS_FF_SECURITY_ROLE;
+    delete process.env.ATLAS_FF_A11Y_ROLE;
+    delete process.env.ATLAS_FF_VISUAL_QUALITY_GATE;
+  });
+});

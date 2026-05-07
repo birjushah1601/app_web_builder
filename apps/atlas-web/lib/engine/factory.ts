@@ -137,15 +137,65 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       const a11yModel = process.env.ATLAS_LLM_A11Y_MODEL ?? deepPlanModel;
       roles.set("accessibility", new AccessibilityRole({ llm, skills: skillRegistry, model: a11yModel }));
     }
+
+    // Plan S.5: Visual-Quality merge gate. Constructed only when the flag
+    // is on; appended to postDeveloperChain after Security + A11y. The role
+    // needs `exec` (E2B process API) and `previewUrl` — both resolved
+    // lazily inside a `runCommand` adapter so a stale sandbox at engine
+    // construction time still yields a working role at dispatch time.
+    if (isFeatureEnabled("visual-quality-gate")) {
+      const { VisualQualityRole } = await import("@atlas/gate-visual-quality");
+      const vqModel = process.env.ATLAS_VQ_GATE_MODEL ?? deepPlanModel;
+
+      // Lazy SandboxExec adapter — connects to the live E2B sandbox per
+      // call. Avoids capturing a sandbox handle at construction time
+      // (handles can go stale via E2B's idle TTL eviction; getSandboxFactory
+      // already handles re-provision on demand).
+      const lazyExec = {
+        runCommand: async (cmd: string) => {
+          const session = await getSandboxFactory().getOrProvision(projectId);
+          const { Sandbox } = await import("@e2b/sdk");
+          const sdk = await Sandbox.connect(session.record.sandboxId, {
+            apiKey: process.env.E2B_API_KEY ?? ""
+          });
+          // E2B v2 process API. Returns stdout/stderr + exit code; the role's
+          // SandboxExec contract maps 1:1.
+          // Cast to `any` because @e2b/sdk types vary across versions and
+          // we only need the run() shape here.
+          const proc = await (sdk as unknown as { process: { startAndWait: (opts: { cmd: string }) => Promise<{ stdout: string; stderr?: string; exitCode: number }> } }).process.startAndWait({ cmd });
+          return { stdout: proc.stdout, stderr: proc.stderr, exitCode: proc.exitCode };
+        }
+      };
+
+      // Lazy previewUrl resolver — captured at construction is fine
+      // because the URL is stable for the lifetime of a sandbox; if the
+      // sandbox was re-provisioned the url may differ but the role will
+      // still hit the live preview surface served at port 3000.
+      const session = await getSandboxFactory().getOrProvision(projectId).catch(() => null);
+      const previewUrl = session?.previewUrl ?? "";
+
+      roles.set(
+        "visual-quality",
+        new VisualQualityRole({
+          llm,
+          skills: skillRegistry,
+          exec: lazyExec,
+          previewUrl,
+          ...(vqModel ? { model: vqModel } : {})
+        })
+      );
+    }
   }
 
-  // Plan I: build the postDeveloperChain from the per-role flags. Order
-  // is fixed: security first (more critical — secret-leak blocks the
-  // whole branch), then accessibility (advisory-grade). Empty chain = no
-  // post-developer dispatch, today's behavior.
+  // Plan I + S.5: build the postDeveloperChain from the per-role flags.
+  // Order is fixed: security first (more critical — secret-leak blocks the
+  // whole branch), then accessibility (advisory-grade), then visual-quality
+  // (taste-driven; runs last so it sees the final-state preview after any
+  // upstream gate fixes). Empty chain = no post-developer dispatch.
   const postDeveloperChain: string[] = [];
-  if (isFeatureEnabled("security-role")) postDeveloperChain.push("security");
-  if (isFeatureEnabled("a11y-role"))     postDeveloperChain.push("accessibility");
+  if (isFeatureEnabled("security-role"))       postDeveloperChain.push("security");
+  if (isFeatureEnabled("a11y-role"))           postDeveloperChain.push("accessibility");
+  if (isFeatureEnabled("visual-quality-gate")) postDeveloperChain.push("visual-quality");
 
   const conductor = new Conductor({
     classifier: { classify: async () => ({ roleId: "architect", confidence: 0.9 }) },
