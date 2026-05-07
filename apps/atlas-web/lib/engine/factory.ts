@@ -398,6 +398,14 @@ function mapCheckpointToBrokerEvent(
     case "auto_fix.budget_exhausted": return { type: "auto_fix.budget_exhausted", payload };
     case "auto_fix.failed":           return { type: "auto_fix.failed",           payload };
 
+    // Plan S.5 visual-quality gate events
+    case "visual_quality.started":    return { type: "visual_quality.started",    payload };
+    case "visual_quality.passed":     return { type: "visual_quality.passed",     payload };
+    case "visual_quality.failed":     return { type: "visual_quality.failed",     payload };
+    case "visual_quality.skipped":    return { type: "visual_quality.skipped",    payload };
+    case "visual_quality.completed":  return { type: "visual_quality.completed",  payload };
+    case "visual_quality.errored":    return { type: "visual_quality.errored",    payload };
+
     default:                        return null;
   }
 }
