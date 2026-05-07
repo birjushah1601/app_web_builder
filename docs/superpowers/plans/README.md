@@ -81,6 +81,49 @@ Phase C is **in progress**. Per ADR-001 (2026-04-22), Atlas no longer targets Ve
 
 ---
 
+## Plan S — UI Quality Uplift (v1)
+
+5 sub-plans landed 2026-05; tagged `plan-s/v1-complete` on `main`. See `docs/superpowers/specs/2026-05-02-ui-quality-uplift-design.md` for the full design rationale and `docs/superpowers/plans/2026-05-02-plan-s-overview.md` for sub-plan dependencies + flag-rollout sequence.
+
+| # | File | Plan | Scope | Status |
+|---|---|---|---|---|
+| S.1 | `2026-05-02-plan-s1-sandbox-uplift.md` | **Sandbox Uplift** | Rebuild atlas-next-ts E2B template (v2) with Tailwind + shadcn + lucide + framer-motion + atlas-* CSS-variable design tokens; rewrite `SANDBOX_CONTEXT_PROMPT` from negative-list to positive-list | Shipped |
+| S.2 | `2026-05-02-plan-s2-researcher-catalog.md` | **Researcher Role + Catalog** | New `@atlas/role-researcher` (Brave Search adapter behind `ATLAS_RESEARCH_WEB`) + 30-category local YAML catalog | Shipped |
+| S.3 | `2026-05-02-plan-s3-designer-a2ui.md` | **Designer Role + A2UI** | New `@atlas/role-designer` + OptionsCard / AxisWizard / OutcomeCard / TechnicalCard primitives | Shipped |
+| S.4 | `2026-05-02-plan-s4-canvas-engine.md` | **Polymorphic Canvas + Engine** | New `@atlas/canvas-runtime` + CanvasShell + RitualEngine pause-awaiting-canvas-selection + atlas-web canvas renderers | Shipped |
+| S.5 | `2026-05-02-plan-s5-visual-quality-gate.md` | **Visual-Quality Gate + Visual Regression** | New `@atlas/gate-visual-quality` (L7) + per-renderer × persona × viewport Playwright snapshot suite + CI workflow | Shipped |
+
+E2B templates published during Plan S: `atlas-next-ts-v2` (id `75mxlaomm6h7fasald1h`).
+
+Out of scope (deferred to Plan S v2):
+- Backend Endpoints / Exerciser / Logs canvas modes
+- Mobile / data-pipeline / CLI canvas modes
+- Per-component visual-edit overlay (Lovable-style click-to-edit)
+- Visual-Quality gate Opus upgrade when budget allows
+- Persistent inspiration cache that auto-grows from approved web hits
+- Multi-tenant brand-kit injection
+
+---
+
+## Plan T — Multi-Stack Templates
+
+Builds on Plan S to close the architect-classification → developer-template gap. The architect speaks 6 artifact kinds; v1 templates cover only Next.js. Plan T adds dedicated E2B templates per artifact kind, behind `ATLAS_FF_MULTI_STACK`.
+
+| # | File | Plan | Scope | Status |
+|---|---|---|---|---|
+| T.1 | `2026-05-07-plan-t1-multi-stack-fastapi.md` | **FastAPI + routing** | New `atlas-fastapi` E2B template (Python 3.12 + FastAPI 0.115 + Pydantic 2 + uvicorn + sqlalchemy + alembic + pytest + ruff via uv); per-template `SANDBOX_CONTEXT_PROMPT` registry; `templateForArtifactKind` router; per-artifactKind Researcher skills | Shipped |
+| T.2.1 | `(TBA)` | **atlas-hono-bun** | Bun + Hono + Drizzle ORM (alternative `backend-rest-api`) | Directional |
+| T.2.2 | `(TBA)` | **atlas-graphql-yoga** | Bun + GraphQL Yoga + Pothos (`backend-graphql`) | Directional |
+| T.2.3 | `(TBA)` | **atlas-expo-rn** | Expo SDK 52 + React Native + NativeWind + Expo Router (`mobile-app`) | Directional |
+| T.2.4 | `(TBA)` | **atlas-dlt-python** | Python + dlt + DuckDB + dbt (`data-pipeline`) | Directional |
+| T.2.5 | `(TBA)` | **atlas-bun-cli** | Bun + Commander + ink (`cli-tool`) | Directional |
+
+E2B templates published during Plan T.1: `atlas-fastapi` (id `te6ynfz2hw7swuo2us2m`).
+
+Per the writing-plans authoring cadence, T.2.x sub-plans land when execution is ≤ 3 weeks away.
+
+---
+
 ## Phase D / E / F plans
 
 Phase D (Sovereign / On-Prem), Phase E (Migrate GA), and Phase F (Brownfield Discovery GA) are **strategically gated** rather than engineering-gated. Per the roadmap (`2026-04-18-phases-b-through-f-roadmap.md`):
