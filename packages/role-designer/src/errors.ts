@@ -6,13 +6,13 @@ export type DesignerFailureReason =
   | "unknown";
 
 export class DesignerFailedError extends Error {
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
   readonly reason: DesignerFailureReason;
 
   constructor(message: string, opts: { cause?: unknown; reason?: DesignerFailureReason } = {}) {
     super(message);
     this.name = "DesignerFailedError";
-    this.cause = opts.cause;
+    if (opts.cause !== undefined) this.cause = opts.cause;
     this.reason = opts.reason ?? "unknown";
   }
 }
