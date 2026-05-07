@@ -19,6 +19,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@atlas/canvas-runtime": "workspace:*",
     "@atlas/conductor": "workspace:*",
     "@atlas/spec-graph-data": "workspace:*",
     "@atlas/spec-graph-schema": "workspace:*",

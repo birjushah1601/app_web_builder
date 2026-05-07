@@ -1,5 +1,16 @@
 import { z } from "zod";
 import { RitualStateSchema } from "./state.js";
+import {
+  ArchitectCanvasManifestEmittedSchema,
+  ResearcherBriefCompletedSchema,
+  ResearcherBriefFailedSchema,
+  DesignerProposalEmittedSchema,
+  DesignerProposalFailedSchema,
+  CanvasOptionsRequestedSchema,
+  CanvasOptionSelectedSchema,
+  CanvasRefinementStartedSchema,
+  CanvasRefinementCompletedSchema
+} from "@atlas/canvas-runtime";
 
 export const EditClassSchema = z.enum(["cosmetic", "structural", "security-compliance-touching"]);
 export type EditClass = z.infer<typeof EditClassSchema>;
@@ -139,7 +150,17 @@ export const RitualEventSchema = z.discriminatedUnion("type", [
   RitualCompletedSchema,
   AutoFixAttemptedSchema,
   AutoFixBudgetExhaustedSchema,
-  AutoFixFailedSchema
+  AutoFixFailedSchema,
+  // Plan S.4 — canvas + researcher + designer events
+  ArchitectCanvasManifestEmittedSchema,
+  ResearcherBriefCompletedSchema,
+  ResearcherBriefFailedSchema,
+  DesignerProposalEmittedSchema,
+  DesignerProposalFailedSchema,
+  CanvasOptionsRequestedSchema,
+  CanvasOptionSelectedSchema,
+  CanvasRefinementStartedSchema,
+  CanvasRefinementCompletedSchema
 ]);
 export type RitualEvent = z.infer<typeof RitualEventSchema>;
 
