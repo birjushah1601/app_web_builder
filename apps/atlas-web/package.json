@@ -13,7 +13,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:visual": "playwright test --config=playwright.visual.config.ts",
-    "test:visual:update": "playwright test --config=playwright.visual.config.ts --update-snapshots",
+    "test:visual:update": "playwright test --config=playwright.visual.config.ts --update-snapshots=all",
     "test:visual:headed": "playwright test --config=playwright.visual.config.ts --headed"
   },
   "dependencies": {
