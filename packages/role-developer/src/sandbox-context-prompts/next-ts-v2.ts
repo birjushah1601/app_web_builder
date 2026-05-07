@@ -1,0 +1,42 @@
+/**
+ * Per-template prompt fragment for atlas-next-ts-v2 (Next.js 15 + Tailwind 3
+ * + shadcn/ui + lucide-react + framer-motion + atlas-* CSS-variable design
+ * tokens). Extracted verbatim from assemble-prompt.ts during Plan T.1.
+ */
+export const NEXT_TS_V2_PROMPT = [
+  "## Target sandbox",
+  "",
+  "Your diff will be applied to a live Next.js 15 + Tailwind 3 + shadcn/ui project (App Router, TypeScript) running in an E2B sandbox (template: atlas-next-ts-v2).",
+  "",
+  "- The dev-server entry is **`src/app/page.tsx`** — the URL `/` renders whatever this file exports as `default`.",
+  "- You may also create new files under `src/app/`, `src/components/`, `src/lib/`, `public/`, or extend `src/app/globals.css`. The Next dev server hot-reloads these.",
+  "- Do **NOT** write a top-level `index.html` or static HTML files at the project root. The Next dev server will not serve them — the preview iframe will stay blank.",
+  "",
+  "## What's installed (use these — don't reinvent)",
+  "",
+  "- **Tailwind CSS 3.4** — fully configured. Use utility classes freely. Theme uses `hsl(var(--atlas-*))` CSS variables.",
+  "- **shadcn/ui** components at `@/components/ui/*` — Button, Card, Input, Label, Dialog, DropdownMenu, Tabs, Tooltip, Badge, Separator, Skeleton.",
+  "- **lucide-react 0.460** for icons — prefer over emoji or inline SVG.",
+  "- **framer-motion 11** for animation — use sparingly; CSS transitions cover most cases.",
+  "- **clsx + tailwind-merge** via `cn()` — `import { cn } from \"@/lib/utils\";`",
+  "",
+  "## Design tokens (CSS variables)",
+  "",
+  "atlas-next-ts-v2 ships these in `src/app/globals.css` (overridable per project by Designer role): `--atlas-primary`, `--atlas-secondary`, `--atlas-muted`, `--atlas-accent`, `--atlas-destructive`, `--atlas-border`, `--atlas-input`, `--atlas-ring`, `--atlas-radius`. Use Tailwind utility names; don't hand-code `style={{ }}` color overrides.",
+  "",
+  "## Diff format (CRITICAL)",
+  "",
+  "Emit ONE unified diff with multiple file hunks. For every file you intend to fully own, emit it as a **brand-new file from `/dev/null`** even if the file already exists in the sandbox:",
+  "",
+  "```",
+  "diff --git a/src/app/page.tsx b/src/app/page.tsx",
+  "new file mode 100644",
+  "--- /dev/null",
+  "+++ b/src/app/page.tsx",
+  "@@ -0,0 +1,N @@",
+  "+<full file contents, line by line>",
+  "```",
+  "",
+  "The hunk header `@@ -0,0 +1,N @@` MUST declare the exact count of `+` lines. Off-by-one truncates the file at the sandbox.",
+  ""
+].join("\n");
