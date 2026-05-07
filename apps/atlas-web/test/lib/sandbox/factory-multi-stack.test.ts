@@ -29,4 +29,35 @@ describe("sandbox factory + template-router integration", () => {
     const t = resolveTemplateForRitual({ artifactKind: "backend-rest-api" });
     expect(t).toBe("atlas-some-pinned-template");
   });
+
+  it("DeveloperRole accepts the resolved targetTemplate for the right SANDBOX_CONTEXT_PROMPT", async () => {
+    // Plan T.1 task 12 — smoke test that the resolved template name flows
+    // into DeveloperRoleOptions.targetTemplate without crashing the role
+    // constructor, and that the role exposes the right per-template prompt
+    // via getSandboxContextPromptFor (the same lookup the passes use).
+    process.env.ATLAS_FF_MULTI_STACK = "true";
+    delete process.env.ATLAS_DEFAULT_SANDBOX_TEMPLATE;
+    const { resolveTemplateForRitual } = await import("@/lib/sandbox/factory");
+    const { DeveloperRole, getSandboxContextPromptFor } = await import("@atlas/role-developer");
+    const targetTemplate = resolveTemplateForRitual({ artifactKind: "backend-rest-api" });
+    expect(targetTemplate).toBe("atlas-fastapi");
+    const stubLlm = {
+      complete: async () => ({ content: "" }),
+      completeWithToolUse: async () => ({ toolName: "x", input: {} })
+    } as unknown as Parameters<typeof DeveloperRole>[0]["anthropic"];
+    const stubSkills = { get: () => undefined } as unknown as Parameters<typeof DeveloperRole>[0]["skills"];
+    const role = new DeveloperRole({
+      anthropic: stubLlm,
+      google: stubLlm,
+      reviewer: stubLlm,
+      skills: stubSkills,
+      targetTemplate
+    });
+    expect(role.id).toBe("developer");
+    // The per-template fragment for atlas-fastapi includes "FastAPI" and
+    // not "Next.js" — proves the registry lookup picked the right entry.
+    const prompt = getSandboxContextPromptFor(targetTemplate);
+    expect(prompt).toContain("FastAPI");
+    expect(prompt).not.toContain("Next.js");
+  });
 });

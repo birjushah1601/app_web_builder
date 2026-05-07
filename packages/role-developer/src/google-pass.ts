@@ -1,6 +1,6 @@
 import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
-import { assembleDeveloperPrompt, SANDBOX_CONTEXT_PROMPT } from "./assemble-prompt.js";
+import { assembleDeveloperPrompt, getSandboxContextPromptFor } from "./assemble-prompt.js";
 import { withDefaults } from "./anthropic-pass.js";
 import { DeveloperOutputSchema, type DeveloperOutput } from "./types.js";
 
@@ -24,11 +24,15 @@ export interface GooglePassInput {
   architectArtifact: unknown;
   graphSlice: { bytes: string; hash: string };
   model?: string;
+  /** Plan T.1 — selects the per-template developer prompt fragment.
+   *  Undefined → default template (atlas-next-ts-v2). */
+  targetTemplate?: string;
 }
 
 export async function googlePass(input: GooglePassInput): Promise<DeveloperOutput> {
   const skillPrompt = assembleDeveloperPrompt(input.skills, ["tdd-feature", "edit-only-what-changed", "runnable-plan"]);
-  const systemPrompt = `You are the Atlas Developer (Google Gemini pass). Generate a unified diff that implements the Architect's runnable plan.\n\n${SANDBOX_CONTEXT_PROMPT}\n${skillPrompt}`;
+  const sandboxContext = getSandboxContextPromptFor(input.targetTemplate);
+  const systemPrompt = `You are the Atlas Developer (Google Gemini pass). Generate a unified diff that implements the Architect's runnable plan.\n\n${sandboxContext}\n${skillPrompt}`;
   const messages: LLMMessage[] = [
     { role: "system", content: systemPrompt },
     { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },

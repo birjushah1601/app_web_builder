@@ -22,6 +22,12 @@ export interface DeveloperRoleOptions {
    *  proxy) to avoid hammering one endpoint with concurrent requests.
    *  Default: "parallel". */
   parallelMode?: "parallel" | "sequential";
+  /** Plan T.1 — selects the per-template developer prompt fragment from
+   *  the sandbox-context-registry. Undefined / unknown → falls back to
+   *  the default (atlas-next-ts-v2). Examples: "atlas-next-ts-v2",
+   *  "atlas-fastapi". atlas-web's engine wiring sets this from
+   *  resolveTemplateForRitual({ artifactKind }). */
+  targetTemplate?: string;
 }
 
 export class DeveloperRole implements Role {
@@ -42,14 +48,16 @@ export class DeveloperRole implements Role {
     const runAnthropic = () => anthropicPass({
       llm: this.opts.anthropic, skills: this.opts.skills,
       userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
-      model: this.opts.anthropicModel ?? DEVELOPER_ANTHROPIC_MODEL
+      model: this.opts.anthropicModel ?? DEVELOPER_ANTHROPIC_MODEL,
+      targetTemplate: this.opts.targetTemplate
     }).then((output): { provider: "anthropic"; status: "ok"; output: DeveloperOutput } => ({ provider: "anthropic", status: "ok", output }))
       .catch((err: Error): { provider: "anthropic"; status: "error"; error: Error } => ({ provider: "anthropic", status: "error", error: err }));
 
     const runGoogle = () => googlePass({
       llm: this.opts.google, skills: this.opts.skills,
       userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
-      model: this.opts.googleModel ?? DEVELOPER_GOOGLE_MODEL
+      model: this.opts.googleModel ?? DEVELOPER_GOOGLE_MODEL,
+      targetTemplate: this.opts.targetTemplate
     }).then((output): { provider: "google"; status: "ok"; output: DeveloperOutput } => ({ provider: "google", status: "ok", output }))
       .catch((err: Error): { provider: "google"; status: "error"; error: Error } => ({ provider: "google", status: "error", error: err }));
 

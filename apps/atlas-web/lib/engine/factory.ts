@@ -22,7 +22,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { resolve } = await import("node:path");
   const { applyDiff } = await import("@/lib/sandbox/apply-diff");
   const { createSandboxFsAdapter } = await import("@/lib/sandbox/sandbox-fs-adapter");
-  const { getSandboxFactory } = await import("@/lib/sandbox/factory");
+  const { getSandboxFactory, resolveTemplateForRitual } = await import("@/lib/sandbox/factory");
   const { getEventBroker } = await import("@/lib/events/broker-singleton");
   const { isFeatureEnabled } = await import("@/lib/feature-flags");
   const { SpecEventsHydrator } = await import("./spec-events-hydrator");
@@ -105,6 +105,15 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     // diffs routinely exceed that. Set ATLAS_LLM_DEVELOPER_MODEL=claude-haiku-4-5
     // (or any faster model) to escape the timeout in proxy-only setups.
     const developerModel = process.env.ATLAS_LLM_DEVELOPER_MODEL ?? deepPlanModel;
+    // Plan T.1 — resolve the per-ritual sandbox template at engine
+    // construction time. Without an architect snapshot in hand we pass
+    // artifactKind=undefined; resolveTemplateForRitual then honors
+    // ATLAS_DEFAULT_SANDBOX_TEMPLATE (per-project pin) > ATLAS_FF_MULTI_STACK
+    // routing > the atlas-next-ts-v2 default. The resolved name flows into
+    // DeveloperRole.targetTemplate so the per-template prompt fragment from
+    // sandbox-context-registry is selected for both Anthropic and Google
+    // passes.
+    const developerTargetTemplate = resolveTemplateForRitual({ artifactKind: undefined });
     roles.set(
       "developer",
       new DeveloperRole({
@@ -119,7 +128,8 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
         // provider (e.g. local proxy) — avoids hammering one endpoint with
         // concurrent tool-use requests. Set ATLAS_DEVELOPER_SEQUENTIAL=true
         // to enable; defaults off (preserves parallel for multi-provider).
-        parallelMode: process.env.ATLAS_DEVELOPER_SEQUENTIAL === "true" ? "sequential" : "parallel"
+        parallelMode: process.env.ATLAS_DEVELOPER_SEQUENTIAL === "true" ? "sequential" : "parallel",
+        targetTemplate: developerTargetTemplate
       })
     );
 
