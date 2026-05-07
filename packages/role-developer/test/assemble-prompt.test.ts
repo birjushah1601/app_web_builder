@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRegistryWithOverrides, loadSkillsFromDir } from "@atlas/skill-runtime";
-import { assembleDeveloperPrompt, SANDBOX_CONTEXT_PROMPT } from "../src/assemble-prompt.js";
+import { assembleDeveloperPrompt, SANDBOX_CONTEXT_PROMPT, getSandboxContextPromptFor } from "../src/assemble-prompt.js";
 import { SkillMissingError } from "../src/errors.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -33,7 +33,7 @@ describe("assembleDeveloperPrompt", () => {
   });
 });
 
-describe("SANDBOX_CONTEXT_PROMPT", () => {
+describe("SANDBOX_CONTEXT_PROMPT (default — atlas-next-ts-v2)", () => {
   it("describes Tailwind as available (positive list)", () => {
     expect(SANDBOX_CONTEXT_PROMPT).toMatch(/Tailwind/i);
     expect(SANDBOX_CONTEXT_PROMPT).not.toMatch(/NO Tailwind/i);
@@ -68,5 +68,25 @@ describe("SANDBOX_CONTEXT_PROMPT", () => {
 
   it("explains design-token CSS variables", () => {
     expect(SANDBOX_CONTEXT_PROMPT).toMatch(/--atlas-/);
+  });
+});
+
+describe("getSandboxContextPromptFor (per-template lookup)", () => {
+  it("returns Next.js prompt when targetTemplate is undefined", () => {
+    const p = getSandboxContextPromptFor(undefined);
+    expect(p).toContain("Next.js 15");
+  });
+  it("returns Next.js prompt when targetTemplate=atlas-next-ts-v2", () => {
+    const p = getSandboxContextPromptFor("atlas-next-ts-v2");
+    expect(p).toContain("Next.js 15");
+  });
+  it("returns FastAPI prompt when targetTemplate=atlas-fastapi", () => {
+    const p = getSandboxContextPromptFor("atlas-fastapi");
+    expect(p).toContain("FastAPI");
+    expect(p).not.toContain("Next.js");
+  });
+  it("falls back to Next.js for unknown templates", () => {
+    const p = getSandboxContextPromptFor("atlas-vapor-rust");
+    expect(p).toContain("Next.js 15");
   });
 });
