@@ -16,20 +16,14 @@ describe("templateForArtifactKind", () => {
     expect(templateForArtifactKind("backend-rest-api", { multiStackFlagOn: true })).toBe("atlas-fastapi");
   });
 
-  it("routes backend-graphql to atlas-graphql-yoga when flag ON", () => {
-    expect(templateForArtifactKind("backend-graphql", { multiStackFlagOn: true })).toBe("atlas-graphql-yoga");
-  });
-
   it("routes data-pipeline to atlas-dlt-python when flag ON", () => {
     expect(templateForArtifactKind("data-pipeline", { multiStackFlagOn: true })).toBe("atlas-dlt-python");
   });
 
-  it("routes mobile-app to atlas-expo-rn when flag ON", () => {
-    expect(templateForArtifactKind("mobile-app", { multiStackFlagOn: true })).toBe("atlas-expo-rn");
-  });
-
-  it("routes cli-tool to atlas-bun-cli when flag ON", () => {
-    expect(templateForArtifactKind("cli-tool", { multiStackFlagOn: true })).toBe("atlas-bun-cli");
+  it("falls back to atlas-next-ts-v2 for backend-graphql / mobile-app / cli-tool (templates authored but E2B builds blocked)", () => {
+    expect(templateForArtifactKind("backend-graphql", { multiStackFlagOn: true })).toBe("atlas-next-ts-v2");
+    expect(templateForArtifactKind("mobile-app", { multiStackFlagOn: true })).toBe("atlas-next-ts-v2");
+    expect(templateForArtifactKind("cli-tool", { multiStackFlagOn: true })).toBe("atlas-next-ts-v2");
   });
 
   it("falls back to default for undefined artifactKind", () => {
