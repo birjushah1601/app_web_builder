@@ -23,11 +23,16 @@ WORKDIR /code
 RUN mkdir -p app pipelines dbt_project/models tests data
 
 COPY pyproject.toml ./
-COPY app/__init__.py app/main.py ./app/
-COPY pipelines/__init__.py pipelines/example_pipeline.py ./pipelines/
-COPY dbt_project/dbt_project.yml dbt_project/profiles.yml ./dbt_project/
-COPY dbt_project/models/example_transform.sql dbt_project/models/sources.yml ./dbt_project/models/
-COPY tests/__init__.py tests/test_main.py ./tests/
+COPY app/__init__.py ./app/__init__.py
+COPY app/main.py ./app/main.py
+COPY pipelines/__init__.py ./pipelines/__init__.py
+COPY pipelines/example_pipeline.py ./pipelines/example_pipeline.py
+COPY dbt_project/dbt_project.yml ./dbt_project/dbt_project.yml
+COPY dbt_project/profiles.yml ./dbt_project/profiles.yml
+COPY dbt_project/models/example_transform.sql ./dbt_project/models/example_transform.sql
+COPY dbt_project/models/sources.yml ./dbt_project/models/sources.yml
+COPY tests/__init__.py ./tests/__init__.py
+COPY tests/test_main.py ./tests/test_main.py
 
 # Install via uv (creates .venv inside /code, picks Python 3.12 from UV_PYTHON_INSTALL_DIR).
 RUN uv sync --frozen 2>/dev/null || uv sync \
