@@ -7,6 +7,7 @@ import { applyApproval, type ApprovalDecision } from "./approval.js";
 import { enforcePersonaGate, type RiskAccepted } from "./risk-accept.js";
 import type { RitualHydrator } from "./hydrator.js";
 import { buildPriorRitualContext, type PriorRitualContext } from "./prior-ritual-context.js";
+import { CanvasPauseRegistry, DEFAULT_CANVAS_PAUSE_TIMEOUT_MS } from "./canvas-pause.js";
 
 export interface RitualEngineOptions {
   conductor: Conductor;
@@ -27,6 +28,17 @@ export interface RitualEngineOptions {
    *  a fix request. Capped at MAX_FIX_ATTEMPTS per ritual lineage.
    *  Default false preserves Plan I's escalate-and-stop behavior. */
   autoFixLoopEnabled?: boolean;
+  /** Plan S.4: when true AND the architect's artifact carries a canvasManifest
+   *  with a design-blocking mode, the engine dispatches Researcher → Designer →
+   *  emits canvas.options.requested → awaits canvasPauseRegistry.waitForOption →
+   *  resumes Developer with selectedTokens folded into priorArtifact.
+   *  Researcher / Designer dispatch is skipped if their roles aren't registered
+   *  (sub-flag composition). Default false preserves today's behavior. */
+  canvasFlowEnabled?: boolean;
+  canvasPauseRegistry?: CanvasPauseRegistry;
+  canvasPauseTimeoutMs?: number;
+  /** "fast" mode (RitualOptions per spec) skips Researcher; default "considered". */
+  ritualMode?: "fast" | "considered";
 }
 
 /** Plan L: hard cap on auto-fix attempts per ritual lineage to prevent
@@ -119,6 +131,14 @@ interface RitualRecord {
    *  response to a chained gate failure. Inherited from parent for child
    *  rituals so MAX_FIX_ATTEMPTS gates the whole lineage. */
   fixAttempts?: number;
+  /** Plan S.4: design tokens picked by the user (or auto-selected on timeout)
+   *  during the canvas pause. Folded into the developer's priorArtifact so
+   *  generated code respects the chosen direction. */
+  selectedTokens?: unknown;
+  /** Plan S.4: snapshot of the architect's canvasManifest when canvas flow
+   *  is on. Persisted so the gate-visual-quality role + diagnostic UIs can
+   *  recover the persona-tier audience + mode list post-hoc. */
+  canvasManifest?: unknown;
 }
 
 /** Read-only view of a ritual's persisted state. Returned by getRitual(). */
@@ -140,6 +160,14 @@ export interface RitualSnapshot {
   /** Plan L: count of auto-fix attempts in this ritual's lineage. ChatPanel
    *  uses this to render an "(auto-fix #N)" badge. */
   fixAttempts?: number;
+  /** Plan S.4: design tokens picked by the user (or auto-selected on timeout)
+   *  during the canvas pause. Folded into the developer's priorArtifact so
+   *  generated code respects the chosen direction. */
+  selectedTokens?: unknown;
+  /** Plan S.4: snapshot of the architect's canvasManifest when canvas flow
+   *  is on. Persisted so the gate-visual-quality role + diagnostic UIs can
+   *  recover the persona-tier audience + mode list post-hoc. */
+  canvasManifest?: unknown;
 }
 
 export class RitualEngine {
@@ -150,6 +178,10 @@ export class RitualEngine {
   private readonly hydrator?: RitualHydrator;
   private readonly postDeveloperChain: readonly string[];
   private readonly autoFixLoopEnabled: boolean;
+  private readonly canvasFlowEnabled: boolean;
+  private readonly canvasPauseRegistry?: CanvasPauseRegistry;
+  private readonly canvasPauseTimeoutMs: number;
+  private readonly ritualMode: "fast" | "considered";
   private readonly rituals = new Map<string, RitualRecord>();
 
   constructor(opts: RitualEngineOptions) {
@@ -160,6 +192,12 @@ export class RitualEngine {
     this.postDeveloperChain = opts.postDeveloperChain ?? [];
     this.autoFixLoopEnabled = opts.autoFixLoopEnabled ?? false;
     this.hydrator = opts.hydrator;
+    this.canvasFlowEnabled = opts.canvasFlowEnabled ?? false;
+    if (opts.canvasPauseRegistry !== undefined) {
+      this.canvasPauseRegistry = opts.canvasPauseRegistry;
+    }
+    this.canvasPauseTimeoutMs = opts.canvasPauseTimeoutMs ?? DEFAULT_CANVAS_PAUSE_TIMEOUT_MS;
+    this.ritualMode = opts.ritualMode ?? "considered";
   }
 
   async start(input: StartInput): Promise<string> {
@@ -263,6 +301,127 @@ export class RitualEngine {
       payload: e.payload as unknown
     }));
 
+    // Plan S.4: canvas flow — when enabled AND the architect's artifact carries
+    // a canvasManifest with a design-blocking mode, dispatch Researcher →
+    // Designer → emit canvas.options.requested → await pause → emit
+    // canvas.option.selected → fold selectedTokens into developer's priorArtifact.
+    let selectedTokens: unknown | undefined;
+    if (this.canvasFlowEnabled && artifact && input.editClass !== "cosmetic") {
+      const manifest = (artifact as { canvasManifest?: unknown }).canvasManifest;
+      const designIntent = (artifact as { designIntent?: unknown }).designIntent;
+      const manifestRecord =
+        manifest && typeof manifest === "object" ? (manifest as { modes?: unknown[]; artifactKind?: unknown }) : undefined;
+      const modes = Array.isArray(manifestRecord?.modes) ? manifestRecord.modes : [];
+      const hasBlockingDesign = modes.some(
+        (m) => typeof m === "object" && m !== null && (m as { blockingFor?: unknown }).blockingFor === "design"
+      );
+
+      if (manifestRecord) {
+        record.canvasManifest = manifest;
+        await this.emit({
+          type: "architect.canvas_manifest.emitted",
+          ritualId,
+          ts: new Date().toISOString(),
+          payload: { manifest }
+        });
+      }
+
+      if (hasBlockingDesign) {
+        // Researcher (skipped in fast mode OR if dispatch fails — captured into roleEvents).
+        let brief: unknown | undefined;
+        if (this.ritualMode !== "fast") {
+          try {
+            const r = await this.conductor.dispatch(
+              {
+                ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+                graphVersion: 0,
+                userTurn: input.userTurn,
+                projectId: input.projectId
+              },
+              { forceRoleId: "researcher", priorArtifact: { designIntent } }
+            );
+            record.roleEvents = [
+              ...(record.roleEvents ?? []),
+              ...r.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
+            ];
+            const completedBrief = r.output.events.find((e) => e.eventType === "researcher.brief.completed");
+            brief = (completedBrief?.payload as { brief?: unknown } | undefined)?.brief;
+          } catch (err) {
+            record.roleEvents = [
+              ...(record.roleEvents ?? []),
+              {
+                eventType: "researcher.dispatch.failed",
+                payload: { error: err instanceof Error ? err.message : String(err) }
+              }
+            ];
+          }
+        }
+
+        // Designer (always when canvas flow on; runs with empty brief if researcher skipped/failed).
+        let proposal: { recommended: { id: string; tokens: unknown }; alternates: unknown } | undefined;
+        try {
+          const d = await this.conductor.dispatch(
+            {
+              ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+              graphVersion: 0,
+              userTurn: input.userTurn,
+              projectId: input.projectId
+            },
+            { forceRoleId: "designer", priorArtifact: { artifact, brief, designIntent } }
+          );
+          record.roleEvents = [
+            ...(record.roleEvents ?? []),
+            ...d.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
+          ];
+          const ev = d.output.events.find((e) => e.eventType === "designer.proposal.emitted");
+          proposal = (ev?.payload as { proposal?: typeof proposal } | undefined)?.proposal;
+        } catch (err) {
+          record.roleEvents = [
+            ...(record.roleEvents ?? []),
+            {
+              eventType: "designer.dispatch.failed",
+              payload: { error: err instanceof Error ? err.message : String(err) }
+            }
+          ];
+        }
+
+        // Pause + emit canvas.options.requested + await selection.
+        if (proposal && this.canvasPauseRegistry) {
+          await this.emit({
+            type: "canvas.options.requested",
+            ritualId,
+            ts: new Date().toISOString(),
+            payload: { proposal, manifest }
+          });
+          const resolution = await this.canvasPauseRegistry.waitForOption({
+            ritualId,
+            timeoutMs: this.canvasPauseTimeoutMs,
+            recommendedFallback: { directionId: proposal.recommended.id, tokens: proposal.recommended.tokens }
+          });
+          selectedTokens = resolution.tokens;
+          record.selectedTokens = selectedTokens;
+          await this.emit({
+            type: "canvas.option.selected",
+            ritualId,
+            ts: new Date().toISOString(),
+            payload: {
+              directionId: resolution.directionId,
+              tokens: resolution.tokens,
+              autoSelected: resolution.autoSelected
+            }
+          });
+        }
+      }
+    }
+
+    // Plan S.4: developer receives architect artifact merged with selectedTokens
+    // (when canvas flow resolved). Falls back to the bare architect artifact
+    // when canvas flow is off or no design pause occurred.
+    const developerPriorArtifact =
+      selectedTokens !== undefined && artifact && typeof artifact === "object"
+        ? { ...(artifact as object), selectedTokens }
+        : artifact;
+
     // Plan B: chain into the developer role when:
     //   - architect produced an artifact (triage passed + pass2 ran)
     //   - the conductor has a "developer" role registered
@@ -279,7 +438,7 @@ export class RitualEngine {
             userTurn: input.userTurn,
             projectId: input.projectId
           },
-          { forceRoleId: "developer", priorArtifact: artifact }
+          { forceRoleId: "developer", priorArtifact: developerPriorArtifact }
         );
         record.developerOutput = (devResult.output.diff.kind === "patch")
           ? { diff: devResult.output.diff.body ?? "", summary: extractDeveloperSummary(devResult.output.events) }
@@ -493,7 +652,9 @@ export class RitualEngine {
         securityReport: r.securityReport,
         accessibilityReport: r.accessibilityReport,
         parentRitualId: r.parentRitualId,
-        fixAttempts: r.fixAttempts
+        fixAttempts: r.fixAttempts,
+        selectedTokens: r.selectedTokens,
+        canvasManifest: r.canvasManifest
       };
     }
     // Plan H: in-memory miss — fall back to hydrator if configured.

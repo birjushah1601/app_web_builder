@@ -610,6 +610,9 @@ importers:
 
   packages/role-architect:
     dependencies:
+      '@atlas/canvas-runtime':
+        specifier: workspace:*
+        version: link:../canvas-runtime
       '@atlas/conductor':
         specifier: workspace:*
         version: link:../conductor

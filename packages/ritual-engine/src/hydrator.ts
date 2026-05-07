@@ -80,6 +80,16 @@ function applyOne(snap: RitualSnapshot, r: SpecEventRowLike): void {
     // ritual's spec_events stream sees ONE auto_fix.attempted at most. We
     // increment defensively in case of future multi-attempt rituals.
     snap.fixAttempts = (snap.fixAttempts ?? 0) + 1;
+  } else if (t === "architect.canvas_manifest.emitted" && p && "manifest" in p) {
+    // Plan S.4: persist the canvas manifest so post-replay consumers (gate
+    // visual quality, diagnostic UIs, persona-narrowed renderer routing)
+    // can recover it without re-running the architect.
+    snap.canvasManifest = p.manifest;
+  } else if (t === "canvas.option.selected" && p && "tokens" in p) {
+    // Plan S.4: the design direction selected (or auto-selected on timeout).
+    // Read by S.5 visual-quality gate to detect token drift between the
+    // direction the user picked and what developer rendered.
+    snap.selectedTokens = p.tokens;
   }
 
   if (
@@ -88,7 +98,12 @@ function applyOne(snap: RitualSnapshot, r: SpecEventRowLike): void {
     t.startsWith("developer.") ||
     t.startsWith("security.") ||
     t.startsWith("accessibility.") ||
-    t.startsWith("auto_fix.")
+    t.startsWith("auto_fix.") ||
+    // Plan S.4: capture canvas + researcher + designer events alongside
+    // existing role events so diagnostic UIs can render the full timeline.
+    t.startsWith("canvas.") ||
+    t.startsWith("researcher.") ||
+    t.startsWith("designer.")
   ) {
     const rec: RoleEventRecord = { eventType: t, payload: r.payload };
     snap.roleEvents.push(rec);

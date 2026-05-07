@@ -1,4 +1,15 @@
 import { z } from "zod";
+import { CanvasManifestSchema } from "@atlas/canvas-runtime";
+
+/** Plan S.4: a compact persona-aware design brief the architect attaches to
+ *  its artifact when triage detects a design-affecting scope. The Designer
+ *  role consumes this as priorArtifact context to anchor its proposal in
+ *  the user's stated category + audience. */
+const DesignIntentEmbeddedSchema = z.object({
+  category: z.string().min(1),
+  audienceCues: z.array(z.string())
+});
+export type DesignIntentEmbedded = z.infer<typeof DesignIntentEmbeddedSchema>;
 
 export const ScopeSchema = z.enum([
   "new-app",
@@ -40,18 +51,29 @@ export const GraphSliceRefSchema = z.object({
 });
 export type GraphSliceRef = z.infer<typeof GraphSliceRefSchema>;
 
+// Plan S.4: canvas fields are optional on every scope variant. Only design-
+// affecting scopes (new-app / new-feature) actually populate them at runtime
+// via enrichArchitectOutput; the others accept them for back-compat (a future
+// scope migration could add manifest synthesis without a schema rewrite).
+const CanvasFieldsShape = {
+  designIntent: DesignIntentEmbeddedSchema.optional(),
+  canvasManifest: CanvasManifestSchema.optional()
+};
+
 // One variant per scope. Each carries a scope-specific artifact plus the graph slice used for context.
 const NewAppOutputSchema = z.object({
   scope: z.literal("new-app"),
   specGraph: z.unknown(),
   runnablePlan: z.object({ tasks: z.array(z.unknown()) }),
-  graphSlice: GraphSliceRefSchema
+  graphSlice: GraphSliceRefSchema,
+  ...CanvasFieldsShape
 });
 
 const NewFeatureOutputSchema = z.object({
   scope: z.literal("new-feature"),
   diffPlan: z.object({ summary: z.string(), tasks: z.array(z.unknown()) }),
-  graphSlice: GraphSliceRefSchema
+  graphSlice: GraphSliceRefSchema,
+  ...CanvasFieldsShape
 });
 
 const BugFixOutputSchema = z.object({
@@ -63,7 +85,8 @@ const BugFixOutputSchema = z.object({
     phase4_verify: z.string(),
     rootCause: z.string()
   }),
-  graphSlice: GraphSliceRefSchema
+  graphSlice: GraphSliceRefSchema,
+  ...CanvasFieldsShape
 });
 
 const DepUpgradeOutputSchema = z.object({
@@ -74,7 +97,8 @@ const DepUpgradeOutputSchema = z.object({
     migration: z.string()
   })),
   rollbackPlan: z.string(),
-  graphSlice: GraphSliceRefSchema
+  graphSlice: GraphSliceRefSchema,
+  ...CanvasFieldsShape
 });
 
 const RefactorOutputSchema = z.object({
@@ -82,21 +106,24 @@ const RefactorOutputSchema = z.object({
   beforeAfterGraph: z.object({ before: z.unknown(), after: z.unknown() }),
   behaviorPreservationContract: z.array(z.string()),
   regressionTests: z.array(z.string()),
-  graphSlice: GraphSliceRefSchema
+  graphSlice: GraphSliceRefSchema,
+  ...CanvasFieldsShape
 });
 
 const ShipOutputSchema = z.object({
   scope: z.literal("ship"),
   rerunnableSteps: z.array(z.object({ name: z.string(), command: z.string(), idempotent: z.boolean() })),
   rollbackTrigger: z.string(),
-  graphSlice: GraphSliceRefSchema
+  graphSlice: GraphSliceRefSchema,
+  ...CanvasFieldsShape
 });
 
 const MigrateOutputSchema = z.object({
   scope: z.literal("migrate"),
   stagedPlan: z.array(z.object({ stage: z.string(), cutoverWindow: z.string(), rollback: z.string() })),
   complianceEvidence: z.array(z.string()),
-  graphSlice: GraphSliceRefSchema
+  graphSlice: GraphSliceRefSchema,
+  ...CanvasFieldsShape
 });
 
 export const ArchitectOutputSchema = z.discriminatedUnion("scope", [

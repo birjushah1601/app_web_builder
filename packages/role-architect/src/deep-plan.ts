@@ -2,6 +2,11 @@ import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import { buildPromptCacheBlocks } from "@atlas/conductor";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { isPriorRitualContext, type PriorRitualContext } from "@atlas/ritual-engine";
+import {
+  defaultManifestForArtifactKind,
+  type ArtifactKind,
+  type CanvasManifest
+} from "@atlas/canvas-runtime";
 import { assembleArchitectPrompt } from "./assemble-prompt.js";
 import { DeepPlanFailedError } from "./errors.js";
 import {
@@ -220,7 +225,39 @@ function enrichArchitectOutput(
   if (!raw || typeof raw !== "object") return raw;
   const model = raw as Record<string, unknown>;
   const defaults = scopeDefaults(scope);
-  return { ...defaults, ...model, scope, graphSlice };
+  const merged = { ...defaults, ...model, scope, graphSlice } as Record<string, unknown>;
+  // Plan S.4: synthesize a CanvasManifest when the architect didn't supply
+  // one and the scope is design-affecting. The manifest tells the engine
+  // which canvas modes the user can pick; design-blocking modes pause the
+  // ritual until the user selects a direction.
+  if (!("canvasManifest" in model)) {
+    const manifest = synthesizeCanvasManifest(scope, merged);
+    if (manifest) merged.canvasManifest = manifest;
+  }
+  return merged;
+}
+
+/** Plan S.4: Synthesize a CanvasManifest from the architect's scope + artifact.
+ *  Returns undefined when the scope is not user-facing (refactor, ship,
+ *  migrate, bug-fix, dep-upgrade) OR when the spec graph's artifactKind
+ *  isn't one we have a default manifest for. */
+export function synthesizeCanvasManifest(
+  scope: string,
+  model: Record<string, unknown>
+): CanvasManifest | undefined {
+  if (!["new-app", "new-feature"].includes(scope)) return undefined;
+  const specGraph = model.specGraph as { kind?: string } | undefined;
+  const kind = specGraph?.kind ?? "frontend-app";
+  const valid: ArtifactKind[] = [
+    "frontend-app",
+    "backend-rest-api",
+    "backend-graphql",
+    "data-pipeline",
+    "mobile-app",
+    "cli-tool"
+  ];
+  if (!valid.includes(kind as ArtifactKind)) return undefined;
+  return defaultManifestForArtifactKind(kind as ArtifactKind);
 }
 
 function scopeDefaults(scope: string): Record<string, unknown> {
