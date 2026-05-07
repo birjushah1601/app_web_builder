@@ -1,16 +1,19 @@
 import { z } from "zod";
 import { RitualStateSchema } from "./state.js";
-import {
-  ArchitectCanvasManifestEmittedSchema,
-  ResearcherBriefCompletedSchema,
-  ResearcherBriefFailedSchema,
-  DesignerProposalEmittedSchema,
-  DesignerProposalFailedSchema,
-  CanvasOptionsRequestedSchema,
-  CanvasOptionSelectedSchema,
-  CanvasRefinementStartedSchema,
-  CanvasRefinementCompletedSchema
-} from "@atlas/canvas-runtime";
+
+// Plan S.4 — canvas + researcher + designer events.
+// NOTE on duplication: the authoritative Zod schemas for these events live in
+// @atlas/canvas-runtime (re-exported for atlas-web's EventBroker). We keep
+// loose mirror schemas here (payload typed as z.unknown()) to participate in
+// `RitualEventSchema`'s discriminated union WITHOUT importing canvas-runtime.
+// Why: canvas-runtime's types.ts depends on PersonaTierSchema from this
+// package (ritual-engine), and importing canvas-runtime here creates a
+// circular ESM cycle that fails at runtime ("Cannot read properties of
+// undefined (reading 'shape')") because canvas-runtime/types.js is mid-eval
+// when its dependent canvas-runtime/events.js gets re-imported via this
+// package's dist/index.js. Duplication is the pragmatic break: the engine's
+// runtime never re-validates emitted events against this union (it relies on
+// TS types), and the broker schema is the canonical wire contract.
 
 export const EditClassSchema = z.enum(["cosmetic", "structural", "security-compliance-touching"]);
 export type EditClass = z.infer<typeof EditClassSchema>;
@@ -136,6 +139,66 @@ const AutoFixFailedSchema = z.object({
   ritualId: z.string(),
   ts: z.string(),
   payload: z.object({ gate: z.string(), error: z.string() })
+});
+
+// Plan S.4 — see top-of-file comment for why these are local mirrors.
+const ArchitectCanvasManifestEmittedSchema = z.object({
+  type: z.literal("architect.canvas_manifest.emitted"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({ manifest: z.unknown() })
+});
+const ResearcherBriefCompletedSchema = z.object({
+  type: z.literal("researcher.brief.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const ResearcherBriefFailedSchema = z.object({
+  type: z.literal("researcher.brief.failed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({ error: z.string() })
+});
+const DesignerProposalEmittedSchema = z.object({
+  type: z.literal("designer.proposal.emitted"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerProposalFailedSchema = z.object({
+  type: z.literal("designer.proposal.failed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({ error: z.string() })
+});
+const CanvasOptionsRequestedSchema = z.object({
+  type: z.literal("canvas.options.requested"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const CanvasOptionSelectedSchema = z.object({
+  type: z.literal("canvas.option.selected"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({
+    directionId: z.string().min(1),
+    tokens: z.unknown(),
+    autoSelected: z.boolean()
+  })
+});
+const CanvasRefinementStartedSchema = z.object({
+  type: z.literal("canvas.refinement.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const CanvasRefinementCompletedSchema = z.object({
+  type: z.literal("canvas.refinement.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
 });
 
 export const RitualEventSchema = z.discriminatedUnion("type", [
