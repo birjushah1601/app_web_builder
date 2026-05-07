@@ -2,6 +2,10 @@ import { cache } from "react";
 import type { LLMProvider } from "@atlas/llm-provider";
 import type { ResearcherRole as TResearcherRole } from "@atlas/role-researcher";
 import type { DesignerRole as TDesignerRole } from "@atlas/role-designer";
+import type {
+  VisualQualityRole as TVisualQualityRole,
+  SandboxExec as TSandboxExec
+} from "@atlas/gate-visual-quality";
 
 /**
  * Lazily construct an LLMProvider from environment configuration.
@@ -78,3 +82,56 @@ export const getDesignerRole = cache(async (): Promise<TDesignerRole | null> => 
   const { DesignerRole } = await import("@atlas/role-designer");
   return new DesignerRole({ llm });
 });
+
+/**
+ * Plan S.5: construct the VisualQualityRole when the feature flag is on.
+ *
+ * Gates:
+ *   - `ATLAS_FF_VISUAL_QUALITY_GATE=true` — required; otherwise returns null.
+ *   - `ATLAS_VQ_GATE_MODEL` — optional model override forwarded to the role
+ *     (default: package-internal `VQ_GATE_MODEL`, a Sonnet-class multimodal).
+ *
+ * Caller supplies the live SandboxExec + previewUrl because the role needs
+ * an in-sandbox shell (E2B's process API) plus the URL the preview iframe
+ * is rendering against. Mirrors getResearcherRole / getDesignerRole.
+ *
+ * Per-request cache is keyed by (exec, previewUrl) — React's `cache()` does
+ * shallow argument identity, which matches our usage (each request resolves
+ * the same pair).
+ */
+export const getVisualQualityRole = cache(
+  async (params: {
+    exec: TSandboxExec;
+    previewUrl: string;
+  }): Promise<TVisualQualityRole | null> => {
+    const { isFeatureEnabled } = await import("@/lib/feature-flags");
+    if (!isFeatureEnabled("visual-quality-gate")) return null;
+
+    const llm = await getLlmProvider();
+    if (!llm) return null;
+
+    const { VisualQualityRole } = await import("@atlas/gate-visual-quality");
+    const { SkillRegistry, loadSkillsFromDir } = await import("@atlas/skill-runtime");
+    const { resolve } = await import("node:path");
+
+    const skillsRoot = resolve(
+      process.cwd(),
+      "..",
+      "..",
+      "packages",
+      "skill-library",
+      "skills",
+      "visual-quality"
+    );
+    const skills = new SkillRegistry(await loadSkillsFromDir(skillsRoot));
+
+    const model = process.env.ATLAS_VQ_GATE_MODEL;
+    return new VisualQualityRole({
+      llm,
+      skills,
+      exec: params.exec,
+      previewUrl: params.previewUrl,
+      ...(model ? { model } : {})
+    });
+  }
+);
