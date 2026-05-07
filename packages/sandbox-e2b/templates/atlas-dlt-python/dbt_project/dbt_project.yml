@@ -1,0 +1,25 @@
+# Atlas-generated dbt project for the data-pipeline artifact kind.
+# Adapter: dbt-duckdb. Profile resolves to ./profiles.yml (NOT $HOME/.dbt/),
+# so dbt commands work inside the sandbox without env-var manipulation.
+# Always invoke dbt with: `uv run dbt <cmd> --profiles-dir .`
+name: atlas_dlt
+version: "0.1.0"
+config-version: 2
+
+profile: atlas_dlt
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  atlas_dlt:
+    +materialized: view
