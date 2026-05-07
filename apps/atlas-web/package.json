@@ -23,6 +23,7 @@
     "@atlas/role-accessibility": "workspace:*",
     "@atlas/role-architect": "workspace:*",
     "@atlas/role-developer": "workspace:*",
+    "@atlas/role-researcher": "workspace:*",
     "@atlas/role-security": "workspace:*",
     "@atlas/run-dashboard": "workspace:*",
     "@atlas/sandbox-e2b": "workspace:*",

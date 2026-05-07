@@ -37,6 +37,9 @@ importers:
       '@atlas/role-developer':
         specifier: workspace:*
         version: link:../../packages/role-developer
+      '@atlas/role-researcher':
+        specifier: workspace:*
+        version: link:../../packages/role-researcher
       '@atlas/role-security':
         specifier: workspace:*
         version: link:../../packages/role-security
