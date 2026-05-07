@@ -5,9 +5,14 @@ const DEFAULT_TEMPLATE = "atlas-next-ts-v2";
 /**
  * Map architect's `canvasManifest.artifactKind` to an E2B template name.
  *
- * v1: ships atlas-next-ts-v2 (frontend) + atlas-fastapi (backend-rest-api).
- * Other kinds fall back to atlas-next-ts-v2 as a safe default; v2 sub-plans
- * (T.2.1, T.2.2, ...) replace the fallbacks with dedicated templates.
+ * Coverage after Plan T.1 + T.2.x:
+ *   frontend-app     → atlas-next-ts-v2
+ *   backend-rest-api → atlas-fastapi (Python). Users wanting Bun+Hono opt in
+ *                      per-project via ATLAS_DEFAULT_SANDBOX_TEMPLATE=atlas-hono-bun.
+ *   backend-graphql  → atlas-graphql-yoga
+ *   data-pipeline    → atlas-dlt-python
+ *   mobile-app       → atlas-expo-rn
+ *   cli-tool         → atlas-bun-cli
  *
  * When multiStackFlagOn=false, returns DEFAULT_TEMPLATE regardless of kind
  * — preserves today's exact behavior under flag-OFF.
@@ -24,10 +29,12 @@ export function templateForArtifactKind(
     case "backend-rest-api":
       return "atlas-fastapi";
     case "backend-graphql":
+      return "atlas-graphql-yoga";
     case "data-pipeline":
+      return "atlas-dlt-python";
     case "mobile-app":
+      return "atlas-expo-rn";
     case "cli-tool":
-      // v2 sub-plans (T.2.x) replace these fallbacks.
-      return DEFAULT_TEMPLATE;
+      return "atlas-bun-cli";
   }
 }
