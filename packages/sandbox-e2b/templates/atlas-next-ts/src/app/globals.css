@@ -2,11 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background: #ffffff;
-  color: #0f172a;
+@layer base {
+  :root {
+    /* Default theme — overridden by per-project DesignTokens injection (Plan S.4). */
+    --atlas-background: 0 0% 100%;
+    --atlas-foreground: 222.2 84% 4.9%;
+    --atlas-card: 0 0% 100%;
+    --atlas-card-foreground: 222.2 84% 4.9%;
+    --atlas-popover: 0 0% 100%;
+    --atlas-popover-foreground: 222.2 84% 4.9%;
+    --atlas-primary: 222.2 47.4% 11.2%;
+    --atlas-primary-foreground: 210 40% 98%;
+    --atlas-secondary: 210 40% 96.1%;
+    --atlas-secondary-foreground: 222.2 47.4% 11.2%;
+    --atlas-muted: 210 40% 96.1%;
+    --atlas-muted-foreground: 215.4 16.3% 46.9%;
+    --atlas-accent: 210 40% 96.1%;
+    --atlas-accent-foreground: 222.2 47.4% 11.2%;
+    --atlas-destructive: 0 84.2% 60.2%;
+    --atlas-destructive-foreground: 210 40% 98%;
+    --atlas-border: 214.3 31.8% 91.4%;
+    --atlas-input: 214.3 31.8% 91.4%;
+    --atlas-ring: 222.2 84% 4.9%;
+    --atlas-radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
 }
-* { box-sizing: border-box; }
