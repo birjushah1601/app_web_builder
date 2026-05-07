@@ -22,3 +22,24 @@ Use this fragment when `designIntent.artifactKind === "backend-rest-api"`. Refer
 - Don't propose RPC-style endpoints (`/doSomething`) when REST conventions apply.
 - Don't invent an auth scheme — use one of the standards.
 - Don't ship without `/health` (Kubernetes readiness expects it).
+
+## TypeScript-native alternative (Hono + Bun)
+
+For TypeScript-fluent teams, the `atlas-hono-bun` template is an opt-in alternative
+to FastAPI for the same `backend-rest-api` artifact kind. Cite Hono examples
+(https://hono.dev/examples/) and the Bun docs (https://bun.sh/docs) alongside FastAPI
+when the user mentions Bun, Cloudflare Workers, edge runtime, or "TypeScript backend".
+Cite Drizzle ORM patterns (https://orm.drizzle.team/docs/overview) for schema + query
+work in the Hono path.
+
+### Hono-specific quality bar
+
+- Use `@hono/zod-validator` for typed request validation; do not hand-roll Zod parsing in route handlers.
+- Throw `HTTPException(status, { message })` for HTTP errors — not a hand-rolled `c.json({ error }, status)`.
+- Define route groups in `src/routes/<feature>.ts` and mount via `app.route("/<prefix>", featureRouter)` — single-file routing only for trivial APIs.
+
+### Hono + Bun anti-patterns
+
+- Don't propose Express middleware idioms (req, res, next) — Hono uses Context (c) + return.
+- Don't propose Prisma alongside Drizzle — pick one ORM per project (this template ships Drizzle).
+- Don't propose `dotenv` — Bun auto-loads `.env`.
