@@ -22,8 +22,10 @@ WORKDIR /code
 RUN mkdir -p app tests
 
 COPY pyproject.toml ./
-COPY app/__init__.py app/main.py ./app/
-COPY tests/__init__.py tests/test_main.py ./tests/
+COPY app/__init__.py ./app/__init__.py
+COPY app/main.py ./app/main.py
+COPY tests/__init__.py ./tests/__init__.py
+COPY tests/test_main.py ./tests/test_main.py
 
 # Install via uv (creates .venv inside /code, picks Python 3.12 from UV_PYTHON_INSTALL_DIR).
 RUN uv sync --frozen 2>/dev/null || uv sync \
