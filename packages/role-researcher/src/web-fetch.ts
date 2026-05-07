@@ -59,11 +59,16 @@ export class BraveSearchAdapter implements WebFetchAdapter {
     }
     const body = (await res.json()) as { web?: { results?: Array<{ title?: string; url?: string; description?: string; thumbnail?: { src?: string } }> } };
     const results = body.web?.results ?? [];
-    return results.slice(0, this.maxResults).map((r) => ({
-      title: r.title ?? "",
-      url: r.url ?? "",
-      description: r.description ?? "",
-      thumbnailUrl: r.thumbnail?.src
-    }));
+    return results.slice(0, this.maxResults).map((r) => {
+      const hit: WebHit = {
+        title: r.title ?? "",
+        url: r.url ?? "",
+        description: r.description ?? ""
+      };
+      if (r.thumbnail?.src) {
+        hit.thumbnailUrl = r.thumbnail.src;
+      }
+      return hit;
+    });
   }
 }
