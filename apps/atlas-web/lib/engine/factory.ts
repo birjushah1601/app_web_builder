@@ -168,12 +168,11 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
           const sdk = await Sandbox.connect(session.record.sandboxId, {
             apiKey: process.env.E2B_API_KEY ?? ""
           });
-          // E2B v2 process API. Returns stdout/stderr + exit code; the role's
-          // SandboxExec contract maps 1:1.
-          // Cast to `any` because @e2b/sdk types vary across versions and
-          // we only need the run() shape here.
-          const proc = await (sdk as unknown as { process: { startAndWait: (opts: { cmd: string }) => Promise<{ stdout: string; stderr?: string; exitCode: number }> } }).process.startAndWait({ cmd });
-          return { stdout: proc.stdout, stderr: proc.stderr, exitCode: proc.exitCode };
+          // E2B SDK v2.5+ Commands API: sdk.commands.run(cmd) returns
+          // { stdout, stderr, exitCode } when background is false (default).
+          // The role's SandboxExec contract maps 1:1.
+          const result = await (sdk as unknown as { commands: { run: (cmd: string, opts?: { background?: false }) => Promise<{ stdout: string; stderr: string; exitCode: number }> } }).commands.run(cmd);
+          return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode };
         }
       };
 
