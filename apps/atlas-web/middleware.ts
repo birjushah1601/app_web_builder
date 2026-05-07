@@ -5,13 +5,17 @@ const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 
 // Plan S.5 — visual fixture routes under /__visual__/* are dev/test-only.
 // Hard-404 in production so they can never leak to real users even if a
-// route file ships by accident. Local dev + Playwright runs (NODE_ENV=test
-// or development) get the full route through.
+// route file ships by accident. In dev/test the routes are public (no
+// Clerk auth) so Playwright can hit them without the global-setup signin
+// flow.
 const isVisualFixtureRoute = createRouteMatcher(["/__visual__(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (process.env.NODE_ENV === "production" && isVisualFixtureRoute(req)) {
-    return new NextResponse(null, { status: 404 });
+  if (isVisualFixtureRoute(req)) {
+    if (process.env.NODE_ENV === "production") {
+      return new NextResponse(null, { status: 404 });
+    }
+    return; // dev/test: bypass auth so Playwright can render the fixture
   }
   if (!isPublicRoute(req)) {
     await auth.protect();
