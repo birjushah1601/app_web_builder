@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DesignTokensSchema, DesignDirectionSchema } from "../src/types.js";
+import { DesignTokensSchema, DesignDirectionSchema, DesignProposalSchema, AxisChoiceSchema } from "../src/types.js";
 
 describe("DesignTokensSchema", () => {
   const validTokens = {
@@ -126,5 +126,82 @@ describe("DesignDirectionSchema", () => {
   it("rejects missing tokens", () => {
     const { tokens: _t, ...noTokens } = validDirection;
     expect(() => DesignDirectionSchema.parse(noTokens)).toThrow();
+  });
+});
+
+describe("DesignProposalSchema", () => {
+  const direction = (id: string) => ({
+    id,
+    name: id,
+    shortDescription: "x",
+    technicalDescription: "y",
+    citedReferences: [],
+    tokens: {
+      palette: { primary: "#000000", accent: "#ffffff", surface: "#cccccc", text: "#111111", muted: "#888888" },
+      typeScale: { sansFamily: "Inter", monoFamily: "Mono", baseSizePx: 16, scale: "minor-third" as const },
+      density: "comfortable" as const,
+      componentSet: "shadcn" as const,
+      imageryStrategy: "photo" as const,
+      copyVoice: "premium" as const
+    }
+  });
+
+  it("requires exactly 2 alternates", () => {
+    const valid = {
+      recommended: direction("a"),
+      alternates: [direction("b"), direction("c")],
+      reasoning: "Recommended A because it cites Bombay Canteen — strongest match for premium-restaurant signal."
+    };
+    expect(() => DesignProposalSchema.parse(valid)).not.toThrow();
+  });
+
+  it("rejects 1 alternate", () => {
+    const bad = {
+      recommended: direction("a"),
+      alternates: [direction("b")],
+      reasoning: "x"
+    };
+    expect(() => DesignProposalSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects 3 alternates", () => {
+    const bad = {
+      recommended: direction("a"),
+      alternates: [direction("b"), direction("c"), direction("d")],
+      reasoning: "x"
+    };
+    expect(() => DesignProposalSchema.parse(bad)).toThrow();
+  });
+
+  it("requires non-empty reasoning", () => {
+    const bad = {
+      recommended: direction("a"),
+      alternates: [direction("b"), direction("c")],
+      reasoning: ""
+    };
+    expect(() => DesignProposalSchema.parse(bad)).toThrow();
+  });
+});
+
+describe("AxisChoiceSchema", () => {
+  it("accepts a palette choice", () => {
+    const parsed = AxisChoiceSchema.parse({
+      axis: "palette",
+      value: { primary: "#0a0a0a", accent: "#fbbf24", surface: "#fef3c7", text: "#1f2937", muted: "#6b7280" }
+    });
+    expect(parsed.axis).toBe("palette");
+  });
+
+  it("accepts a density choice", () => {
+    const parsed = AxisChoiceSchema.parse({ axis: "density", value: "spacious" });
+    expect(parsed.value).toBe("spacious");
+  });
+
+  it("rejects unknown axis", () => {
+    expect(() => AxisChoiceSchema.parse({ axis: "vibes", value: "loud" })).toThrow();
+  });
+
+  it("rejects density outside enum", () => {
+    expect(() => AxisChoiceSchema.parse({ axis: "density", value: "loose" })).toThrow();
   });
 });

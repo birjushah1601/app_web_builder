@@ -33,3 +33,23 @@ export const DesignDirectionSchema = z.object({
   tokens: DesignTokensSchema
 });
 export type DesignDirection = z.infer<typeof DesignDirectionSchema>;
+
+export const DesignProposalSchema = z.object({
+  recommended: DesignDirectionSchema,
+  alternates: z.tuple([DesignDirectionSchema, DesignDirectionSchema]),
+  reasoning: z.string().min(1)
+});
+export type DesignProposal = z.infer<typeof DesignProposalSchema>;
+
+/** A single axis choice the user makes inside the AxisWizard.
+ *  refineAxis(direction, choice) merges this into the direction's tokens. */
+export const AxisChoiceSchema = z.discriminatedUnion("axis", [
+  z.object({ axis: z.literal("palette"), value: DesignTokensSchema.shape.palette }),
+  z.object({ axis: z.literal("typeScale"), value: DesignTokensSchema.shape.typeScale }),
+  z.object({ axis: z.literal("density"), value: DesignTokensSchema.shape.density }),
+  z.object({ axis: z.literal("componentSet"), value: DesignTokensSchema.shape.componentSet }),
+  z.object({ axis: z.literal("imageryStrategy"), value: DesignTokensSchema.shape.imageryStrategy }),
+  z.object({ axis: z.literal("copyVoice"), value: DesignTokensSchema.shape.copyVoice })
+]);
+export type AxisChoice = z.infer<typeof AxisChoiceSchema>;
+export type AxisId = AxisChoice["axis"];
