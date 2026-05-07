@@ -31,7 +31,7 @@ export class VisualQualityGateRunner {
       exec: this.opts.exec,
       previewUrl: this.opts.previewUrl,
       tokens: input.tokens,
-      model: this.opts.model
+      ...(this.opts.model !== undefined ? { model: this.opts.model } : {})
     });
     return { passed: report.passed, report };
   }

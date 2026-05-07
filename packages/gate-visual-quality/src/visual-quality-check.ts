@@ -25,6 +25,6 @@ export async function runVisualQualityCheck(input: RunVisualQualityCheckInput): 
     composedPrompt,
     screenshots,
     tokens: input.tokens,
-    model: input.model
+    ...(input.model !== undefined ? { model: input.model } : {})
   });
 }

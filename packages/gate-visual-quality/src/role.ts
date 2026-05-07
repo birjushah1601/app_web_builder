@@ -40,7 +40,7 @@ export class VisualQualityRole implements Role {
         exec: this.opts.exec,
         previewUrl: this.opts.previewUrl,
         tokens,
-        model: this.opts.model
+        ...(this.opts.model !== undefined ? { model: this.opts.model } : {})
       });
     } catch (err) {
       events.push({ eventType: "visual_quality.errored", payload: { error: (err as Error).message } });

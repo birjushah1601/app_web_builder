@@ -13,7 +13,7 @@ export class ScreenshotFailedError extends Error {
   constructor(message: string, opts: { viewport?: string; cause?: unknown } = {}) {
     super(message);
     this.name = "ScreenshotFailedError";
-    this.viewport = opts.viewport;
+    if (opts.viewport !== undefined) this.viewport = opts.viewport;
     this.cause = opts.cause;
   }
 }
