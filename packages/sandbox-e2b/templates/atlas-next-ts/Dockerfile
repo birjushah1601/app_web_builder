@@ -1,4 +1,4 @@
-# atlas-next-ts: Next.js 15 dev sandbox for Atlas live preview.
+# atlas-next-ts: Next.js 15 + Tailwind 3 + shadcn/ui dev sandbox for Atlas live preview.
 #
 # Hand-authored minimal Next.js app — no `create-next-app` scaffolding,
 # which is interactive (asks about Turbopack) and broke E2B template
@@ -16,10 +16,19 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 WORKDIR /code
 
 # Hand-author the app structure so the build is deterministic.
-RUN mkdir -p src/app
+RUN mkdir -p src/app src/components/ui src/lib
 
-COPY package.json tsconfig.json next.config.mjs tailwind.config.ts postcss.config.js ./
+# Top-level config files.
+COPY package.json tsconfig.json next.config.mjs tailwind.config.ts postcss.config.js components.json ./
+
+# App router entries.
 COPY src/app/layout.tsx src/app/page.tsx src/app/globals.css ./src/app/
+
+# shadcn primitives (11 components).
+COPY src/components/ui/*.tsx ./src/components/ui/
+
+# Utility (cn helper).
+COPY src/lib/utils.ts ./src/lib/
 
 # Install via pnpm (matches Atlas's monorepo PM choice).
 RUN pnpm install --prod=false \
