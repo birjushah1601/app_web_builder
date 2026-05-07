@@ -41,14 +41,17 @@ describe("<OptionsCard>", () => {
   it("invokes onSelect with direction id when 'Use this' clicked", async () => {
     const onSelect = vi.fn();
     render(<OptionsCard recommended={recommended} alternates={[alternate1, alternate2]} onSelect={onSelect} onRefine={vi.fn()} persona="diego" reasoning="" />);
-    await userEvent.click(screen.getByRole("button", { name: /use this/i }));
+    // OptionsCard renders the recommended card first, then alternates,
+    // so the first "Use this" button belongs to the recommendation.
+    await userEvent.click(screen.getAllByRole("button", { name: /use this/i })[0]);
     expect(onSelect).toHaveBeenCalledWith("editorial-dark");
   });
 
   it("invokes onRefine when 'Refine' clicked", async () => {
     const onRefine = vi.fn();
     render(<OptionsCard recommended={recommended} alternates={[alternate1, alternate2]} onSelect={vi.fn()} onRefine={onRefine} persona="diego" reasoning="" />);
-    await userEvent.click(screen.getByRole("button", { name: /refine/i }));
+    // First "Refine" button belongs to the recommendation (rendered first).
+    await userEvent.click(screen.getAllByRole("button", { name: /refine/i })[0]);
     expect(onRefine).toHaveBeenCalledWith("editorial-dark");
   });
 
