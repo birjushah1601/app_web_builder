@@ -10,13 +10,12 @@ WORKDIR /code
 
 # Install deps as root for cache-friendly layer; switch to user for runtime.
 COPY --chown=user:user package.json ./
-COPY --chown=user:user bun.lockb* ./
 COPY --chown=user:user tsconfig.json ./
 
-# `bun install --frozen-lockfile` if bun.lockb committed; falls back to a
-# fresh install if not. Use `--production=false` so dev deps (drizzle-kit,
-# typescript) are present for the developer LLM's typecheck step.
-RUN bun install --frozen-lockfile 2>/dev/null || bun install
+# Fresh install (no lockfile committed in repo). Use `--production=false`
+# implicitly via default, so dev deps (drizzle-kit, typescript) are present
+# for the developer LLM's typecheck step.
+RUN bun install
 
 # Copy app source AFTER install for cache reuse on dep-only changes.
 COPY --chown=user:user src/ ./src/
