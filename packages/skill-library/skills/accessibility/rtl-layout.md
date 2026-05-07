@@ -13,20 +13,20 @@ L5 merge gate. Runs on every Page.
 
 ## Severity tiers (CRITICAL)
 
-RTL is only a **gating concern** when the project explicitly targets RTL locales (Arabic, Hebrew, Urdu, Persian) — that intent comes from `designIntent.audienceCues` or the architect's spec, not from the gate's own assumption. If the project hasn't declared RTL targets, RTL findings are `minor` (nudges) and MUST NOT trigger the auto-fix loop.
+RTL is only a **gating concern** when the project explicitly targets RTL locales (Arabic, Hebrew, Urdu, Persian) — that intent comes from `designIntent.audienceCues` or the architect's spec, not from the gate's own assumption. If the project hasn't declared RTL targets, RTL findings are `low` (nudges) and MUST NOT trigger the auto-fix loop.
 
 - **`critical`** — Project declared RTL locale support AND a hardcoded directional property is causing visible mirroring failure (text running left-to-right inside a right-to-left page; controls in the wrong corner). Verify by asking: would a user actually see broken layout?
-- **`major`** — Project declared RTL AND a directional property exists but its effect is cosmetic (slightly off margin, icon faces wrong way).
-- **`minor`** — Default. Project did not declare RTL support, OR the issue is "could be improved when you add RTL later". Examples:
-  - "No `<html dir=...>` management" — `minor` unless a target locale needs it now
-  - "ml-2 used; should be ms-2 for RTL support" — `minor` unless RTL is in scope
-  - "Icons not flipping for RTL" — `minor`
-  - "Arrow key navigation should account for RTL direction" — `minor`
+- **`high`** — Project declared RTL AND a directional property exists but its effect is cosmetic (slightly off margin, icon faces wrong way).
+- **`low`** — Default. Project did not declare RTL support, OR the issue is "could be improved when you add RTL later". Examples:
+  - "No `<html dir=...>` management" — `low` unless a target locale needs it now
+  - "ml-2 used; should be ms-2 for RTL support" — `low` unless RTL is in scope
+  - "Icons not flipping for RTL" — `low`
+  - "Arrow key navigation should account for RTL direction" — `low`
 
 ## Checklist
 
 - [ ] First: does `designIntent.audienceCues` mention any RTL locale (e.g., "arabic", "hebrew", "urdu", "rtl", "middle-east")?
-  - If NO → all RTL findings are `minor`. Stop here unless you want to nudge.
+  - If NO → all RTL findings are `low`. Stop here unless you want to nudge.
   - If YES → continue with the substantive checks below.
 - [ ] Confirm `<html dir="..."` is set from the locale, not hardcoded.
 - [ ] Hardcoded `margin-left`/`padding-right` etc. → suggest `margin-inline-start`/`padding-inline-end`.

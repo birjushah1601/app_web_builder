@@ -21,11 +21,11 @@ The auto-fix loop (Plan L) ONLY triggers on `critical` severity. Misclassifying 
   - Click-only `<div>` with no `role="button"` AND no `onKeyDown` (literally untraceable by keyboard)
   - Form input has no associated `<label>` and no `aria-label` and no `aria-labelledby`
   - `outline: none` with no replacement focus indicator anywhere
-- **`major`** — Confirmed issue but recoverable / partial impact. Examples:
+- **`high`** — Confirmed issue but recoverable / partial impact. Examples:
   - axe `impact: "serious"`
   - Non-semantic markup that screen readers handle awkwardly but not catastrophically
   - Missing `aria-current` on the active item in a list
-- **`minor`** — Best-practice nudge, polish, or anything you cannot verify with measurement. Examples:
+- **`low`** — Best-practice nudge, polish, or anything you cannot verify with measurement. Examples:
   - "Potential contrast issue" without an actual computed ratio
   - "May not meet 4.5:1 in some scenarios"
   - Missing arrow-key navigation in a tablist (keyboard works via Tab; arrow-key is per ARIA APG, not WCAG-required)
@@ -35,13 +35,15 @@ The auto-fix loop (Plan L) ONLY triggers on `critical` severity. Misclassifying 
 
 ## Checklist
 
-- [ ] If you can run axe-core, do — its `impact` field maps directly to severity (critical → critical, serious → major, moderate/minor → minor).
+- [ ] If you can run axe-core, do — its `impact` field maps directly to severity (critical → critical, serious → high, moderate → medium, minor → low).
 - [ ] Without axe-core, audit by inspection but apply the severity tiers above strictly.
 - [ ] Report violations with: rule, impact, element selector, remediation hint.
-- [ ] If you cannot reproduce or measure an issue, demote to `minor` or omit. **Speculation is not a critical finding.**
+- [ ] If you cannot reproduce or measure an issue, demote to `low` or omit. **Speculation is not a critical finding.**
+- [ ] Severity values must be exactly one of: `critical`, `high`, `medium`, `low`. The schema rejects any other value (the role's tool-use call will fail).
 
 ## Anti-patterns
 
-- **Do NOT mark "potential" / "may" / "depending on" findings as `critical` or `major`.** If you didn't measure it, it doesn't block the gate.
-- Do not gate the same finding twice across critical+minor.
+- **Do NOT mark "potential" / "may" / "depending on" findings as `critical` or `high`.** If you didn't measure it, it doesn't block the gate.
+- Do not emit severity values like `major`, `minor`, `moderate`, or `info` — the schema only accepts `critical` / `high` / `medium` / `low`.
+- Do not gate the same finding twice across critical+low.
 - Do not list aspirational ARIA APG patterns as WCAG-required.
