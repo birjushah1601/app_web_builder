@@ -3,11 +3,12 @@ import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 
-// Plan S.5 — visual fixture routes under /__visual__/* are dev/test-only.
-// Hard-404 in production so they can never leak to real users even if a
-// route file ships by accident. In dev/test the routes are public (no
-// Clerk auth) so Playwright can hit them without the global-setup signin
-// flow.
+// Plan S.5 — visual fixture routes are exposed at /__visual__/* but live
+// in app/visual-fixtures/ on disk. Next.js treats any folder name starting
+// with `_` as private (un-routable), so we keep the folder name normal
+// and rewrite the public-facing URL via middleware. The /__visual__/*
+// URL space is still 404'd in production so it cannot leak to real users
+// even though the underlying routes always exist.
 const isVisualFixtureRoute = createRouteMatcher(["/__visual__(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -15,7 +16,11 @@ export default clerkMiddleware(async (auth, req) => {
     if (process.env.NODE_ENV === "production") {
       return new NextResponse(null, { status: 404 });
     }
-    return; // dev/test: bypass auth so Playwright can render the fixture
+    // dev/test: rewrite /__visual__/<rest> → /visual-fixtures/<rest>.
+    const rest = req.nextUrl.pathname.replace(/^\/__visual__/, "");
+    const url = req.nextUrl.clone();
+    url.pathname = `/visual-fixtures${rest}`;
+    return NextResponse.rewrite(url);
   }
   if (!isPublicRoute(req)) {
     await auth.protect();
