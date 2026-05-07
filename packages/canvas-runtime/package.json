@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/ritual-engine",
+  "name": "@atlas/canvas-runtime",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -19,10 +19,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@atlas/canvas-runtime": "workspace:*",
-    "@atlas/conductor": "workspace:*",
-    "@atlas/spec-graph-data": "workspace:*",
-    "@atlas/spec-graph-schema": "workspace:*",
+    "@atlas/ritual-engine": "workspace:*",
     "zod": "3.23.8"
   },
   "devDependencies": {
