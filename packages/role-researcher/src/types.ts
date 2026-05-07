@@ -1,10 +1,14 @@
 import { z } from "zod";
 
 /** What the architect emits to drive Researcher. Lives in architect's pass-2
- *  artifact alongside the existing scope/runnablePlan/etc. fields. */
+ *  artifact alongside the existing scope/runnablePlan/etc. fields.
+ *  `artifactKind` is optional and mirrors the canvasManifest's enum
+ *  (`frontend-app`, `backend-rest-api`, etc.); when present, the Researcher
+ *  composes a per-kind skill fragment (Plan T.1). */
 export const DesignIntentSchema = z.object({
   category: z.string().min(1),
-  audienceCues: z.array(z.string())
+  audienceCues: z.array(z.string()),
+  artifactKind: z.string().min(1).optional()
 });
 export type DesignIntent = z.infer<typeof DesignIntentSchema>;
 
