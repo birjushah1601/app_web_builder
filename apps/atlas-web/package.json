@@ -16,6 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
     "@atlas/auth-keycloak": "workspace:*",
+    "@atlas/canvas-runtime": "workspace:*",
     "@atlas/conductor": "workspace:*",
     "@atlas/deploy-orchestrator": "workspace:*",
     "@atlas/llm-provider": "workspace:*",

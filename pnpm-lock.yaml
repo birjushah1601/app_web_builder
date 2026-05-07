@@ -16,6 +16,9 @@ importers:
       '@atlas/auth-keycloak':
         specifier: workspace:*
         version: link:../../packages/auth-keycloak
+      '@atlas/canvas-runtime':
+        specifier: workspace:*
+        version: link:../../packages/canvas-runtime
       '@atlas/conductor':
         specifier: workspace:*
         version: link:../../packages/conductor
