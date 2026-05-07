@@ -25,6 +25,9 @@ importers:
       '@atlas/deploy-orchestrator':
         specifier: workspace:*
         version: link:../../packages/deploy-orchestrator
+      '@atlas/gate-visual-quality':
+        specifier: workspace:*
+        version: link:../../packages/gate-visual-quality
       '@atlas/llm-provider':
         specifier: workspace:*
         version: link:../../packages/llm-provider

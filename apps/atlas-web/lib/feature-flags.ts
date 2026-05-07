@@ -21,7 +21,8 @@ export type FeatureFlag =
   | "demo-mode"
   | "editor-layout-v2"
   | "designer"
-  | "canvas-v1";
+  | "canvas-v1"
+  | "visual-quality-gate";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -56,7 +57,11 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan S.3 — Designer role + A2UI primitive (proposal LLM call gated; A2UI components are unconditionally compiled but only mounted when canvas wires them in S.4).
   "designer": "ATLAS_FF_DESIGNER",
   // Plan S.4 — Canvas v1 (polymorphic shell + per-mode renderers; flag-OFF preserves preview-only Plan R behavior).
-  "canvas-v1": "ATLAS_FF_CANVAS_V1"
+  "canvas-v1": "ATLAS_FF_CANVAS_V1",
+  // Plan S.5 — Visual-Quality merge gate. When on, factory.getVisualQualityRole
+  // constructs the role and the engine factory appends it to postDeveloperChain
+  // after Security + A11y. Flag-OFF = today's chain unchanged.
+  "visual-quality-gate": "ATLAS_FF_VISUAL_QUALITY_GATE"
 };
 
 export interface FeatureFlagSource {
@@ -96,6 +101,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "demo-mode": isFeatureEnabled("demo-mode", source),
     "editor-layout-v2": isFeatureEnabled("editor-layout-v2", source),
     "designer": isFeatureEnabled("designer", source),
-    "canvas-v1": isFeatureEnabled("canvas-v1", source)
+    "canvas-v1": isFeatureEnabled("canvas-v1", source),
+    "visual-quality-gate": isFeatureEnabled("visual-quality-gate", source)
   };
 }

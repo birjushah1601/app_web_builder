@@ -38,7 +38,18 @@ export type RitualEventType =
   // Plan P: auto-fix events (Plan L) — increment a meta-state counter on the timeline.
   | "auto_fix.attempted"
   | "auto_fix.budget_exhausted"
-  | "auto_fix.failed";
+  | "auto_fix.failed"
+  // Plan S.5: Visual-Quality merge gate — surfaces as its own row on the
+  // rail timeline (alongside security + accessibility). started/passed/failed
+  // light the row state; skipped flags scope-out (backend-only / refactor);
+  // completed signals the gate has finished one way or another; errored is
+  // an internal crash (sandbox unreachable, screenshot timeout, etc.).
+  | "visual_quality.started"
+  | "visual_quality.passed"
+  | "visual_quality.failed"
+  | "visual_quality.skipped"
+  | "visual_quality.completed"
+  | "visual_quality.errored";
 
 /** A published event. The broker assigns `id` on publish; it is opaque to
  *  clients (they echo it back via Last-Event-ID for resume). Format today
