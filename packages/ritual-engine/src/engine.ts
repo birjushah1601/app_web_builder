@@ -160,6 +160,14 @@ export interface RitualSnapshot {
   /** Plan L: count of auto-fix attempts in this ritual's lineage. ChatPanel
    *  uses this to render an "(auto-fix #N)" badge. */
   fixAttempts?: number;
+  /** Plan S.4: design tokens picked by the user (or auto-selected on timeout)
+   *  during the canvas pause. Folded into the developer's priorArtifact so
+   *  generated code respects the chosen direction. */
+  selectedTokens?: unknown;
+  /** Plan S.4: snapshot of the architect's canvasManifest when canvas flow
+   *  is on. Persisted so the gate-visual-quality role + diagnostic UIs can
+   *  recover the persona-tier audience + mode list post-hoc. */
+  canvasManifest?: unknown;
 }
 
 export class RitualEngine {
@@ -644,7 +652,9 @@ export class RitualEngine {
         securityReport: r.securityReport,
         accessibilityReport: r.accessibilityReport,
         parentRitualId: r.parentRitualId,
-        fixAttempts: r.fixAttempts
+        fixAttempts: r.fixAttempts,
+        selectedTokens: r.selectedTokens,
+        canvasManifest: r.canvasManifest
       };
     }
     // Plan H: in-memory miss — fall back to hydrator if configured.
