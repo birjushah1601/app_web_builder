@@ -34,4 +34,4 @@ USER user
 EXPOSE 3000
 
 # Note: e2b.toml's start_cmd overrides this CMD at sandbox boot.
-CMD ["sh", "-c", "uv run uvicorn app.main:app --host 0.0.0.0 --port 3000"]
+CMD ["/code/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3000"]
