@@ -19,6 +19,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@atlas/canvas-runtime": "workspace:*",
     "@atlas/conductor": "workspace:*",
     "@atlas/llm-provider": "workspace:*",
     "@atlas/ritual-engine": "workspace:*",
