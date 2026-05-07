@@ -1,22 +1,30 @@
-# atlas-graphql-yoga: Bun 1.2+ + GraphQL Yoga 5 + Pothos 4 dev sandbox for Atlas live preview.
-FROM oven/bun:1-alpine
+# atlas-graphql-yoga: Bun 1.2+ + GraphQL Yoga 5 + Pothos 4 dev sandbox.
+FROM e2bdev/code-interpreter:latest
+
+USER root
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl ca-certificates unzip \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl -fsSL https://bun.sh/install | bash \
+ && cp /root/.bun/bin/bun /usr/local/bin/bun
 
 WORKDIR /code
 
-# Hand-author the app structure so the build is deterministic.
 RUN mkdir -p src/schema tests
 
-COPY package.json tsconfig.json ./
-COPY src/server.ts ./src/
-COPY src/schema/builder.ts src/schema/index.ts ./src/schema/
-COPY tests/server.test.ts ./tests/
+COPY package.json ./
+COPY tsconfig.json ./
+COPY src/server.ts ./src/server.ts
+COPY src/schema/builder.ts ./src/schema/builder.ts
+COPY src/schema/index.ts ./src/schema/index.ts
+COPY tests/server.test.ts ./tests/server.test.ts
 
-# Install via bun (creates node_modules + bun.lockb inside /code).
-# --frozen-lockfile keeps the operator's lockfile authoritative; on first
-# build (no lockfile present) bun installs without --frozen.
-RUN bun install --frozen-lockfile 2>/dev/null || bun install
+RUN bun install \
+ && chown -R user:user /code
+
+USER user
 
 EXPOSE 3000
 
-# Note: e2b.toml's start_cmd overrides this CMD at sandbox boot.
 CMD ["bun", "run", "src/server.ts"]
