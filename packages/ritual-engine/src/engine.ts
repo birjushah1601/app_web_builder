@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "crypto";
 import type { Conductor } from "@atlas/conductor";
 import type { EventSink, EditClass, RitualEvent } from "./events.js";
 import type { PersonaPreferences } from "./personas.js";

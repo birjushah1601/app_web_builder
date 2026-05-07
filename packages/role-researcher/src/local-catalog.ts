@@ -37,7 +37,8 @@ export async function loadCatalog(dir: string): Promise<Map<string, CatalogEntry
     const raw = await readFile(path.join(dir, file), "utf8");
     let parsed: unknown;
     try {
-      parsed = yaml.load(raw, { schema: yaml.SAFE_SCHEMA });
+      // js-yaml v4 uses safe schema by default; SAFE_SCHEMA was removed.
+      parsed = yaml.load(raw);
     } catch (err) {
       throw new CatalogParseError(`yaml parse failed: ${(err as Error).message}`, { file });
     }
