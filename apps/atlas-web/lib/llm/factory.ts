@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { LLMProvider } from "@atlas/llm-provider";
 import type { ResearcherRole as TResearcherRole } from "@atlas/role-researcher";
+import type { DesignerRole as TDesignerRole } from "@atlas/role-designer";
 
 /**
  * Lazily construct an LLMProvider from environment configuration.
@@ -56,4 +57,24 @@ export const getResearcherRole = cache(async (): Promise<TResearcherRole | null>
   const webAdapter = useWeb && braveKey ? new BraveSearchAdapter({ apiKey: braveKey }) : null;
 
   return new ResearcherRole({ llm, webAdapter });
+});
+
+/**
+ * Plan S.3: construct the DesignerRole when the feature flag is on.
+ *
+ * Lazy + per-request cached. Returns the DesignerRole if ATLAS_FF_DESIGNER=true
+ * AND the LLM provider env is configured; null otherwise. The role is
+ * constructed but NOT yet dispatched by getRitualEngine — that wiring lands
+ * in Plan S.4 (canvas + engine integration). For now this gives atlas-web
+ * a typed handle so the canvas tests can mount the role in isolation.
+ */
+export const getDesignerRole = cache(async (): Promise<TDesignerRole | null> => {
+  const { isFeatureEnabled } = await import("@/lib/feature-flags");
+  if (!isFeatureEnabled("designer")) return null;
+
+  const llm = await getLlmProvider();
+  if (!llm) return null;
+
+  const { DesignerRole } = await import("@atlas/role-designer");
+  return new DesignerRole({ llm });
 });
