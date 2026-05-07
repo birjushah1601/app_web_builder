@@ -10,6 +10,8 @@ import {
 import { SandboxSpendRepo } from "@atlas/spec-graph-data";
 import pg from "pg";
 import type { SandboxSession } from "./types";
+import { templateForArtifactKind } from "./template-router";
+import type { ArtifactKind } from "@atlas/canvas-runtime";
 
 interface SandboxFactoryConfig {
   lifecycle: SandboxLifecycle;
@@ -171,4 +173,19 @@ export function getSandboxFactory(): SandboxFactory {
 /** Test-only — drops the singleton so subsequent getSandboxFactory() calls re-read env. */
 export function _resetSandboxFactoryForTests(): void {
   _factory = undefined;
+}
+
+/**
+ * Plan T.1 — decide which E2B template to provision for a ritual.
+ *
+ * Precedence (highest first):
+ *   1. process.env.ATLAS_DEFAULT_SANDBOX_TEMPLATE (per-project pin)
+ *   2. templateForArtifactKind(artifactKind) when ATLAS_FF_MULTI_STACK=true
+ *   3. "atlas-next-ts-v2" default
+ */
+export function resolveTemplateForRitual(input: { artifactKind?: ArtifactKind }): string {
+  const pinned = process.env.ATLAS_DEFAULT_SANDBOX_TEMPLATE;
+  if (pinned) return pinned;
+  const multiStackOn = process.env.ATLAS_FF_MULTI_STACK === "true";
+  return templateForArtifactKind(input.artifactKind, { multiStackFlagOn: multiStackOn });
 }

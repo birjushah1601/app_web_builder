@@ -22,7 +22,8 @@ export type FeatureFlag =
   | "editor-layout-v2"
   | "designer"
   | "canvas-v1"
-  | "visual-quality-gate";
+  | "visual-quality-gate"
+  | "multi-stack";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -61,7 +62,12 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan S.5 — Visual-Quality merge gate. When on, factory.getVisualQualityRole
   // constructs the role and the engine factory appends it to postDeveloperChain
   // after Security + A11y. Flag-OFF = today's chain unchanged.
-  "visual-quality-gate": "ATLAS_FF_VISUAL_QUALITY_GATE"
+  "visual-quality-gate": "ATLAS_FF_VISUAL_QUALITY_GATE",
+  // Plan T.1 — Multi-stack templates. When on, the sandbox factory routes
+  // architect's canvasManifest.artifactKind to a per-kind E2B template
+  // (frontend-app → atlas-next-ts-v2, backend-rest-api → atlas-fastapi).
+  // Flag-OFF preserves today's behavior — every project provisions atlas-next-ts-v2.
+  "multi-stack": "ATLAS_FF_MULTI_STACK"
 };
 
 export interface FeatureFlagSource {
@@ -102,6 +108,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "editor-layout-v2": isFeatureEnabled("editor-layout-v2", source),
     "designer": isFeatureEnabled("designer", source),
     "canvas-v1": isFeatureEnabled("canvas-v1", source),
-    "visual-quality-gate": isFeatureEnabled("visual-quality-gate", source)
+    "visual-quality-gate": isFeatureEnabled("visual-quality-gate", source),
+    "multi-stack": isFeatureEnabled("multi-stack", source)
   };
 }

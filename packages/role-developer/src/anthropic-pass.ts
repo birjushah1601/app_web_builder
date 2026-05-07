@@ -1,6 +1,6 @@
 import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
-import { assembleDeveloperPrompt, SANDBOX_CONTEXT_PROMPT } from "./assemble-prompt.js";
+import { assembleDeveloperPrompt, getSandboxContextPromptFor } from "./assemble-prompt.js";
 import { DeveloperOutputSchema, type DeveloperOutput } from "./types.js";
 
 export const DEVELOPER_ANTHROPIC_MODEL = "claude-sonnet-4-6";
@@ -23,11 +23,15 @@ export interface AnthropicPassInput {
   architectArtifact: unknown;
   graphSlice: { bytes: string; hash: string };
   model?: string;
+  /** Plan T.1 — selects the per-template developer prompt fragment.
+   *  Undefined → default template (atlas-next-ts-v2). */
+  targetTemplate?: string;
 }
 
 export async function anthropicPass(input: AnthropicPassInput): Promise<DeveloperOutput> {
   const skillPrompt = assembleDeveloperPrompt(input.skills, ["tdd-feature", "edit-only-what-changed", "runnable-plan"]);
-  const systemPrompt = `You are the Atlas Developer (Anthropic Sonnet pass). Generate a unified diff that implements the Architect's runnable plan.\n\n${SANDBOX_CONTEXT_PROMPT}\n${skillPrompt}`;
+  const sandboxContext = getSandboxContextPromptFor(input.targetTemplate);
+  const systemPrompt = `You are the Atlas Developer (Anthropic Sonnet pass). Generate a unified diff that implements the Architect's runnable plan.\n\n${sandboxContext}\n${skillPrompt}`;
   const messages: LLMMessage[] = [
     { role: "system", content: systemPrompt, cache_control: { type: "ephemeral" } },
     { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },
