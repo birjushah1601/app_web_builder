@@ -22,11 +22,8 @@ COPY babel.config.js ./
 COPY metro.config.js ./
 COPY app.json ./
 COPY global.css ./
-COPY app/_layout.tsx ./app/_layout.tsx
-COPY app/index.tsx ./app/index.tsx
-COPY "app/(tabs)/_layout.tsx" "./app/(tabs)/_layout.tsx"
-COPY "app/(tabs)/index.tsx" "./app/(tabs)/index.tsx"
-COPY tests/index.test.tsx ./tests/index.test.tsx
+COPY app ./app/
+COPY tests ./tests/
 
 RUN pnpm install --prod=false \
  && chown -R user:user /code
