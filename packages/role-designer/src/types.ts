@@ -23,3 +23,13 @@ export const DesignTokensSchema = z.object({
   copyVoice: z.enum(["premium", "friendly", "authoritative", "playful"])
 });
 export type DesignTokens = z.infer<typeof DesignTokensSchema>;
+
+export const DesignDirectionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  shortDescription: z.string().min(1),
+  technicalDescription: z.string().min(1),
+  citedReferences: z.array(z.string()),
+  tokens: DesignTokensSchema
+});
+export type DesignDirection = z.infer<typeof DesignDirectionSchema>;
