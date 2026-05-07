@@ -101,6 +101,18 @@ export class ArchitectRole implements Role {
     }
     events.push({ eventType: "architect.pass2.completed", payload: { scope: artifact.scope, artifact } });
 
+    // Plan S.4: when the artifact carries a canvasManifest (synthesized in
+    // enrichArchitectOutput for design-affecting scopes), emit a dedicated
+    // event so the engine + atlas-web broker can route the manifest into
+    // the snapshot without re-parsing the full artifact.
+    const manifest = (artifact as { canvasManifest?: unknown }).canvasManifest;
+    if (manifest) {
+      events.push({
+        eventType: "architect.canvas_manifest.emitted",
+        payload: { manifest }
+      });
+    }
+
     return { events, diff: { kind: "none" } };
   }
 }
