@@ -44,7 +44,12 @@ export function EditorShell({ projectId, left, right }: Props) {
       {layout.leftCollapsed ? (
         <main className="flex-1 min-w-0 overflow-auto">{right}</main>
       ) : layout.rightCollapsed ? (
-        <aside className="flex-1 min-w-0 overflow-auto">{left}</aside>
+        // When right is collapsed, give the left (chat) the full remaining
+        // width by wrapping it in a flex container that overrides the
+        // RailShell's intrinsic 360px so the chat actually fills the screen.
+        <div className="flex flex-1 min-w-0 overflow-auto [&>aside]:!w-full [&>aside]:!flex-1">
+          {left}
+        </div>
       ) : (
         <PanelGroup direction="horizontal" onLayout={onLayout} className="flex flex-1 min-w-0">
           <Panel defaultSize={layout.leftWidthPct} minSize={15} maxSize={85} className="flex flex-col min-w-0">
