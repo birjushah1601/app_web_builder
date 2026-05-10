@@ -13,6 +13,35 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && rm -rf /var/lib/apt/lists/* \
  && npm install -g pnpm@9
 
+# Install Chromium + the libs puppeteer-core needs to launch headless.
+# Used by @atlas/gate-visual-quality's screenshot.ts (eval'd inside the
+# sandbox via sdk.commands.run). Canonical Debian dep list per
+# https://pptr.dev/troubleshooting#chrome-doesnt-launch-on-linux.
+# Image grows ~300 MB; acceptable for the live-preview sandbox.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      chromium \
+      libnss3 \
+      libatk1.0-0 \
+      libatk-bridge2.0-0 \
+      libcups2 \
+      libdrm2 \
+      libxkbcommon0 \
+      libxcomposite1 \
+      libxdamage1 \
+      libxfixes3 \
+      libxrandr2 \
+      libgbm1 \
+      libpango-1.0-0 \
+      libcairo2 \
+      libasound2 \
+      fonts-liberation \
+ && rm -rf /var/lib/apt/lists/*
+
+# Tell puppeteer-core where the chromium binary lives. The screenshot.ts
+# script reads this env var (falling back to /usr/bin/chromium).
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
 WORKDIR /code
 
 # Hand-author the app structure so the build is deterministic.
@@ -28,10 +57,17 @@ COPY tailwind.config.ts ./tailwind.config.ts
 COPY postcss.config.js ./postcss.config.js
 COPY components.json ./components.json
 
+# Designer-role contract: tailwind.config.ts + design-tokens-style.tsx read
+# this at build/HMR time. Developer role rewrites this file (whole-file
+# replace, never patch) when a design direction has been picked. Schema
+# documented in DESIGN-TOKENS.md.
+COPY src/design-tokens.json ./src/design-tokens.json
+
 # App router entries.
 COPY src/app/layout.tsx ./src/app/layout.tsx
 COPY src/app/page.tsx ./src/app/page.tsx
 COPY src/app/globals.css ./src/app/globals.css
+COPY src/app/design-tokens-style.tsx ./src/app/design-tokens-style.tsx
 
 # shadcn primitives (11 components, one COPY each — globs also collapse to
 # one source under E2B's build).
