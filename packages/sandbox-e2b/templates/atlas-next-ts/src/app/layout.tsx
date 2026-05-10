@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { ReactNode } from "react";
+import { DesignTokensStyle } from "./design-tokens-style.js";
 
 export const metadata = {
   title: "Atlas Sandbox",
@@ -9,6 +10,11 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/* Emits :root CSS vars from src/design-tokens.json. HMR-safe — the
+            chunk is invalidated when the JSON changes. */}
+        <DesignTokensStyle />
+      </head>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

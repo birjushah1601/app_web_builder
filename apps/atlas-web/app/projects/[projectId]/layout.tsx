@@ -41,6 +41,7 @@ export default async function ProjectLayout({
     <nav className="flex items-center gap-4 border-b border-slate-200 px-4 py-2">
       <Link href={`/projects/${projectId}/canvas`} className="text-sm hover:underline">Canvas</Link>
       <Link href={`/projects/${projectId}/code`} className="text-sm hover:underline">Code</Link>
+      <Link href={`/projects/${projectId}/events`} className="text-sm hover:underline">Events</Link>
       <span className="ml-auto text-xs text-slate-500">Persona: {persona}</span>
     </nav>
   );

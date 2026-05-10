@@ -8,8 +8,10 @@
 # Then add the printed template_id to this file in a follow-up commit.
 
 memory_mb = 2_048
-ready_cmd = "curl -fsS http://localhost:3000/health > /dev/null"
-start_cmd = "cd /code && bun run src/server.ts"
+ready_cmd = "curl -fsS http://localhost:3001/health > /dev/null"
+start_cmd = "cd /code && PORT=3001 bun run src/server.ts"
 dockerfile = "Dockerfile"
 template_name = "atlas-graphql-yoga"
+# Listening port comes from Dockerfile's EXPOSE 3001 (no top-level `port` key
+# in e2b.toml — E2B CLI infers the published port from EXPOSE).
 # template_id added by operator after first build via scripts/build-template.sh

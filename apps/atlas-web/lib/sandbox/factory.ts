@@ -10,7 +10,7 @@ import {
 import { SandboxSpendRepo } from "@atlas/spec-graph-data";
 import pg from "pg";
 import type { SandboxSession } from "./types";
-import { templateForArtifactKind } from "./template-router";
+import { templateForArtifactKind, portForTemplate } from "./template-router";
 import type { ArtifactKind } from "@atlas/canvas-runtime";
 
 interface SandboxFactoryConfig {
@@ -76,19 +76,31 @@ export class SandboxFactory {
     );
     // Port resolution precedence:
     //   1. SandboxFactoryConfig.defaultPort (env-configured at factory init)
-    //   2. Hard-coded TEMPLATE_DEFAULT_PORTS map for known atlas-* templates
-    //   3. 3000 (Next.js — the most common case)
+    //   2. portForTemplate(template) — authoritative per-template map shared
+    //      with the router. Bun trio (atlas-bun-cli/graphql-yoga/hono-bun) →
+    //      3001; Next/FastAPI/dlt/Expo → 3000.
+    //   3. Hard-coded TEMPLATE_DEFAULT_PORTS map for legacy aspirational names.
+    //   4. 3000 (Next.js — the most common case).
     // For the factory, derive preview URL from the sandbox record's previewBaseUrl
     // (set by E2BLifecycle.provision via E2B's getHost) or fall back to a placeholder.
     const port =
       this.config.defaultPort ??
-      TEMPLATE_DEFAULT_PORTS[this.config.defaultTemplate as keyof typeof TEMPLATE_DEFAULT_PORTS] ??
+      portForTemplate(record.templateId) ??
+      TEMPLATE_DEFAULT_PORTS[record.templateId as keyof typeof TEMPLATE_DEFAULT_PORTS] ??
       3000;
     const previewUrl = record.previewBaseUrl ?? `https://${port}-${record.sandboxId}.e2b.app`;
     return { record, previewUrl };
   }
 }
 
+/**
+ * Legacy aspirational-name port map. New entries should be added to
+ * `portForTemplate` in template-router.ts instead — this map only exists to
+ * keep the original KNOWN_ATLAS_TEMPLATES (atlas-python-fastapi, atlas-astro,
+ * etc.) working if anyone has them pinned. The actually-built atlas-* names
+ * (atlas-next-ts-v2, atlas-fastapi, atlas-bun-cli, …) are owned by
+ * `portForTemplate`.
+ */
 const TEMPLATE_DEFAULT_PORTS: Record<TemplateId, number> = {
   "atlas-next-ts": 3000,
   "atlas-python-fastapi": 8000,

@@ -1,0 +1,21 @@
+{
+  "palette": {
+    "primary": "#2563eb",
+    "secondary": "#64748b",
+    "accent": "#0ea5e9",
+    "muted": "#f1f5f9",
+    "background": "#ffffff",
+    "foreground": "#0f172a"
+  },
+  "typography": {
+    "headingFont": "Inter",
+    "bodyFont": "Inter",
+    "headingScale": "1.25"
+  },
+  "radius": {
+    "base": "0.5rem"
+  },
+  "spacing": {
+    "section": "5rem"
+  }
+}

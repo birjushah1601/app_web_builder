@@ -1,4 +1,9 @@
 # atlas-graphql-yoga: Bun 1.2+ + GraphQL Yoga 5 + Pothos 4 dev sandbox.
+#
+# Note on port: the e2bdev/code-interpreter base image already binds something
+# on :3000 (jupyter / code-interpreter HTTP surface), so Bun.serve fails fast
+# with EADDRINUSE if we try to use 3000. We bind to 3001 instead. See
+# template-router.ts for the per-template port map.
 FROM e2bdev/code-interpreter:latest
 
 USER root
@@ -25,6 +30,8 @@ RUN bun install \
 
 USER user
 
-EXPOSE 3000
+ENV PORT=3001
+
+EXPOSE 3001
 
 CMD ["bun", "run", "src/server.ts"]

@@ -25,6 +25,12 @@ projects to `atlas-fastapi`. atlas-hono-bun is opt-in.
 - `GET /` — app metadata `{ name, version, stack }`
 - `GET /health` — `{"status": "ok", "stack": "hono-bun", "atlas": "sandbox-ready"}`
 
+## Listening port
+
+Bun.serve listens on `process.env.PORT ?? 3001`.
+
+> **Why 3001 (not 3000)?** The `e2bdev/code-interpreter` base image already binds something on :3000, so `Bun.serve` fails fast with `EADDRINUSE` if we try to use 3000. Per-template port mapping lives in `apps/atlas-web/lib/sandbox/template-router.ts`.
+
 ## File layout
 
 ```

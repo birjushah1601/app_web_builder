@@ -9,6 +9,14 @@ const sourceWith = (env: Record<string, string>): FeatureFlagSource => ({
   readEnv: (name) => env[name]
 });
 
+const sourceWithCookies = (
+  env: Record<string, string>,
+  cookies: Record<string, string>
+): FeatureFlagSource => ({
+  readEnv: (name) => env[name],
+  readCookie: (name) => cookies[name]
+});
+
 describe("isFeatureEnabled", () => {
   it("returns false when env var unset", () => {
     expect(isFeatureEnabled("figma-importer", sourceWith({}))).toBe(false);
@@ -152,6 +160,77 @@ describe("ritual-hydration flag (Plan H)", () => {
   });
   it("listFlagStates includes ritual-hydration", () => {
     expect(listFlagStates(sourceWith({}))["ritual-hydration"]).toBe(false);
+  });
+});
+
+describe("demo-mode cookie precedence (Plan Q.UI)", () => {
+  it("cookie ON beats env OFF", () => {
+    expect(
+      isFeatureEnabled(
+        "demo-mode",
+        sourceWithCookies({}, { "atlas-demo-mode": "true" })
+      )
+    ).toBe(true);
+  });
+
+  it("cookie OFF beats env ON", () => {
+    expect(
+      isFeatureEnabled(
+        "demo-mode",
+        sourceWithCookies(
+          { ATLAS_FF_DEMO_MODE: "true" },
+          { "atlas-demo-mode": "false" }
+        )
+      )
+    ).toBe(false);
+  });
+
+  it("cookie unset → env wins (env ON)", () => {
+    expect(
+      isFeatureEnabled(
+        "demo-mode",
+        sourceWithCookies({ ATLAS_FF_DEMO_MODE: "true" }, {})
+      )
+    ).toBe(true);
+  });
+
+  it("cookie unset → env wins (env OFF)", () => {
+    expect(
+      isFeatureEnabled("demo-mode", sourceWithCookies({}, {}))
+    ).toBe(false);
+  });
+
+  it("garbage cookie value falls through to env (does not silently disable)", () => {
+    // A stale/corrupted cookie shouldn't override a deployed env config.
+    expect(
+      isFeatureEnabled(
+        "demo-mode",
+        sourceWithCookies(
+          { ATLAS_FF_DEMO_MODE: "true" },
+          { "atlas-demo-mode": "notaboolean" }
+        )
+      )
+    ).toBe(true);
+  });
+
+  it("source without readCookie still works (backwards compatible)", () => {
+    expect(
+      isFeatureEnabled(
+        "demo-mode",
+        sourceWith({ ATLAS_FF_DEMO_MODE: "true" })
+      )
+    ).toBe(true);
+  });
+
+  it("env-only flags ignore the cookie layer", () => {
+    // figma-importer has no FLAG_TO_COOKIE entry; even setting an
+    // "atlas-figma-importer" cookie should not affect it.
+    expect(
+      isFeatureEnabled(
+        "figma-importer",
+        sourceWithCookies({}, { "atlas-figma-importer": "true" })
+      )
+    ).toBe(false);
   });
 });
 

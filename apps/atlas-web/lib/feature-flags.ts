@@ -73,22 +73,73 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
 export interface FeatureFlagSource {
   /** Returns the value of the env var, or undefined if not set. */
   readEnv(name: string): string | undefined;
+  /**
+   * Optional per-request override layer. When defined and the flag has a
+   * cookie mapping, the cookie value takes precedence over the env var.
+   * Cookies expose only an explicit ON/OFF — any other string falls
+   * through to env. Used by Plan Q's runtime demo-mode toggle so an
+   * operator can flip demo mode from the UI without redeploying.
+   */
+  readCookie?(name: string): string | undefined;
 }
 
 export const processEnvSource: FeatureFlagSource = {
   readEnv: (name) => process.env[name]
 };
 
+/**
+ * Per-flag cookie names. Only the flags that participate in runtime UI
+ * toggles get an entry here — every other flag is env-only. Each cookie
+ * accepts ONLY "true" or "false" (anything else falls through to env so
+ * a stale/garbage cookie never silently overrides production env config).
+ */
+const FLAG_TO_COOKIE: Partial<Record<FeatureFlag, string>> = {
+  // Plan Q.UI — runtime demo-mode toggle in the canvas header. Cookie ON
+  // beats env OFF; cookie OFF beats env ON; cookie unset = env wins.
+  // HttpOnly is intentionally false on the client setter (the toggle is
+  // per-browser convenience, not a security boundary — the server still
+  // checks the same cookie via this source).
+  "demo-mode": "atlas-demo-mode"
+};
+
 const TRUTHY = new Set(["1", "true", "TRUE", "yes", "on"]);
+
+/** Strict cookie parser. Returns true/false for explicit values, undefined
+ *  for anything else (so the env fallback runs). Kept narrow on purpose —
+ *  cookies are user-controlled input and we don't want to honor garbage. */
+function parseCookieValue(raw: string | undefined): boolean | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  return undefined;
+}
 
 export function isFeatureEnabled(
   flag: FeatureFlag,
   source: FeatureFlagSource = processEnvSource
 ): boolean {
+  // Cookie precedence — if the flag participates in the runtime override
+  // layer AND the source provides a readCookie AND the cookie carries an
+  // explicit true/false, return that immediately. Falls through to env in
+  // every other case (no source.readCookie, no cookie set, garbage value).
+  const cookieName = FLAG_TO_COOKIE[flag];
+  if (cookieName !== undefined && source.readCookie !== undefined) {
+    const cookieDecision = parseCookieValue(source.readCookie(cookieName));
+    if (cookieDecision !== undefined) return cookieDecision;
+  }
+
   const envName = FLAG_TO_ENV[flag];
   const raw = source.readEnv(envName);
   if (raw === undefined) return false;
   return TRUTHY.has(raw.trim());
+}
+
+/** Cookie name for a flag, or undefined if the flag is env-only. Exported
+ *  so the UI toggle + Server Action can name the cookie consistently
+ *  without hard-coding the string in two places. */
+export function getCookieNameForFlag(flag: FeatureFlag): string | undefined {
+  return FLAG_TO_COOKIE[flag];
 }
 
 export function listFlagStates(source: FeatureFlagSource = processEnvSource): Record<FeatureFlag, boolean> {

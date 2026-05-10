@@ -26,6 +26,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { getEventBroker } = await import("@/lib/events/broker-singleton");
   const { isFeatureEnabled } = await import("@/lib/feature-flags");
   const { SpecEventsHydrator } = await import("./spec-events-hydrator");
+  const { getCanvasPauseRegistry } = await import("./canvas-pause-singleton");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   // Plan H: share one SpecEventRepo instance between the engine's eventSink
@@ -68,15 +69,19 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     );
   }
 
-  // Plan Q: demo-mode short-circuit. When ATLAS_FF_DEMO_MODE=true, swap
+  // Plan Q: demo-mode short-circuit. When ATLAS_FF_DEMO_MODE=true (env)
+  // OR the per-request `atlas-demo-mode` cookie is set to "true", swap
   // architect + developer for canned-response stand-ins so the full UI
-  // flow runs end-to-end without any LLM call. Plan I gates (security/a11y)
-  // still run if their flags are on — they hit the real LLM via the existing
-  // role packages, so demo-mode + gate flags both on means gates still cost
-  // a small amount per ritual. To make demo-mode FULLY token-free, also
-  // leave ATLAS_FF_SECURITY_ROLE / ATLAS_FF_A11Y_ROLE off.
-  const { isFeatureEnabled: _ffq } = await import("@/lib/feature-flags");
-  if (_ffq("demo-mode")) {
+  // flow runs end-to-end without any LLM call. Cookie wins over env, so a
+  // browser session can flip demo mode on/off without redeploying. Plan I
+  // gates (security/a11y) still run if their flags are on — they hit the
+  // real LLM via the existing role packages, so demo-mode + gate flags
+  // both on means gates still cost a small amount per ritual. To make
+  // demo-mode FULLY token-free, also leave ATLAS_FF_SECURITY_ROLE /
+  // ATLAS_FF_A11Y_ROLE off.
+  const { isFeatureEnabledForRequest } = await import("@/lib/feature-flags-server");
+  const demoModeOn = await isFeatureEnabledForRequest("demo-mode");
+  if (demoModeOn) {
     const { DemoArchitectRole } = await import("./demo-mode/demo-architect-role");
     const { DemoDeveloperRole } = await import("./demo-mode/demo-developer-role");
     roles.set("architect", new DemoArchitectRole());
@@ -261,12 +266,26 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     ? new SpecEventsHydrator(specEventRepo, projectId)
     : undefined;
 
+  // Plan S.4: when the canvas-v1 + designer flags are on, the engine runs the
+  // canvas pause flow — emits canvas.options.requested then awaits a
+  // selection on the process-singleton CanvasPauseRegistry. The Server
+  // Action selectDesignDirection resolves against that same singleton.
+  // Both flags must be on (registry attaches only when both are enabled);
+  // either off → engine skips the pause and chains straight into developer.
+  const canvasFlowEnabled = isFeatureEnabled("canvas-v1") && isFeatureEnabled("designer");
+  const canvasPauseRegistry = canvasFlowEnabled ? getCanvasPauseRegistry() : undefined;
+
   return new RitualEngine({
     conductor,
-    eventSink: new SpecEventsSink(specEventRepo, projectId),
+    // SpecEventsSink wraps the broker singleton so canvas/designer events the
+    // engine emits via this.emit() are also published to the SSE stream
+    // (otherwise they'd be DB-only and the new client hooks would never see them).
+    eventSink: new SpecEventsSink(specEventRepo, projectId, getEventBroker()),
     personaPreferences: prefs,
     hydrator,
     postDeveloperChain,
+    canvasFlowEnabled,
+    ...(canvasPauseRegistry ? { canvasPauseRegistry } : {}),
     // Plan L: when ATLAS_FF_AUTO_FIX_LOOP is on, the engine auto-triggers
     // refine() in response to a chained gate failure. Capped at MAX_FIX_ATTEMPTS
     // per ritual lineage. Cross-flag dependency: refine() only works when
@@ -414,6 +433,16 @@ function mapCheckpointToBrokerEvent(
     case "visual_quality.skipped":    return { type: "visual_quality.skipped",    payload };
     case "visual_quality.completed":  return { type: "visual_quality.completed",  payload };
     case "visual_quality.errored":    return { type: "visual_quality.errored",    payload };
+
+    // Plan S.2 researcher brief events. Carry the InspirationBrief payload
+    // through to the SSE stream so ResearcherBriefCard can render the
+    // chosen palette / typography / patterns on the rail timeline. The
+    // conductor wraps payloads with { attempt, roleId }; the brief itself
+    // sits under payload.brief.
+    case "researcher.brief.started":   return { type: "researcher.brief.started",   payload };
+    case "researcher.brief.completed": return { type: "researcher.brief.completed", payload };
+    case "researcher.brief.skipped":   return { type: "researcher.brief.skipped",   payload };
+    case "researcher.brief.failed":    return { type: "researcher.brief.failed",    payload };
 
     default:                        return null;
   }

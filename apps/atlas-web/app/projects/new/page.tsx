@@ -1,26 +1,4 @@
-import { redirect } from "next/navigation";
-import { Pool } from "pg";
-import { ProjectsRepo } from "@atlas/spec-graph-data";
-import { auth } from "@/lib/auth/clerk-compat";
-
-async function createProject(formData: FormData): Promise<void> {
-  "use server";
-  const { userId } = await auth();
-  if (!userId) throw new Error("unauthorized");
-
-  const name = String(formData.get("name") ?? "untitled").trim() || "untitled";
-
-  // Per-request Pool — matches the pattern used elsewhere in atlas-web
-  // (see lib/actions/setPersonaOverride.ts). Eventually this should move
-  // to a shared pool to avoid connection churn.
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const projectsRepo = new ProjectsRepo(pool);
-  const project = await projectsRepo.create({ userId, name });
-
-  // Preserve the bootstrap=1 + name= contract that drives initial ritual
-  // kickoff on the canvas page (see app/projects/[projectId]/canvas/page.tsx).
-  redirect(`/projects/${project.projectId}/canvas?bootstrap=1&name=${encodeURIComponent(project.name)}`);
-}
+import { createProject } from "./actions";
 
 export default function NewProjectPage() {
   return (

@@ -33,7 +33,9 @@ app.get("/health", (c) =>
 
 // Bun.serve auto-runs when this file is executed via `bun run src/index.ts`.
 // Hono exports `fetch` on the default export; Bun.serve picks it up.
-const port = Number(Bun.env.PORT ?? 3000);
+// Default port 3001 (NOT 3000) — the e2bdev/code-interpreter base image
+// already binds :3000, so Bun.serve EADDRINUSEs on 3000.
+const port = Number(Bun.env.PORT ?? 3001);
 
 if (import.meta.main) {
   Bun.serve({

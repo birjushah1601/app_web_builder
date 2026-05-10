@@ -2,9 +2,10 @@
  * Per-template prompt fragment for atlas-bun-cli (Bun 1.2+ runtime +
  * Commander 12.x + ink 5.x + chalk 5 + zod + bun:test). Plan T.2.5.
  *
- * The sandbox is a CLI, not a web app. The port-3000 surface is a tiny
+ * The sandbox is a CLI, not a web app. The port-3001 surface is a tiny
  * Bun.serve status page; the developer's primary deliverable is subcommand
  * files under src/commands/ that the user invokes via the E2B Exec API.
+ * (Port 3001, not 3000 — the e2bdev base image already binds :3000.)
  */
 export const BUN_CLI_PROMPT = [
   "## Target sandbox",
@@ -15,7 +16,7 @@ export const BUN_CLI_PROMPT = [
   "- Add new subcommands to **`src/commands/<name>.tsx`** — one file per subcommand. Each file default-exports the ink component (the screen) and named-exports `register<Name>(program: Command): void`.",
   "- Add reusable helpers to **`src/lib/<helper>.ts`** — pure functions, no Commander references, easy to unit-test.",
   "- Add tests in **`tests/<feature>.test.ts`** using `bun:test` (`import { describe, it, expect } from \"bun:test\"`).",
-  "- A status-page HTTP server (`src/server.ts`) runs on port 3000 so the canvas iframe has something to render. **Do NOT remove or repurpose it** — the sandbox preview iframe depends on it.",
+  "- A status-page HTTP server (`src/server.ts`) runs on port 3001 so the canvas iframe has something to render. **Do NOT remove or repurpose it** — the sandbox preview iframe depends on it. (Port 3001, not 3000 — the e2bdev base image already binds :3000.)",
   "",
   "## What's installed (use these — don't reinvent)",
   "",
@@ -37,7 +38,7 @@ export const BUN_CLI_PROMPT = [
   "await sandbox.commands.run(\"bun run src/cli.ts <subcommand> [args]\");",
   "```",
   "",
-  "Design subcommands to be clean stdout/stderr producers; do NOT write user-facing UI to port 3000.",
+  "Design subcommands to be clean stdout/stderr producers; do NOT write user-facing UI to port 3001.",
   "",
   "## Conventions + style",
   "",

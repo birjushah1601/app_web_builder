@@ -1,12 +1,14 @@
 import { CanvasClient } from "@/components/CanvasClient";
 import { ChatPanel } from "@/components/ChatPanel";
+import { DemoModeToggle } from "@/components/DemoModeToggle";
 import { startRitual } from "@/lib/actions/startRitual";
 import { refineRitual } from "@/lib/actions/refineRitual";
 import { getLatestRitualForProject } from "@/lib/actions/getLatestRitualForProject";
 import { getSandboxFactory } from "@/lib/sandbox/factory";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { isFeatureEnabledForRequest } from "@/lib/feature-flags-server";
 import { CanvasPreviewClient } from "./_components/CanvasPreviewClient";
-import { CanvasShell } from "@/components/canvas/CanvasShell";
+import { CanvasShellWired } from "@/components/canvas/CanvasShellWired";
 // Side-effect import — populates the canvasModeRegistry singleton at module
 // load time (atlas-web only mounts CanvasShell when the canvas-v1 flag is on,
 // but the registration runs unconditionally so the registry is always ready).
@@ -53,12 +55,23 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // renders <EmptyCanvas> until the manifest arrives. Flag-OFF preserves
   // today's preview-only tree byte-for-byte.
   const canvasV1On = isFeatureEnabled("canvas-v1");
+  // Plan Q.UI — pass the per-request demo-mode state (env OR cookie) to
+  // the toggle so its checkbox renders in the correct initial position
+  // on first paint.
+  const demoModeOn = await isFeatureEnabledForRequest("demo-mode");
 
   return (
-    <main className="flex h-full">
+    <main className="flex h-full flex-col">
+      <header
+        data-testid="canvas-header"
+        className="flex items-center justify-end gap-3 border-b border-slate-200 bg-white px-4 py-1.5"
+      >
+        <DemoModeToggle projectId={projectId} initialEnabled={demoModeOn} />
+      </header>
+      <div className="flex flex-1 min-h-0">
       <section className="flex-1 flex flex-col">
         {canvasV1On ? (
-          <CanvasShell manifest={undefined} persona="ama" />
+          <CanvasShellWired projectId={projectId} persona="ama" />
         ) : (
           <CanvasPreviewClient
             projectId={projectId}
@@ -78,6 +91,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
           {...(latestRitual ? { initialLatestRitualId: latestRitual.ritualId } : {})}
         />
       )}
+      </div>
     </main>
   );
 }

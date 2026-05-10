@@ -24,10 +24,16 @@ describe("TimelineState — types and initial value", () => {
     }>();
   });
 
-  it("TimelineState has rows + escalated + Plan P autoFix fields", () => {
+  it("TimelineState has rows + escalated + Plan P autoFix fields + Plan #14 escalation details", () => {
     expectTypeOf<TimelineState>().toEqualTypeOf<{
       rows: Record<Phase, RowState>;
       escalated: boolean;
+      escalation?: {
+        failedRoleId?: string;
+        attempts?: number;
+        finalError?: string;
+        ritualId?: string;
+      };
       autoFixAttempts: number;
       autoFixExhausted: boolean;
       autoFixFailed?: string;

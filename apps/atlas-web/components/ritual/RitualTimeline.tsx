@@ -15,10 +15,15 @@
  * which dynamic-imports this component.
  */
 
+import { Fragment } from "react";
 import { useTimelineState, type Phase } from "@/lib/ritual/useTimelineState";
 import { RitualTimelineRow } from "@/components/ritual/RitualTimelineRow";
 import { EscalationCallout } from "@/components/EscalationCallout";
+import { EscalationBanner } from "@/components/ritual/EscalationBanner";
 import { useTimelineCollapse } from "@/lib/ritual/use-timeline-collapse";
+import { useResearcherBrief } from "@/lib/research/useResearcherBrief";
+import { ResearcherBriefCard } from "@/components/research/ResearcherBriefCard";
+import { useEventStream } from "@/lib/events/EventSourceProvider";
 
 const ROW_TITLE: Record<Phase, string> = {
   architect:     "Architect planning",
@@ -33,6 +38,16 @@ const ROW_ORDER: Phase[] = ["architect", "developer", "sandbox", "security", "ac
 export function RitualTimeline({ projectId }: { projectId: string }) {
   const state = useTimelineState();
   const { open, setOpen } = useTimelineCollapse(projectId);
+  const { briefByRitualId } = useResearcherBrief();
+  // Plan S.2: derive the active ritualId from the most recent event in
+  // the stream. useTimelineState's reducer resets on `ritual.started`, so
+  // the most recent event's ritualId IS the ritual whose rows are
+  // currently rendered. Falls back to undefined when no events have
+  // arrived (initial mount, flag-OFF, etc.) — the brief card then hides
+  // because briefByRitualId[undefined] is undefined.
+  const { events } = useEventStream();
+  const activeRitualId = events.length > 0 ? events[events.length - 1]?.ritualId : undefined;
+  const activeBrief = activeRitualId ? briefByRitualId[activeRitualId] : undefined;
 
   // Plan P: only render Plan I gate rows when SOMETHING progressed them.
   // Pending gate rows are hidden so flag-OFF rituals look identical to
@@ -71,7 +86,17 @@ export function RitualTimeline({ projectId }: { projectId: string }) {
         </summary>
 
         {visibleRows.map((phase) => (
-          <RitualTimelineRow key={phase} row={state.rows[phase]} title={ROW_TITLE[phase]} />
+          <Fragment key={phase}>
+            <RitualTimelineRow row={state.rows[phase]} title={ROW_TITLE[phase]} />
+            {/* Plan S.2 — insert the researcher brief immediately after the
+             *  architect row (before developer) when a brief exists for the
+             *  active ritual. Slotted via the row map (vs. a separate JSX
+             *  block) so the card appears in the correct sequential position
+             *  even when developer / sandbox / gate rows are pending. */}
+            {phase === "architect" && activeBrief && activeRitualId && (
+              <ResearcherBriefCard brief={activeBrief} ritualId={activeRitualId} />
+            )}
+          </Fragment>
         ))}
 
         {/* Plan P: auto-fix indicator. Renders inline (not as a row) because
@@ -94,6 +119,15 @@ export function RitualTimeline({ projectId }: { projectId: string }) {
 
         {state.escalated && (
           <div className="border-t border-slate-200 p-2">
+            {/* Plan #14 — surface the conductor's failure context (failed
+                role, attempts, finalError) so the chat doesn't go silent
+                on escalation. Renders only when the reducer captured
+                escalation details (i.e. the broker forwarded a
+                ritual.escalated event with payload, not the older
+                ritual.escalation_requested fallback). */}
+            {state.escalation && (
+              <EscalationBanner details={state.escalation} />
+            )}
             {/* EscalationCallout requires gate + onAskReviewer; we pass the
                 literal "ritual" gate id (the conductor doesn't surface a
                 specific gate today) and a no-op handler — ask-reviewer

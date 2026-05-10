@@ -73,7 +73,9 @@ export async function getLatestRitualForProject(
   }
 }
 
-/** Test-only — drops the singleton so subsequent calls re-read env. */
-export function _resetGetLatestRitualForTests(): void {
+/** Test-only — drops the singleton so subsequent calls re-read env.
+ *  Must be async so this `"use server"` module satisfies Next.js's
+ *  "every export from a server-actions file must be an async function" rule. */
+export async function _resetGetLatestRitualForTests(): Promise<void> {
   _pool = null;
 }

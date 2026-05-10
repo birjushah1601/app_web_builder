@@ -1,30 +1,40 @@
-# atlas-hono-bun: Bun 1.2 + Hono + Drizzle dev sandbox for Atlas live preview.
-FROM oven/bun:1-alpine
+# atlas-hono-bun: Bun 1.2 + Hono 4 + Drizzle ORM dev sandbox for Atlas live preview.
+#
+# Note on port: the e2bdev/code-interpreter base image already binds something
+# on :3000 (jupyter / code-interpreter HTTP surface), so Bun.serve fails fast
+# with EADDRINUSE if we try to use 3000. We bind to 3001 instead. See
+# template-router.ts for the per-template port map.
+FROM e2bdev/code-interpreter:latest
 
-# E2B's runtime overlay expects a `user` user with /code workdir + write perms.
-RUN addgroup -S user && adduser -S -G user user \
- && mkdir -p /code \
- && chown -R user:user /code
+USER root
+
+# Install Bun (the e2b base ships node, not bun).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl ca-certificates unzip \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl -fsSL https://bun.sh/install | bash \
+ && cp /root/.bun/bin/bun /usr/local/bin/bun
 
 WORKDIR /code
 
-# Install deps as root for cache-friendly layer; switch to user for runtime.
-COPY --chown=user:user package.json ./
-COPY --chown=user:user tsconfig.json ./
+COPY package.json ./
+COPY tsconfig.json ./
 
-# Fresh install (no lockfile committed in repo). Use `--production=false`
-# implicitly via default, so dev deps (drizzle-kit, typescript) are present
-# for the developer LLM's typecheck step.
-RUN bun install
+# Fresh install. Dev deps stay so the developer LLM can typecheck inside.
+RUN bun install \
+ && chown -R user:user /code
 
 # Copy app source AFTER install for cache reuse on dep-only changes.
-COPY --chown=user:user src/ ./src/
-COPY --chown=user:user tests/ ./tests/
+COPY src/ ./src/
+COPY tests/ ./tests/
+
+RUN chown -R user:user /code
 
 USER user
 
-EXPOSE 3000
+ENV PORT=3001
 
-# Note: e2b.toml's start_cmd overrides this CMD at sandbox boot. CMD is
-# kept for parity with `docker run` smoke tests outside e2b.
+EXPOSE 3001
+
+# Note: e2b.toml's start_cmd overrides this CMD at sandbox boot.
 CMD ["bun", "run", "src/index.ts"]
