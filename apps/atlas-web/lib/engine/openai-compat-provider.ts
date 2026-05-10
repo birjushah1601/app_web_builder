@@ -6,6 +6,7 @@ import type {
   LLMStreamChunk,
   ToolDefinition
 } from "@atlas/llm-provider";
+import { getModelCapabilities } from "@/lib/llm/model-capabilities";
 
 interface ToolUseResultShape {
   toolName: string;
@@ -100,15 +101,61 @@ export class OpenAICompatProvider implements LLMProvider {
       ? prependSchemaInstruction(messages, options.tools, options.toolChoice.name)
       : toOpenAiMessages(messages);
 
-    const res = await this.post({
+    // Up-front capability check: if we KNOW the model's hosted endpoint
+    // doesn't support tool_use (e.g. Qwen 2.5 on OpenRouter), skip the
+    // doomed request and go straight to the schema-injection path. This
+    // both avoids a wasted round-trip and makes the test path deterministic.
+    // Only meaningful when toolChoice forces a specific tool — otherwise
+    // there's no schema to inject.
+    const caps = getModelCapabilities(options.model);
+    const skipToolsUpfront =
+      !caps.supportsTools && options.toolChoice.type === "tool";
+
+    const initialBody: Record<string, unknown> = {
       model: options.model,
       max_tokens: options.maxTokens,
       temperature: options.temperature,
       stop: options.stopSequences,
-      messages: options.toolChoice.type === "tool" ? augmentedMessages : toOpenAiMessages(messages),
-      tools,
-      tool_choice: toolChoice
-    });
+      messages: options.toolChoice.type === "tool" ? augmentedMessages : toOpenAiMessages(messages)
+    };
+    if (!skipToolsUpfront) {
+      initialBody.tools = tools;
+      initialBody.tool_choice = toolChoice;
+    }
+
+    let res: OpenAiChatResponse;
+    try {
+      res = await this.post(initialBody);
+    } catch (err) {
+      // Runtime 404-on-tools fallback. OpenRouter returns
+      //   HTTP 404 {"error":{"message":"No endpoints found that support tool use"...}}
+      // when the chosen model has no hosted endpoint that exposes tools.
+      // We retry ONCE with `tools` + `tool_choice` stripped — the schema is
+      // already inlined as a system message via prependSchemaInstruction
+      // above, and extractJsonFromContent will recover the structured input
+      // from the model's free-form reply on the existing fallback path.
+      // Cap at one retry: if the schema-injection path also 404s, propagate.
+      if (
+        err instanceof OpenAICompatHttpError &&
+        err.status === 404 &&
+        /support tool use/i.test(err.body) &&
+        options.toolChoice.type === "tool"
+      ) {
+        console.warn(
+          `[openai-compat-provider] ${options.model} doesn't support tool_use, falling back to schema-injection`
+        );
+        const fallbackBody: Record<string, unknown> = {
+          model: options.model,
+          max_tokens: options.maxTokens,
+          temperature: options.temperature,
+          stop: options.stopSequences,
+          messages: augmentedMessages
+        };
+        res = await this.post(fallbackBody);
+      } else {
+        throw err;
+      }
+    }
 
     const choice = res.choices?.[0];
     const toolCall = choice?.message?.tool_calls?.[0];
@@ -168,9 +215,27 @@ export class OpenAICompatProvider implements LLMProvider {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`OpenAICompatProvider HTTP ${res.status}: ${text.slice(0, 500)}`);
+      throw new OpenAICompatHttpError(res.status, text);
     }
     return (await res.json()) as OpenAiChatResponse;
+  }
+}
+
+/**
+ * Typed HTTP error so callers (notably completeWithToolUse) can distinguish
+ * the OpenRouter "no endpoints support tool use" 404 from generic transport
+ * failures. The Error message preserves the existing
+ *   `OpenAICompatProvider HTTP <status>: <body>`
+ * shape so log scrapers and existing tests keep working.
+ */
+export class OpenAICompatHttpError extends Error {
+  readonly status: number;
+  readonly body: string;
+  constructor(status: number, body: string) {
+    super(`OpenAICompatProvider HTTP ${status}: ${body.slice(0, 500)}`);
+    this.name = "OpenAICompatHttpError";
+    this.status = status;
+    this.body = body;
   }
 }
 
