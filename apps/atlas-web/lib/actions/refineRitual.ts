@@ -24,11 +24,19 @@ export async function refineRitual(input: RefineRitualInput): Promise<RefineRitu
   const { userId } = await auth();
   if (!userId) throw new Error("unauthorized");
   const engine = await getRitualEngine(input.projectId);
+  // Task B: same anchor-file snapshot as startRitual. Refines benefit from
+  // currentFiles in addition to PriorRitualContext because the prior ritual
+  // captures intent + the diff that should have landed, while currentFiles
+  // captures what the sandbox actually looks like NOW (the user may have
+  // edited files manually in the editor between turns).
+  const { readCurrentFilesForProject } = await import("@/lib/sandbox/read-current-files");
+  const currentFiles = await readCurrentFilesForProject(input.projectId);
   const childId = await engine.refine({
     parentRitualId: input.parentRitualId,
     projectId: input.projectId,
     userId,
-    userTurn: input.userTurn
+    userTurn: input.userTurn,
+    ...(currentFiles.length > 0 ? { currentFiles } : {})
   });
   const snapshot = await engine.getRitual(childId);
   return {

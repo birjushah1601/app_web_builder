@@ -93,7 +93,10 @@ export class ArchitectRole implements Role {
         deepPlanModel: this.deepPlanModel,
         // Plan K: when refining, the engine threads PriorRitualContext via priorArtifact.
         // deepPlan checks the shape with isPriorRitualContext and ignores any other shape.
-        priorRitual: inv.priorArtifact
+        priorRitual: inv.priorArtifact,
+        // exactOptionalPropertyTypes: only set when defined so deepPlan's
+        // `if (input.currentFiles !== undefined)` check stays consistent.
+        ...(inv.currentFiles !== undefined ? { currentFiles: [...inv.currentFiles] } : {})
       });
     } catch (err) {
       events.push({ eventType: "architect.pass2.failed", payload: { error: (err as Error).message, scope: report.scope } });

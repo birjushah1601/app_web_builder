@@ -62,6 +62,25 @@ export interface ChatPanelProps {
     parentRitualId: string;
     userTurn: string;
   }) => Promise<StartRitualResult & { parentRitualId: string }>;
+  /**
+   * Refine-by-default: when set, the main input box auto-routes the next
+   * submit through `refineAction` (parentRitualId = this id) instead of the
+   * cold-start `action`. Server-side wiring resolves this from the most
+   * recent ritual.started event for the project, so a chat returning from
+   * a fresh page load picks up where it left off.
+   *
+   * Routing rules (in order):
+   *   1. multiTurnFlagEnabled === false → always cold-start (today's behavior).
+   *   2. refineAction not provided      → always cold-start.
+   *   3. latest ritual id known (this prop OR result of a previous send)
+   *      → refine on that id.
+   *   4. otherwise                       → cold-start.
+   *
+   * After a successful submit the component remembers the new ritualId
+   * locally so subsequent submits within the same session continue the
+   * thread without another DB round-trip.
+   */
+  initialLatestRitualId?: string;
 }
 
 interface HistoryEntry {
@@ -70,11 +89,30 @@ interface HistoryEntry {
   result?: StartRitualResult;
 }
 
-export function ChatPanel({ projectId, action, multiTurnFlagEnabled = false, refineAction }: ChatPanelProps) {
+export function ChatPanel({
+  projectId,
+  action,
+  multiTurnFlagEnabled = false,
+  refineAction,
+  initialLatestRitualId
+}: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // Refine-by-default state: starts at server-supplied initialLatestRitualId
+  // (so chats survive a page refresh) and rolls forward on each successful
+  // submit so subsequent sends in the same session continue the thread.
+  // null = no parent ritual known → cold-start path.
+  const [latestRitualId, setLatestRitualId] = useState<string | null>(
+    initialLatestRitualId ?? null
+  );
+
+  /** Pure helper — exported for unit testing the routing decision. Returns
+   *  true iff the next submit should call refineAction with parentRitualId. */
+  function shouldRefine(): boolean {
+    return Boolean(multiTurnFlagEnabled && refineAction && latestRitualId);
+  }
 
   async function send() {
     if (!text.trim() || pending) return;
@@ -82,8 +120,22 @@ export function ChatPanel({ projectId, action, multiTurnFlagEnabled = false, ref
     setError(null);
     setHistory((h) => [...h, { role: "user", text }]);
     try {
-      const result = await action({ projectId, userTurn: text, editClass: "structural" });
+      let result: StartRitualResult;
+      if (shouldRefine() && refineAction && latestRitualId) {
+        // Refine path — invisible to the user (same input box, same submit).
+        // The result still flows through history as an architect entry, so
+        // the rendering pipeline downstream is identical.
+        result = await refineAction({
+          projectId,
+          parentRitualId: latestRitualId,
+          userTurn: text
+        });
+      } else {
+        result = await action({ projectId, userTurn: text, editClass: "structural" });
+      }
       setHistory((h) => [...h, { role: "architect", result }]);
+      // Roll the parent forward so the next send refines on this turn.
+      setLatestRitualId(result.ritualId);
       setText("");
     } catch (err) {
       // Surface the failure so users don't experience a silent "the button did nothing"

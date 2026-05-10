@@ -24,6 +24,11 @@ export interface RoleInvocation {
    *  Architect ignores it; Developer reads it as architectArtifact for its
    *  prompt context. Multi-role ritual chains pipe artifacts through here. */
   priorArtifact?: unknown;
+  /** Optional snapshot of files that already exist in the project's live
+   *  sandbox. The architect consumes this so its plan builds on the
+   *  current tree instead of recreating files from scratch. Conductor +
+   *  engine pass this through verbatim — they do not interpret the shape. */
+  currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
 }
 
 export interface Role {

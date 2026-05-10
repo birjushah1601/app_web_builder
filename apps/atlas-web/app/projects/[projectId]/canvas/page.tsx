@@ -2,6 +2,7 @@ import { CanvasClient } from "@/components/CanvasClient";
 import { ChatPanel } from "@/components/ChatPanel";
 import { startRitual } from "@/lib/actions/startRitual";
 import { refineRitual } from "@/lib/actions/refineRitual";
+import { getLatestRitualForProject } from "@/lib/actions/getLatestRitualForProject";
 import { getSandboxFactory } from "@/lib/sandbox/factory";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { CanvasPreviewClient } from "./_components/CanvasPreviewClient";
@@ -39,6 +40,13 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // conversation across two trees — gate the local mount on the flag.
   const liveEventsOn = isFeatureEnabled("live-events");
   const multiTurnOn = isFeatureEnabled("multi-turn");
+  // Refine-by-default — when multi-turn is on, look up the most recent
+  // ritual for this project so ChatPanel auto-routes the next submit
+  // through refineAction. Failure-safe: returns null if DB unreachable
+  // OR no rituals exist yet → ChatPanel falls back to cold-start.
+  const latestRitual = multiTurnOn
+    ? await getLatestRitualForProject(projectId)
+    : null;
   // Plan S.4: when canvas-v1 is on, replace the preview-only right pane
   // with the polymorphic <CanvasShell>. No manifest is wired in this commit
   // (the engine-integration plan ships the manifest source); CanvasShell
@@ -67,6 +75,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
           action={startRitual}
           multiTurnFlagEnabled={multiTurnOn}
           refineAction={refineRitual}
+          {...(latestRitual ? { initialLatestRitualId: latestRitual.ritualId } : {})}
         />
       )}
     </main>

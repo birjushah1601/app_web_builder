@@ -29,17 +29,46 @@ export interface DeepPlanInput {
    *  section so the model builds on the prior plan + diff instead of starting
    *  from scratch. Other shapes are silently ignored. */
   priorRitual?: unknown;
+  /** Snapshot of the current sandbox files the architect should be aware of
+   *  on a cold start (and on refines too). Each entry is a path + optional
+   *  content. When present, the prompt prepends a "## Current sandbox files"
+   *  section enumerating paths and inlining the contents of small files
+   *  (truncated head 2k + tail 2k for any file ≥ 4KB so prompt budget stays
+   *  bounded). Absent → the section is omitted entirely (today's behavior). */
+  currentFiles?: CurrentFileEntry[];
 }
+
+/** Snapshot of one file in the current sandbox the architect should be aware of. */
+export interface CurrentFileEntry {
+  path: string;
+  /** UTF-8 content. Optional — when absent, the file is listed by path only
+   *  (useful for "this file exists but its content is too large / binary").
+   *  When present and ≥ FILE_TRUNCATE_MAX chars, renderCurrentFilesSection
+   *  truncates with a head/tail elision marker. */
+  content?: string;
+}
+
+/** Per-file character budget — files above this get head-2k + tail-2k elision.
+ *  Mirrors the DIFF_TRUNCATE_MAX pattern in prior-ritual-context.ts. */
+const FILE_TRUNCATE_MAX = 4000;
 
 /** Plan K: pure helper that builds the architect's userTurn string. When
  *  priorRitual is a real PriorRitualContext, prepends a "Previous turn"
- *  preamble with parent's plan + diff. Exported for unit testing. */
+ *  preamble with parent's plan + diff. When currentFiles is non-empty,
+ *  prepends a "## Current sandbox files" section so the architect can
+ *  reason about the existing tree even on a cold start. Exported for unit
+ *  testing. */
 export function buildArchitectUserTurn(input: {
   userTurn: string;
   scope: string;
   priorRitual?: unknown;
+  currentFiles?: CurrentFileEntry[];
 }): string {
   const sections: string[] = [];
+
+  if (input.currentFiles && input.currentFiles.length > 0) {
+    sections.push(renderCurrentFilesSection(input.currentFiles));
+  }
 
   if (isPriorRitualContext(input.priorRitual)) {
     sections.push(renderPriorRitualSection(input.priorRitual));
@@ -53,6 +82,36 @@ export function buildArchitectUserTurn(input: {
   sections.push(`Scope: ${input.scope}\n\nUser intent: ${input.userTurn}`);
 
   return sections.join("\n\n---\n\n");
+}
+
+/** Render a "## Current sandbox files" section enumerating the files the
+ *  architect should be aware of. Files ≥ FILE_TRUNCATE_MAX chars are
+ *  truncated to head-2k + tail-2k with an elision marker — mirrors the
+ *  DIFF_TRUNCATE_MAX pattern in prior-ritual-context.ts. Files with no
+ *  `content` are listed by path only. */
+function renderCurrentFilesSection(files: CurrentFileEntry[]): string {
+  const lines: string[] = [
+    "## Current sandbox files",
+    "",
+    "These files already exist in the project's live sandbox. Build on them — do not duplicate or recreate from scratch.",
+    ""
+  ];
+  for (const f of files) {
+    if (f.content === undefined) {
+      lines.push(`### ${f.path}`, "", "_(content not loaded)_", "");
+      continue;
+    }
+    let body = f.content;
+    if (body.length > FILE_TRUNCATE_MAX) {
+      const half = FILE_TRUNCATE_MAX / 2;
+      const head = body.slice(0, half);
+      const tail = body.slice(-half);
+      const elided = body.length - FILE_TRUNCATE_MAX;
+      body = `${head}\n... [${elided} chars elided] ...\n${tail}`;
+    }
+    lines.push(`### ${f.path}`, "", "```", body, "```", "");
+  }
+  return lines.join("\n").trimEnd();
 }
 
 interface GateIssue {
@@ -167,7 +226,8 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
     userTurn: buildArchitectUserTurn({
       userTurn: input.userTurn,
       scope: input.ambiguity.scope,
-      priorRitual: input.priorRitual
+      priorRitual: input.priorRitual,
+      ...(input.currentFiles !== undefined ? { currentFiles: input.currentFiles } : {})
     })
   });
 

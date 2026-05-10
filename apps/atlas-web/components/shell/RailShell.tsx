@@ -13,9 +13,13 @@ interface RailShellProps {
   /** Plan K: server-evaluated flag passed in by the [projectId]/layout. When
    *  true, ChatPanel renders <RefinementInputBar /> beneath developer outputs. */
   multiTurnFlagEnabled?: boolean;
+  /** Refine-by-default: server-resolved latest ritualId so the main input
+   *  box auto-routes the next submit through refineAction. Forwarded to
+   *  ChatPanel. */
+  initialLatestRitualId?: string;
 }
 
-export function RailShell({ projectId, multiTurnFlagEnabled = false }: RailShellProps): React.ReactElement {
+export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLatestRitualId }: RailShellProps): React.ReactElement {
   const cfg = RAIL_SHELL_CONFIG;
   return (
     <aside
@@ -53,6 +57,7 @@ export function RailShell({ projectId, multiTurnFlagEnabled = false }: RailShell
           action={startRitual}
           multiTurnFlagEnabled={multiTurnFlagEnabled}
           refineAction={refineRitual}
+          {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})}
         />
       </div>
     </aside>

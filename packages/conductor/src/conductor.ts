@@ -50,6 +50,11 @@ export interface DispatchOptions {
   /** Pass-through to RoleInvocation.priorArtifact — the artifact produced
    *  by a previous role in the same ritual. Optional. */
   priorArtifact?: unknown;
+  /** Pass-through to RoleInvocation.currentFiles — a snapshot of files that
+   *  exist in the project's live sandbox today. Architect consumes this so
+   *  its plan builds on the current tree rather than recreating from scratch.
+   *  Optional; conductor doesn't interpret the shape. */
+  currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -85,13 +90,18 @@ export class Conductor {
     }
 
     const slice = this.sliceBuilder(ctx);
-    const invocation = {
+    const invocation: import("./role.js").RoleInvocation = {
       ritualId: ctx.ritualId as string,
       intent: classification.roleId,
       graphSlice: slice,
       userTurn: ctx.userTurn,
       priorArtifact: options.priorArtifact
     };
+    // exactOptionalPropertyTypes — only set currentFiles when actually provided
+    // so downstream `=== undefined` checks behave consistently.
+    if (options.currentFiles !== undefined) {
+      invocation.currentFiles = options.currentFiles;
+    }
 
     let lastError: unknown;
     for (let attempt = 1; attempt <= policy.maxAttempts; attempt++) {

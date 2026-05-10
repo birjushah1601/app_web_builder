@@ -51,6 +51,11 @@ export interface StartInput {
   editClass: EditClass;
   projectId: string;
   userId: string;
+  /** Optional snapshot of files that already exist in the project's live
+   *  sandbox. Threaded into the architect's RoleInvocation.currentFiles so
+   *  the prompt assembler can prepend a "## Current sandbox files" section.
+   *  Absent → architect runs without anchor-file context (today's default). */
+  currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
 }
 
 /** Plan K: refine starts a NEW ritual linked to the parent via
@@ -61,6 +66,10 @@ export interface RefineInput {
   projectId: string;
   userId: string;
   userTurn: string;
+  /** Same shape + intent as StartInput.currentFiles — refines also benefit
+   *  from anchor-file context so the architect's plan stays aligned with the
+   *  current tree (not just the parent ritual's view of it). */
+  currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
 }
 
 /** Events emitted by the role during dispatch. Plain JSON-serializable; safe
@@ -236,7 +245,8 @@ export class RitualEngine {
       projectId: input.projectId,
       userId: input.userId,
       priorContext,
-      parentRitualId: input.parentRitualId
+      parentRitualId: input.parentRitualId,
+      ...(input.currentFiles !== undefined ? { currentFiles: input.currentFiles } : {})
     });
   }
 
@@ -277,7 +287,14 @@ export class RitualEngine {
 
     // Dispatch Architect role for the Visualize step. When refining, pass
     // the PriorRitualContext as priorArtifact so the architect's prompt
-    // assembly can prepend a "Previous turn" preamble.
+    // assembly can prepend a "Previous turn" preamble. When currentFiles
+    // is set (atlas-web wires this from a live sandbox snapshot), thread
+    // it through too so the architect prompt also gets a "## Current
+    // sandbox files" section.
+    const dispatchOptions: { priorArtifact?: unknown; currentFiles?: ReadonlyArray<{ path: string; content?: string }> } = {};
+    if (input.priorContext) dispatchOptions.priorArtifact = input.priorContext;
+    if (input.currentFiles !== undefined) dispatchOptions.currentFiles = input.currentFiles;
+
     const result = await this.conductor.dispatch(
       {
         ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
@@ -285,7 +302,7 @@ export class RitualEngine {
         userTurn: input.userTurn,
         projectId: input.projectId
       },
-      input.priorContext ? { priorArtifact: input.priorContext } : undefined
+      Object.keys(dispatchOptions).length > 0 ? dispatchOptions : undefined
     );
 
     // Pull the artifact from the role's pass2.completed event (D.2 contract)

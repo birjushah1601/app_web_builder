@@ -56,11 +56,20 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
   const { userId } = await auth();
   if (!userId) throw new Error("unauthorized");
   const engine = await getRitualEngine(input.projectId);
+  // Task B: snapshot the curated set of "anchor" files from the live
+  // sandbox so the architect's prompt can include a "## Current sandbox
+  // files" section even on a cold start. readCurrentFilesForProject is
+  // failure-safe — returns [] when the sandbox isn't provisioned yet,
+  // when E2B is down, or when no files exist. Architect then runs
+  // exactly as it does today.
+  const { readCurrentFilesForProject } = await import("@/lib/sandbox/read-current-files");
+  const currentFiles = await readCurrentFilesForProject(input.projectId);
   const ritualId = await engine.start({
     userTurn: input.userTurn,
     editClass: input.editClass,
     projectId: input.projectId,
-    userId
+    userId,
+    ...(currentFiles.length > 0 ? { currentFiles } : {})
   });
   // Snapshot is in-memory; same engine instance is cached per-request via
   // React `cache()` in factory.ts, so this getRitual() always finds the
