@@ -13,10 +13,10 @@ const DEFAULT_TEMPLATE = "atlas-next-ts-v2";
  *                       would EADDRINUSE on :3000 because the e2bdev base image
  *                       already binds it; templates patched to :3001 in
  *                       fix(sandbox): swap Bun templates off port 3000 …)
- *   mobile-app       → atlas-next-ts-v2  (fallback; atlas-expo-rn template
- *                       authored but its build hits ENOSPC during pnpm install
- *                       of Expo's deep dep tree. Needs a slimmer template or
- *                       larger E2B rootfs. Tracked for repair.)
+ *   mobile-app       → atlas-expo-rn     (live; pnpm install runs at sandbox
+ *                       boot via e2b.toml start_cmd because Expo's >2 GB
+ *                       unpacked dep tree ENOSPCs during template build.
+ *                       Cold-start adds ~2-3 min before :3000 responds.)
  *   cli-tool         → atlas-bun-cli     (live after port fix, :3001 — same
  *                       Bun port story as graphql-yoga.)
  *
@@ -40,9 +40,11 @@ export function templateForArtifactKind(
     case "cli-tool":
       return "atlas-bun-cli";
     case "mobile-app":
-      // atlas-expo-rn template authored but build hits ENOSPC during pnpm
-      // install of Expo's deep dep tree. Falls back to default until repaired.
-      return DEFAULT_TEMPLATE;
+      // atlas-expo-rn defers `pnpm install` to sandbox boot (start_cmd)
+      // because Expo's full dep tree exceeds E2B's template-build rootfs
+      // and ENOSPCs at image-build time. Sandbox cold-start is therefore
+      // ~2-3 min before :3000 responds; ready_cmd in e2b.toml gates that.
+      return "atlas-expo-rn";
   }
 }
 
