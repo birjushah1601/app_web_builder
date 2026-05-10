@@ -1,13 +1,25 @@
 import { redirect } from "next/navigation";
-import { randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { ProjectsRepo } from "@atlas/spec-graph-data";
+import { auth } from "@/lib/auth/clerk-compat";
 
 async function createProject(formData: FormData): Promise<void> {
   "use server";
-  const name = String(formData.get("name") ?? "untitled");
-  const projectId = randomUUID();
-  // E.2 stub — real provisioning calls SpecGraphRepo.create() in a follow-up task.
-  // For now, redirect to the canvas page; the canvas Server Component handles "no graph yet".
-  redirect(`/projects/${projectId}/canvas?bootstrap=1&name=${encodeURIComponent(name)}`);
+  const { userId } = await auth();
+  if (!userId) throw new Error("unauthorized");
+
+  const name = String(formData.get("name") ?? "untitled").trim() || "untitled";
+
+  // Per-request Pool — matches the pattern used elsewhere in atlas-web
+  // (see lib/actions/setPersonaOverride.ts). Eventually this should move
+  // to a shared pool to avoid connection churn.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const projectsRepo = new ProjectsRepo(pool);
+  const project = await projectsRepo.create({ userId, name });
+
+  // Preserve the bootstrap=1 + name= contract that drives initial ritual
+  // kickoff on the canvas page (see app/projects/[projectId]/canvas/page.tsx).
+  redirect(`/projects/${project.projectId}/canvas?bootstrap=1&name=${encodeURIComponent(project.name)}`);
 }
 
 export default function NewProjectPage() {
