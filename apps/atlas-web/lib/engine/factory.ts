@@ -444,6 +444,19 @@ function mapCheckpointToBrokerEvent(
     case "researcher.brief.skipped":   return { type: "researcher.brief.skipped",   payload };
     case "researcher.brief.failed":    return { type: "researcher.brief.failed",    payload };
 
+    // Plan S.4 canvas + designer events. Without these mappings the engine's
+    // emit() lands at the broker as default:null, the SSE stream never sees
+    // them, and CanvasShellWired's hooks (useCanvasManifest /
+    // useDesignerProposal) hang forever on the "Generating design options…"
+    // skeleton because the proposal payload never arrives client-side.
+    case "architect.canvas_manifest.emitted": return { type: "architect.canvas_manifest.emitted", payload };
+    case "designer.proposal.emitted":          return { type: "designer.proposal.emitted",          payload };
+    case "designer.proposal.failed":           return { type: "designer.proposal.failed",           payload };
+    case "canvas.options.requested":           return { type: "canvas.options.requested",           payload };
+    case "canvas.option.selected":             return { type: "canvas.option.selected",             payload };
+    case "canvas.refinement.started":          return { type: "canvas.refinement.started",          payload };
+    case "canvas.refinement.completed":        return { type: "canvas.refinement.completed",        payload };
+
     default:                        return null;
   }
 }
