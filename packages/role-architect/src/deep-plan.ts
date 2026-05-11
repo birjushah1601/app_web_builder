@@ -309,6 +309,18 @@ function enrichArchitectOutput(
     const manifest = synthesizeCanvasManifest(scope, merged, artifactKindHint);
     if (manifest) merged.canvasManifest = manifest;
   }
+  // Plan PFP: synthesize a default designIntent alongside canvasManifest so
+  // Researcher + Designer don't skip with "no designIntent in priorArtifact".
+  // The default carries the resolved artifactKind as the category — enough
+  // to anchor Researcher's catalog lookup. A future task can prompt-mine the
+  // user's userTurn for a richer category + audienceCues.
+  if (!("designIntent" in model) && "canvasManifest" in merged) {
+    const manifest = merged.canvasManifest as { artifactKind?: string } | undefined;
+    const category = artifactKindHint ?? manifest?.artifactKind;
+    if (category) {
+      merged.designIntent = { category, audienceCues: ["general"] };
+    }
+  }
   return merged;
 }
 
