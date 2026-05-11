@@ -24,6 +24,12 @@ export interface DeepPlanInput {
   skills: SkillRegistry;
   llm: LLMProvider;
   deepPlanModel?: string;
+  /** Plan PFP: when the user supplied an artifactKindHint at ritual start
+   *  (e.g. picked "Website" on the prompt-first form), the role extracts it
+   *  from inv.priorArtifact and forwards it here. enrichArchitectOutput uses
+   *  it as the canvasManifest.artifactKind, short-circuiting the implicit
+   *  classification that would otherwise be derived from specGraph.kind. */
+  artifactKindHint?: ArtifactKind;
   /** Plan K: when refining a prior ritual, the engine threads the parent's
    *  PriorRitualContext through here. The prompt prepends a "Previous turn"
    *  section so the model builds on the prior plan + diff instead of starting
@@ -261,7 +267,12 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
   // win wherever it provided them; missing fields get safe placeholders
   // so the schema parse succeeds and downstream consumers (UI, plan C
   // sandbox apply) keep functioning.
-  const enriched = enrichArchitectOutput(result.input, input.graphSlice, input.ambiguity.scope);
+  const enriched = enrichArchitectOutput(
+    result.input,
+    input.graphSlice,
+    input.ambiguity.scope,
+    input.artifactKindHint
+  );
 
   const parse = ArchitectOutputSchema.safeParse(enriched);
   if (!parse.success) {
@@ -280,7 +291,8 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
 function enrichArchitectOutput(
   raw: unknown,
   graphSlice: { bytes: string; hash: string },
-  scope: string
+  scope: string,
+  artifactKindHint?: ArtifactKind
 ): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const model = raw as Record<string, unknown>;
@@ -290,8 +302,11 @@ function enrichArchitectOutput(
   // one and the scope is design-affecting. The manifest tells the engine
   // which canvas modes the user can pick; design-blocking modes pause the
   // ritual until the user selects a direction.
+  // Plan PFP: when an artifactKindHint was supplied by the user at ritual
+  // start, prefer the hint over specGraph.kind so we don't re-classify a
+  // value the user already picked on the prompt-first form.
   if (!("canvasManifest" in model)) {
-    const manifest = synthesizeCanvasManifest(scope, merged);
+    const manifest = synthesizeCanvasManifest(scope, merged, artifactKindHint);
     if (manifest) merged.canvasManifest = manifest;
   }
   return merged;
@@ -299,15 +314,20 @@ function enrichArchitectOutput(
 
 /** Plan S.4: Synthesize a CanvasManifest from the architect's scope + artifact.
  *  Returns undefined when the scope is not user-facing (refactor, ship,
- *  migrate, bug-fix, dep-upgrade) OR when the spec graph's artifactKind
- *  isn't one we have a default manifest for. */
+ *  migrate, bug-fix, dep-upgrade) OR when the resolved artifactKind isn't
+ *  one we have a default manifest for.
+ *
+ *  Plan PFP: when artifactKindHint is provided, it overrides
+ *  specGraph.kind — the user already picked the kind on the prompt-first
+ *  form, so we skip the implicit classification step. */
 export function synthesizeCanvasManifest(
   scope: string,
-  model: Record<string, unknown>
+  model: Record<string, unknown>,
+  artifactKindHint?: ArtifactKind
 ): CanvasManifest | undefined {
   if (!["new-app", "new-feature"].includes(scope)) return undefined;
   const specGraph = model.specGraph as { kind?: string } | undefined;
-  const kind = specGraph?.kind ?? "frontend-app";
+  const kind = artifactKindHint ?? specGraph?.kind ?? "frontend-app";
   const valid: ArtifactKind[] = [
     "frontend-app",
     "backend-rest-api",

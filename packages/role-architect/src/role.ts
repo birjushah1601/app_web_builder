@@ -2,6 +2,7 @@ import type { LLMProvider } from "@atlas/llm-provider";
 import type { Role, RoleInvocation, RoleOutput } from "@atlas/conductor";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { isPriorRitualContext, type PriorRitualContext } from "@atlas/ritual-engine";
+import { ArtifactKindSchema, type ArtifactKind } from "@atlas/canvas-runtime";
 import { deepPlan, ARCHITECT_DEEP_PLAN_MODEL } from "./deep-plan.js";
 import { triage, ARCHITECT_TRIAGE_MODEL } from "./triage.js";
 import type { AmbiguityReport, ArchitectOutput } from "./types.js";
@@ -59,6 +60,16 @@ export class ArchitectRole implements Role {
       return { events, diff: { kind: "none" } };
     }
 
+    // Plan PFP: when the user picked an artifactKind on the prompt-first
+    // form, the engine threads it into inv.priorArtifact.artifactKindHint.
+    // Extract it here so deepPlan can short-circuit the implicit
+    // classification (which would otherwise be derived from specGraph.kind
+    // inside synthesizeCanvasManifest). Sits next to the isPriorRitualContext
+    // handling above — both are priorArtifact-derived advisory inputs.
+    // The hint is advisory: pass1 still runs (scope/editClass classification
+    // stays); only the artifactKind sub-step inside pass2 is skipped.
+    const artifactKindHint = readArtifactKindHint(inv.priorArtifact);
+
     events.push({ eventType: "architect.pass1.started", payload: { ritualId: inv.ritualId } });
     let report: AmbiguityReport;
     try {
@@ -72,7 +83,10 @@ export class ArchitectRole implements Role {
       events.push({ eventType: "architect.pass1.failed", payload: { error: (err as Error).message } });
       throw err;
     }
-    events.push({ eventType: "architect.pass1.completed", payload: { passed: report.passed, scope: report.scope } });
+    events.push({
+      eventType: "architect.pass1.completed",
+      payload: { passed: report.passed, scope: report.scope, hintApplied: artifactKindHint !== undefined }
+    });
 
     if (!report.passed) {
       for (const q of report.questions.filter((x) => x.severity === "blocker")) {
@@ -94,6 +108,10 @@ export class ArchitectRole implements Role {
         // Plan K: when refining, the engine threads PriorRitualContext via priorArtifact.
         // deepPlan checks the shape with isPriorRitualContext and ignores any other shape.
         priorRitual: inv.priorArtifact,
+        // Plan PFP: hint forwarded so enrichArchitectOutput uses it as the
+        // canvasManifest.artifactKind (overrides specGraph.kind). Only set
+        // when defined to stay friendly with exactOptionalPropertyTypes.
+        ...(artifactKindHint !== undefined ? { artifactKindHint } : {}),
         // exactOptionalPropertyTypes: only set when defined so deepPlan's
         // `if (input.currentFiles !== undefined)` check stays consistent.
         ...(inv.currentFiles !== undefined ? { currentFiles: [...inv.currentFiles] } : {})
@@ -118,6 +136,21 @@ export class ArchitectRole implements Role {
 
     return { events, diff: { kind: "none" } };
   }
+}
+
+/** Plan PFP: extract the architect's artifactKindHint from inv.priorArtifact.
+ *  Returns undefined when priorArtifact is absent / wrong shape / carries an
+ *  unknown ArtifactKind value. Defensive about the shape so a malformed hint
+ *  silently falls back to the existing classifier instead of crashing the
+ *  whole ritual. The hint flows from the prompt-first form
+ *  (atlas-web /projects/new) → submitPromptedProject → startRitual →
+ *  engine.start(StartInput.artifactKindHint) → priorArtifact.artifactKindHint. */
+function readArtifactKindHint(priorArtifact: unknown): ArtifactKind | undefined {
+  if (!priorArtifact || typeof priorArtifact !== "object") return undefined;
+  const hint = (priorArtifact as { artifactKindHint?: unknown }).artifactKindHint;
+  if (hint === undefined) return undefined;
+  const parsed = ArtifactKindSchema.safeParse(hint);
+  return parsed.success ? parsed.data : undefined;
 }
 
 /** True when at least one of the parent's gate reports has passed=false.
