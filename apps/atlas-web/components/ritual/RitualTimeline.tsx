@@ -56,7 +56,10 @@ export function RitualTimeline({ projectId }: { projectId: string }) {
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
       if (e?.type === "ritual.started") {
-        const turn = (e.payload as { userTurn?: string } | undefined)?.userTurn;
+        const payload = e.payload as { intent?: string; userTurn?: string } | undefined;
+        // Engine emits the prompt as `intent`; some refine paths use `userTurn`.
+        // Read both for forward compat.
+        const turn = payload?.intent ?? payload?.userTurn;
         if (typeof turn === "string" && turn.length > 0) return turn;
       }
     }
