@@ -48,6 +48,20 @@ export function RitualTimeline({ projectId }: { projectId: string }) {
   const { events } = useEventStream();
   const activeRitualId = events.length > 0 ? events[events.length - 1]?.ritualId : undefined;
   const activeBrief = activeRitualId ? briefByRitualId[activeRitualId] : undefined;
+  // Plan PFP gap-fix: echo the user's prompt as the first line of the live
+  // panel. Without this the chat looks "blank" because the prompt was
+  // submitted at /projects/new and the canvas page only renders the
+  // ritual's downstream output.
+  const userTurn = (() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e?.type === "ritual.started") {
+        const turn = (e.payload as { userTurn?: string } | undefined)?.userTurn;
+        if (typeof turn === "string" && turn.length > 0) return turn;
+      }
+    }
+    return undefined;
+  })();
 
   // Plan P: only render Plan I gate rows when SOMETHING progressed them.
   // Pending gate rows are hidden so flag-OFF rituals look identical to
@@ -84,6 +98,16 @@ export function RitualTimeline({ projectId }: { projectId: string }) {
         >
           Live progress
         </summary>
+
+        {userTurn && (
+          <div
+            data-testid="user-turn-echo"
+            className="border-t border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+          >
+            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">You</span>
+            <p className="mt-1 whitespace-pre-wrap">{userTurn}</p>
+          </div>
+        )}
 
         {visibleRows.map((phase) => (
           <Fragment key={phase}>

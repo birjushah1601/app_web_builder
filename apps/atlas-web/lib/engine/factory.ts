@@ -302,6 +302,12 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     postDeveloperChain,
     canvasFlowEnabled,
     ...(canvasPauseRegistry ? { canvasPauseRegistry } : {}),
+    // Plan PFP gap-fix: 30s pause (was 30min default) so first-time users
+    // who don't know to click a design card aren't stuck — the engine
+    // auto-picks Designer's `recommended` direction after 30s and proceeds
+    // to Developer + sandbox apply + preview. Users who DO click within
+    // 30s get their choice. Operators can tune via ATLAS_CANVAS_PAUSE_MS.
+    canvasPauseTimeoutMs: Number(process.env.ATLAS_CANVAS_PAUSE_MS ?? 30_000),
     // Plan L: when ATLAS_FF_AUTO_FIX_LOOP is on, the engine auto-triggers
     // refine() in response to a chained gate failure. Capped at MAX_FIX_ATTEMPTS
     // per ritual lineage. Cross-flag dependency: refine() only works when
