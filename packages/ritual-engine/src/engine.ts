@@ -336,6 +336,7 @@ export class RitualEngine {
     // Designer → emit canvas.options.requested → await pause → emit
     // canvas.option.selected → fold selectedTokens into developer's priorArtifact.
     let selectedTokens: unknown | undefined;
+    console.log(`[ritual-engine] canvas-flow gate: flow=${this.canvasFlowEnabled} hasArtifact=${!!artifact} editClass=${input.editClass}`);
     if (this.canvasFlowEnabled && artifact && input.editClass !== "cosmetic") {
       const manifest = (artifact as { canvasManifest?: unknown }).canvasManifest;
       const designIntent = (artifact as { designIntent?: unknown }).designIntent;
@@ -483,14 +484,37 @@ export class RitualEngine {
         // the snapshot — never re-thrown — so the architect plan and
         // developer diff still surface to the user.
         if (this.applier && devResult.output.diff.kind === "patch" && devResult.output.diff.body) {
+          await this.emit({
+            type: "sandbox.apply.started",
+            ritualId,
+            ts: new Date().toISOString(),
+            payload: {}
+          });
           try {
             const applyResult = await this.applier.apply(input.projectId, devResult.output.diff.body);
             record.sandboxApplyResult = applyResult;
+            await this.emit({
+              type: "sandbox.apply.completed",
+              ritualId,
+              ts: new Date().toISOString(),
+              payload: {
+                ok: applyResult.ok,
+                parsed: applyResult.parsed,
+                written: applyResult.written,
+                failed: applyResult.failed
+              }
+            });
           } catch (err) {
             record.sandboxApplyResult = {
               ok: false, parsed: 0, written: 0, failed: 0, skipped: 0,
               files: [], parseError: `applier threw: ${err instanceof Error ? err.message : String(err)}`
             };
+            await this.emit({
+              type: "sandbox.apply.failed",
+              ritualId,
+              ts: new Date().toISOString(),
+              payload: { error: err instanceof Error ? err.message : String(err) }
+            });
           }
         }
 

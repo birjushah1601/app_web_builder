@@ -200,6 +200,26 @@ const CanvasRefinementCompletedSchema = z.object({
   ts: z.string(),
   payload: z.unknown()
 });
+// Plan C — sandbox apply lifecycle events. use-canvas-state listens for
+// sandbox.apply.completed and auto-switches the canvas to preview mode.
+const SandboxApplyStartedSchema = z.object({
+  type: z.literal("sandbox.apply.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const SandboxApplyCompletedSchema = z.object({
+  type: z.literal("sandbox.apply.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const SandboxApplyFailedSchema = z.object({
+  type: z.literal("sandbox.apply.failed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
 
 export const RitualEventSchema = z.discriminatedUnion("type", [
   RitualStartedSchema,
@@ -223,7 +243,10 @@ export const RitualEventSchema = z.discriminatedUnion("type", [
   CanvasOptionsRequestedSchema,
   CanvasOptionSelectedSchema,
   CanvasRefinementStartedSchema,
-  CanvasRefinementCompletedSchema
+  CanvasRefinementCompletedSchema,
+  SandboxApplyStartedSchema,
+  SandboxApplyCompletedSchema,
+  SandboxApplyFailedSchema
 ]);
 export type RitualEvent = z.infer<typeof RitualEventSchema>;
 
