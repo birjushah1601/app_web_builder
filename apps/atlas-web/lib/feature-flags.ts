@@ -20,6 +20,7 @@ export type FeatureFlag =
   | "auto-fix-loop"
   | "demo-mode"
   | "editor-layout-v2"
+  | "researcher"
   | "designer"
   | "canvas-v1"
   | "visual-quality-gate"
@@ -55,6 +56,8 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "demo-mode": "ATLAS_FF_DEMO_MODE",
   // Plan R — editor layout v2 (two-zone resizable shell + status strip).
   "editor-layout-v2": "ATLAS_EDITOR_LAYOUT_V2",
+  // Plan S.2 — Researcher role + 30-category catalog (catalog-only by default; web search opts in via ATLAS_RESEARCH_WEB).
+  "researcher": "ATLAS_FF_RESEARCHER",
   // Plan S.3 — Designer role + A2UI primitive (proposal LLM call gated; A2UI components are unconditionally compiled but only mounted when canvas wires them in S.4).
   "designer": "ATLAS_FF_DESIGNER",
   // Plan S.4 — Canvas v1 (polymorphic shell + per-mode renderers; flag-OFF preserves preview-only Plan R behavior).
@@ -157,6 +160,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "auto-fix-loop": isFeatureEnabled("auto-fix-loop", source),
     "demo-mode": isFeatureEnabled("demo-mode", source),
     "editor-layout-v2": isFeatureEnabled("editor-layout-v2", source),
+    "researcher": isFeatureEnabled("researcher", source),
     "designer": isFeatureEnabled("designer", source),
     "canvas-v1": isFeatureEnabled("canvas-v1", source),
     "visual-quality-gate": isFeatureEnabled("visual-quality-gate", source),
