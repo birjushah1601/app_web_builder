@@ -40,11 +40,11 @@ export function templateForArtifactKind(
     case "cli-tool":
       return "atlas-bun-cli";
     case "mobile-app":
-      // atlas-expo-rn defers `pnpm install` to sandbox boot (start_cmd)
-      // because Expo's full dep tree exceeds E2B's template-build rootfs
-      // and ENOSPCs at image-build time. Sandbox cold-start is therefore
-      // ~2-3 min before :3000 responds; ready_cmd in e2b.toml gates that.
-      return "atlas-expo-rn";
+      // atlas-expo-rn template not currently published — its start_cmd-deferred
+      // pnpm install collides with E2B's build-time start_cmd validation
+      // (build fails before sandbox boots). Routing back to next-ts-v2 until
+      // the build incompatibility is resolved. See TEMPLATE-EXPO-RN.md (TBD).
+      return DEFAULT_TEMPLATE;
   }
 }
 
