@@ -27,6 +27,12 @@ import { selectDesignDirection } from "@/lib/actions/selectDesignDirection";
 export interface CanvasShellWiredProps {
   projectId: string;
   persona: PersonaTier;
+  /** Forwarded into PreviewCanvas's rendererProps when canvas mode is "preview".
+   *  Without this, the iframe has no src and the canvas looks empty even after
+   *  the developer's diff applies. */
+  sandboxId?: string;
+  previewUrl?: string;
+  previewError?: string;
   /** Test seam — defaults to the Server Action import. Tests can pass a
    *  vitest mock fn here so they don't need to mock the action module. */
   onSelectDirection?: (input: { ritualId: string; directionId: string; tokens?: unknown }) => Promise<void>;
@@ -38,6 +44,9 @@ export interface CanvasShellWiredProps {
 export function CanvasShellWired({
   projectId,
   persona,
+  sandboxId,
+  previewUrl,
+  previewError,
   onSelectDirection,
   manifestOverride
 }: CanvasShellWiredProps) {
@@ -74,16 +83,27 @@ export function CanvasShellWired({
   }, []);
 
   const rendererProps: Record<string, unknown> = React.useMemo(() => {
+    // Preview-mode props go in every payload so PreviewCanvas can find them
+    // whenever CanvasShell flips to that mode. DesignerCanvas ignores the
+    // extra fields. Designer-mode props (proposal + callbacks) only land when
+    // we have a live proposal to render.
+    const previewProps: Record<string, unknown> = {
+      projectId,
+      ...(sandboxId !== undefined ? { sandboxId } : {}),
+      ...(previewUrl !== undefined ? { previewUrl } : {}),
+      ...(previewError !== undefined ? { previewError } : {})
+    };
     if (proposalState.ritualId === null) {
-      return { persona };
+      return { persona, ...previewProps };
     }
     return {
       proposal: proposalState.proposal,
       persona,
       onSelect: handleSelect,
-      onRefine: handleRefine
+      onRefine: handleRefine,
+      ...previewProps
     };
-  }, [proposalState, persona, handleSelect, handleRefine]);
+  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, handleSelect, handleRefine]);
 
   return (
     <CanvasShell

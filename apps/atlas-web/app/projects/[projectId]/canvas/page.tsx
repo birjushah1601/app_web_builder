@@ -71,7 +71,13 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
       <div className="flex flex-1 min-h-0">
       <section className="flex-1 flex flex-col">
         {canvasV1On ? (
-          <CanvasShellWired projectId={projectId} persona="ama" />
+          <CanvasShellWired
+            projectId={projectId}
+            persona="ama"
+            {...(sandboxId ? { sandboxId } : {})}
+            {...(previewUrl !== undefined ? { previewUrl } : {})}
+            {...(previewError !== undefined ? { previewError } : {})}
+          />
         ) : (
           <CanvasPreviewClient
             projectId={projectId}
