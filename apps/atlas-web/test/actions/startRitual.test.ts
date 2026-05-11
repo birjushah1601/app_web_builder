@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Mock read-current-files at the module boundary — the real impl hits E2B
+// and times out 5s in unit tests. Returns [] so the action runs as if no
+// sandbox is provisioned (cold-start path).
+vi.mock("@/lib/sandbox/read-current-files", () => ({
+  readCurrentFilesForProject: vi.fn(async () => [])
+}));
+
 beforeEach(() => { vi.resetModules(); });
 
 describe("startRitual action", () => {
