@@ -82,6 +82,7 @@ COPY src/components/ui/separator.tsx ./src/components/ui/separator.tsx
 COPY src/components/ui/skeleton.tsx ./src/components/ui/skeleton.tsx
 COPY src/components/ui/tabs.tsx ./src/components/ui/tabs.tsx
 COPY src/components/ui/tooltip.tsx ./src/components/ui/tooltip.tsx
+COPY src/components/ui/index.ts ./src/components/ui/index.ts
 
 # Utility (cn helper).
 COPY src/lib/utils.ts ./src/lib/utils.ts
