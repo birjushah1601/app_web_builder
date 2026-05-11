@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth/clerk-compat";
 import { getRitualEngine } from "@/lib/engine/factory";
 import type { EditClass } from "@atlas/ritual-engine";
+import type { ArtifactKind } from "@atlas/canvas-runtime";
 import type { SecurityReport } from "@/components/SecurityReportPanel";
 import type { AccessibilityReport } from "@/components/AccessibilityReportPanel";
 
@@ -10,6 +11,9 @@ export interface StartRitualInput {
   projectId: string;
   userTurn: string;
   editClass: EditClass;
+  /** Plan PFP — optional user-provided hint that bypasses the architect's
+   *  artifactKind classification. Forwarded to engine.start(). */
+  artifactKindHint?: ArtifactKind;
 }
 
 /** Plain JSON-serializable shape returned to the client. ChatPanel renders
@@ -69,6 +73,7 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
     editClass: input.editClass,
     projectId: input.projectId,
     userId,
+    ...(input.artifactKindHint ? { artifactKindHint: input.artifactKindHint } : {}),
     ...(currentFiles.length > 0 ? { currentFiles } : {})
   });
   // Snapshot is in-memory; same engine instance is cached per-request via

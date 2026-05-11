@@ -60,6 +60,36 @@ describe("startRitual action", () => {
     await expect(startRitual({ projectId: "p-1", userTurn: "x", editClass: "cosmetic" })).rejects.toThrow(/unauth/i);
   });
 
+  it("forwards artifactKindHint to engine.start when provided", async () => {
+    const start = vi.fn(async () => "r-pfp-1");
+    const getRitual = vi.fn(() => ({
+      state: "agree",
+      projectId: "p-1",
+      userId: "u-1",
+      artifact: { plan: "build api" },
+      roleEvents: []
+    }));
+    vi.doMock("@/lib/engine/factory", () => ({
+      getRitualEngine: async () => ({ start, getRitual })
+    }));
+    vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    const { startRitual } = await import("@/lib/actions/startRitual");
+    await startRitual({
+      projectId: "p-1",
+      userTurn: "build a REST API for todos",
+      editClass: "structural",
+      artifactKindHint: "backend-rest-api"
+    });
+    expect(start).toHaveBeenCalledOnce();
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({
+      artifactKindHint: "backend-rest-api",
+      userTurn: "build a REST API for todos",
+      editClass: "structural",
+      projectId: "p-1",
+      userId: "u-1"
+    }));
+  });
+
   it("returns sandboxApplyResult from the engine snapshot when present", async () => {
     const start = vi.fn(async () => "r-789");
     const sandboxApplyResult = {
