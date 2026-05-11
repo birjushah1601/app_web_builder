@@ -2,7 +2,11 @@ import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import { AmbiguityReportSchema, type AmbiguityReport } from "./types.js";
 import { TriageFailedError } from "./errors.js";
 
-export const ARCHITECT_TRIAGE_MODEL = "claude-haiku-4-5-20251001";
+// OpenRouter-format default — anthropic/claude-haiku-4.5. Operators can
+// override via ATLAS_LLM_TRIAGE_MODEL; atlas-web's engine factory passes
+// the env-resolved value through `triageModel` on TriageInput.
+export const ARCHITECT_TRIAGE_MODEL =
+  process.env.ATLAS_LLM_TRIAGE_MODEL ?? "anthropic/claude-haiku-4.5";
 
 export interface TriageInput {
   userTurn: string;
@@ -14,9 +18,23 @@ export interface TriageInput {
 const TRIAGE_SYSTEM_PROMPT = `You are the Architect's triage pass. Classify the user's request into one of:
 new-app, new-feature, bug-fix, dep-upgrade, refactor, ship, migrate.
 
-Identify ambiguities that would block a deep plan. A "blocker" is missing information
-the Architect cannot safely infer: compliance class, data-residency region, auth provider,
-DB provider, payment regions. "Recommended" questions can be answered later.
+## Default to passing.
+
+For prototype-tier scopes (new-app, new-feature, refactor), set passed=true and use these
+sane defaults instead of asking blocker questions:
+  - compliance class: "none" (general-purpose web app, no PII/regulated data)
+  - data residency: operator's default region (no special requirements)
+  - auth provider: assume the project's existing auth (or "none" if greenfield)
+  - DB provider: Postgres
+  - payments: skip integration until the user explicitly asks for checkout flows
+
+ONLY mark a question as severity="blocker" when the user's prompt EXPLICITLY mentions
+regulated data (HIPAA, PCI, GDPR, SOC2), live payments, multi-tenant isolation, or
+a constraint that conflicts with the defaults above. If unsure, prefer
+severity="recommended" — the user can refine later.
+
+This gate is meant to catch genuine architectural ambiguity, not interrogate the user
+on a hello-world page. Default to forward motion.
 
 Call the emit_ambiguity_report tool exactly once with your findings.`;
 
