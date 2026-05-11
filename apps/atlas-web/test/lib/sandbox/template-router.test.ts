@@ -28,8 +28,8 @@ describe("templateForArtifactKind", () => {
     expect(templateForArtifactKind("cli-tool", { multiStackFlagOn: true })).toBe("atlas-bun-cli");
   });
 
-  it("routes mobile-app to atlas-expo-rn when flag ON (pnpm install moved to start_cmd to dodge ENOSPC)", () => {
-    expect(templateForArtifactKind("mobile-app", { multiStackFlagOn: true })).toBe("atlas-expo-rn");
+  it("routes mobile-app back to next-ts-v2 fallback (atlas-expo-rn template build incompat with E2B start_cmd validation; restore once published)", () => {
+    expect(templateForArtifactKind("mobile-app", { multiStackFlagOn: true })).toBe("atlas-next-ts-v2");
   });
 
   it("falls back to default for undefined artifactKind", () => {

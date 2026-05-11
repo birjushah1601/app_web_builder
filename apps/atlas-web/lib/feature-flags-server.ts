@@ -19,16 +19,24 @@ import {
 } from "@/lib/feature-flags";
 
 /**
- * Build a request-scoped FeatureFlagSource that reads the env from
- * process.env AND cookies from the active Next.js request. Calling this
- * outside a request context will throw — that's intentional, the caller
- * is then asked to use the env-only `processEnvSource` instead.
+ * Build a feature-flag source that reads env from process.env and, when
+ * available, cookies from the active Next.js request. Outside a request
+ * context (engine factory init, unit tests, background workers), the
+ * cookie reader is silently skipped — env wins. Inside a request, cookie
+ * precedence works as designed.
  */
 export async function getRequestFeatureFlagSource(): Promise<FeatureFlagSource> {
-  const cookieStore = await cookies();
+  let readCookie: FeatureFlagSource["readCookie"] = () => undefined;
+  try {
+    const cookieStore = await cookies();
+    readCookie = (name) => cookieStore.get(name)?.value;
+  } catch {
+    // No request scope. Fall back to env-only — keeps factory init,
+    // tests, and async background contexts from crashing on cookies().
+  }
   return {
     readEnv: (name) => process.env[name],
-    readCookie: (name) => cookieStore.get(name)?.value
+    readCookie
   };
 }
 
