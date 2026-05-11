@@ -35,6 +35,10 @@ export async function submitPromptedProject(formData: FormData): Promise<void> {
   void startRitual({
     projectId: project.projectId,
     userTurn: prompt,
+    // EditClass for a brand-new project is "structural" (full feature work).
+    // The architect re-classifies internally on pass1; this is the up-front
+    // guess that determines whether the canvas-pause flow engages.
+    editClass: "structural",
     ...(artifactKindHint ? { artifactKindHint } : {})
   }).catch((err) => {
     console.error("[submitPromptedProject] startRitual failed:", err);

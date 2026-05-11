@@ -45,6 +45,7 @@ describe("submitPromptedProject", () => {
       expect.objectContaining({
         projectId: "p-uuid",
         userTurn: "Build a landing page for my Mumbai spice kitchen",
+        editClass: "structural",
         artifactKindHint: "frontend-app"
       })
     );
