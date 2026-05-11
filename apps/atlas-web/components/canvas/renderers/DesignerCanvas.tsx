@@ -12,13 +12,27 @@ import type { PersonaTier } from "@atlas/ritual-engine";
 import { OptionsCard } from "@/components/a2ui/OptionsCard";
 
 export interface DesignerCanvasProps {
-  proposal: DesignProposal;
+  /** Undefined when the canvas mounted in "designing" mode before the
+   *  Designer's proposal event arrived. Render a skeleton in that window. */
+  proposal?: DesignProposal;
   persona: PersonaTier;
-  onSelect: (directionId: string) => void;
-  onRefine: (directionId: string) => void;
+  onSelect?: (directionId: string) => void;
+  onRefine?: (directionId: string) => void;
 }
 
 export function DesignerCanvas({ proposal, persona, onSelect, onRefine }: DesignerCanvasProps) {
+  if (!proposal) {
+    return (
+      <div
+        data-testid="designer-canvas-loading"
+        className="flex h-full w-full items-center justify-center bg-slate-50 p-6 text-slate-500"
+      >
+        Generating design options…
+      </div>
+    );
+  }
+  const handleSelect = onSelect ?? (() => {});
+  const handleRefine = onRefine ?? (() => {});
   const recommended = {
     id: proposal.recommended.id,
     name: proposal.recommended.name,
@@ -41,8 +55,8 @@ export function DesignerCanvas({ proposal, persona, onSelect, onRefine }: Design
         alternates={alternates}
         reasoning={proposal.reasoning}
         persona={persona}
-        onSelect={onSelect}
-        onRefine={onRefine}
+        onSelect={handleSelect}
+        onRefine={handleRefine}
       />
     </div>
   );
