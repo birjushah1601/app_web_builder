@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { ReactNode } from "react";
-import { DesignTokensStyle } from "./design-tokens-style.js";
+import { DesignTokensStyle } from "./design-tokens-style";
 
 export const metadata = {
   title: "Atlas Sandbox",
