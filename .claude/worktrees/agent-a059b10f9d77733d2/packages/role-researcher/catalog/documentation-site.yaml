@@ -1,0 +1,39 @@
+category: documentation-site
+synonyms: [docs-site, developer-docs, api-docs]
+references:
+  - name: Stripe Docs
+    url: https://stripe.com/docs
+    why: Three-column layout (TOC + content + code), inline runnable examples, search-first chrome
+    palette: ["#0a2540", "#635bff", "#fafbfc", "#425466"]
+    typography:
+      primary: SF Pro
+      secondary: Source Code Pro
+    density: comfortable
+    notes: Right column flips to live-code on API reference pages — content+example are co-located.
+  - name: React docs
+    url: https://react.dev
+    why: Editorial pacing (long-form reads like a book), inline runnable sandboxes, dual-purpose for learners and reference-seekers
+    palette: ["#23272f", "#149eca", "#ffffff", "#f6f7f9"]
+    typography:
+      primary: Optimistic Display
+      secondary: Source Code Pro
+    density: comfortable
+  - name: Vercel docs
+    url: https://vercel.com/docs
+    why: Geist-driven minimalism, immediate copy buttons on every code block, breadcrumbs as you scroll
+    palette: ["#000000", "#ffffff", "#0070f3", "#666666"]
+    typography:
+      primary: Geist
+      secondary: Geist Mono
+    density: spacious
+patternsThatWin:
+  - left-rail TOC with current-section highlighting
+  - search bar at the top of every page (cmd-k)
+  - inline code with one-click copy
+  - '"edit this page" link to the source repo'
+  - version selector on multi-version libraries
+patternsThatLose:
+  - TOC-only landing pages with no narrative
+  - code samples without language labels
+  - 'docs that route to "Talk to Sales" instead of next page'
+  - search hidden in a hamburger menu

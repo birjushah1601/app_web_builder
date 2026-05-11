@@ -1,0 +1,37 @@
+category: single-tenant-internal-tool
+synonyms: [internal-tool, ops-tool, line-of-business-app]
+references:
+  - name: Retool
+    url: https://retool.com
+    why: Spreadsheet-density tables, drag-and-drop forms, role-based UI; reflects the internal-tool genre
+    palette: ["#1a1a2e", "#3d3dd2", "#ffffff", "#f0f0f0"]
+    typography:
+      primary: Inter
+    density: compact
+    notes: Drag-drop builder produces the canonical look — table on the left, detail pane on the right.
+  - name: Airtable
+    url: https://www.airtable.com
+    why: Spreadsheet-meets-database UI; per-team customized views; light theming kept simple so data dominates
+    palette: ["#ffffff", "#1f1f1f", "#fcb400", "#18bfff"]
+    typography:
+      primary: Inter
+    density: compact
+  - name: Forest Admin
+    url: https://www.forestadmin.com
+    why: Auto-generated CRUD for backend tables; segments + filters; role-based field-level permissions
+    palette: ["#1f2933", "#3273dc", "#ffffff"]
+    typography:
+      primary: Roboto
+    density: compact
+patternsThatWin:
+  - spreadsheet-density tables (more rows visible = more efficient ops)
+  - role-based UI (admin sees more buttons than viewer)
+  - inline editing on table cells
+  - bulk actions on multi-select
+  - audit log / activity feed visible per record
+patternsThatLose:
+  - 'consumer-grade spacing (3 rows fit on screen) for an internal tool'
+  - one-size-fits-all UI ignoring role
+  - modal-heavy edit flows that lose context
+  - missing bulk operations (forces row-by-row work)
+  - no audit trail — can't answer "who changed this and when"

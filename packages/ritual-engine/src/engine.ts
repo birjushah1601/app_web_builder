@@ -336,7 +336,6 @@ export class RitualEngine {
     // Designer → emit canvas.options.requested → await pause → emit
     // canvas.option.selected → fold selectedTokens into developer's priorArtifact.
     let selectedTokens: unknown | undefined;
-    console.log(`[ritual-engine] canvas-flow gate: flow=${this.canvasFlowEnabled} hasArtifact=${!!artifact} editClass=${input.editClass}`);
     if (this.canvasFlowEnabled && artifact && input.editClass !== "cosmetic") {
       const manifest = (artifact as { canvasManifest?: unknown }).canvasManifest;
       const designIntent = (artifact as { designIntent?: unknown }).designIntent;

@@ -1,0 +1,26 @@
+category: mobile-app-marketing
+synonyms: [app-landing, mobile-app-website, ios-app-page]
+references:
+  - name: Things 3
+    url: https://culturedcode.com/things
+    why: Showcases the app interface as the hero. Restrained, considered
+    palette: ["#fafafa", "#1a1a1a", "#3b82f6"]
+    typography:
+      primary: SF Pro
+    density: comfortable
+  - name: Bear
+    url: https://bear.app
+    why: Phone mockups in motion, gentle scroll-triggered transitions
+    palette: ["#fef9f0", "#1a1a1a", "#dc2626"]
+    typography:
+      primary: SF Pro
+    density: spacious
+patternsThatWin:
+  - phone mockup in hero showing real UI
+  - app store + play store badges side-by-side
+  - feature carousel synced to phone screenshots
+  - real reviews above the fold
+patternsThatLose:
+  - 'generic "download our app" without showing it'
+  - separate iOS / Android pages
+  - app icon larger than the screenshot

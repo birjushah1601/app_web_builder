@@ -1,0 +1,38 @@
+category: nonprofit-cause
+synonyms: [nonprofit, charity, ngo-website, cause-marketing]
+references:
+  - name: charity:water
+    url: https://www.charitywater.org
+    why: Impact-stat hero ("100% of public donations fund water projects"), persistent donate CTA, beneficiary photography (real people, named)
+    palette: ["#ffc907", "#000000", "#ffffff", "#2c3e50"]
+    typography:
+      primary: Knockout
+      secondary: Tiempos
+    density: spacious
+    notes: The gold standard of nonprofit web design — every donation traceable, photography is documentary not stock.
+  - name: Pencils of Promise
+    url: https://www.pencilsofpromise.org
+    why: Story-driven hero (a single child or community), donate CTA in the nav, transparent program-cost breakdown
+    palette: ["#3a3a3a", "#fcb316", "#ffffff"]
+    typography:
+      primary: Brandon Grotesque
+    density: comfortable
+  - name: Doctors Without Borders
+    url: https://www.doctorswithoutborders.org
+    why: Crisis-feed hero (current operations), donate persistent, field-photo carousel keyed to active emergencies
+    palette: ["#ee0000", "#ffffff", "#000000", "#666666"]
+    typography:
+      primary: Maelstrom Sans
+    density: comfortable
+patternsThatWin:
+  - impact statistic above the fold (lives saved / dollars to programs)
+  - persistent donate CTA in the nav (sticky on scroll)
+  - real beneficiary photography with names + locations (no stock)
+  - transparent program-cost breakdown (where does each dollar go)
+  - recurring-donation toggle as the primary suggestion
+patternsThatLose:
+  - stock photography of "happy people"
+  - hidden donate CTA below the fold
+  - jargon-heavy mission statements
+  - unclear program-cost / overhead breakdowns
+  - 'guilt-trip copy that does not convert (it just turns people away)'

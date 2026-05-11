@@ -1,0 +1,40 @@
+category: news-publication
+synonyms: [news-site, magazine, online-publication]
+references:
+  - name: The New York Times
+    url: https://www.nytimes.com
+    why: Editorial-typography (Cheltenham serif headlines), byline + date prominent, related-articles rail, paywall meter
+    palette: ["#000000", "#ffffff", "#326891", "#666666"]
+    typography:
+      primary: Cheltenham
+      secondary: Imperial
+    density: comfortable
+    notes: Sets the gold standard for news typography — the headline IS the design.
+  - name: The Guardian
+    url: https://www.theguardian.com
+    why: Editorial verticals (News / Sport / Culture / Lifestyle) prominent in nav; in-article photo journalism; explicit "Support the Guardian" model instead of paywall
+    palette: ["#052962", "#ffffff", "#c70000", "#f6f6f6"]
+    typography:
+      primary: Guardian Egyptian
+      secondary: Guardian Sans
+    density: comfortable
+  - name: The Atlantic
+    url: https://www.theatlantic.com
+    why: Long-form essay design — large hero photo per article, generous line-height, paywall after N free articles
+    palette: ["#940000", "#ffffff", "#1c1c1c", "#f5f0e6"]
+    typography:
+      primary: Acta
+      secondary: Tiempos
+    density: spacious
+patternsThatWin:
+  - editorial typography (serif headlines for gravity)
+  - byline + date + read-time prominent on every article
+  - related-articles rail at end of each piece
+  - paywall meter or membership CTA integrated tastefully
+  - photo-journalism with explicit photo credits
+patternsThatLose:
+  - sans-serif-everything (loses editorial gravity)
+  - 'hero stock photos with no photo credit'
+  - 'paywall pop-ups that block reading mid-article'
+  - 'related articles that are SEO-spam (the same writer 5 times in a row)'
+  - missing publish date (kills credibility on time-sensitive news)

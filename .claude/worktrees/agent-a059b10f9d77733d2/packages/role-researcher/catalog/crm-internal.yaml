@@ -1,0 +1,38 @@
+category: crm-internal
+synonyms: [crm, sales-pipeline, customer-database]
+references:
+  - name: Pipedrive
+    url: https://www.pipedrive.com
+    why: Kanban pipeline as the default view; deal cards are draggable; each stage is a column
+    palette: ["#26292c", "#ffffff", "#1ec38a", "#f3f4f5"]
+    typography:
+      primary: Inter
+    density: comfortable
+    notes: Sales-rep-centric — the kanban board is THE product, not a feature.
+  - name: HubSpot
+    url: https://www.hubspot.com
+    why: Multi-view (kanban / table / timeline) toggle; activity feed on every contact card; deeply integrated marketing+sales
+    palette: ["#33475b", "#ff7a59", "#ffffff", "#f5f8fa"]
+    typography:
+      primary: Lexend
+      secondary: Inter
+    density: comfortable
+  - name: Attio
+    url: https://attio.com
+    why: Table-first like a relational DB, with kanban as a saved view; data-modeling shows
+    palette: ["#0a0a0a", "#3b82f6", "#fafafa"]
+    typography:
+      primary: Inter
+    density: compact
+patternsThatWin:
+  - kanban + table view toggle on the same data
+  - contact card with photo + email + last-activity stamp
+  - activity timeline (calls, emails, meetings) on every record
+  - inline edit on table cells (no modal)
+  - bulk actions visible only when rows are selected
+patternsThatLose:
+  - kanban-only with no table fallback for power users
+  - contact pages that are 80% white space
+  - 'every action behind a "..." overflow menu'
+  - data-entry forms that don't autocomplete from existing records
+  - activity feeds without filters (calls vs emails vs notes)

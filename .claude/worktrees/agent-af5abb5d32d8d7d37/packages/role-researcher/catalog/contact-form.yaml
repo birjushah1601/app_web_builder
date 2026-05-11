@@ -1,0 +1,38 @@
+category: contact-form
+synonyms: [contact-page, lead-form, inquiry-form]
+references:
+  - name: Cal.com
+    url: https://cal.com
+    why: One-question-per-screen for booking flows; immediate availability check; no pre-form gating
+    palette: ["#111827", "#0d9488", "#ffffff", "#f9fafb"]
+    typography:
+      primary: Inter
+    density: spacious
+    notes: Form feels like a chat — pacing dictated by the user not by a tall page.
+  - name: Notion forms
+    url: https://www.notion.so/product/forms
+    why: Forms inherit the same block aesthetic as the rest of Notion — reduces context switch
+    palette: ["#ffffff", "#191919", "#37352f"]
+    typography:
+      primary: Inter
+    density: comfortable
+  - name: Typeform
+    url: https://www.typeform.com
+    why: Conversational one-question-per-screen pioneer; large type; explicit progress
+    palette: ["#262627", "#ffffff", "#fb5b3a"]
+    typography:
+      primary: Apercu
+    density: spacious
+    notes: 'Powered the now-default "type ahead, press Enter" form pattern.'
+patternsThatWin:
+  - one-question-per-screen for long forms
+  - real-time inline validation, not on-submit
+  - explicit success state with next-step CTA
+  - autofocus first field
+  - keyboard-first (Enter advances, Tab moves between fields)
+patternsThatLose:
+  - 12-field forms on a single screen
+  - validation-only-on-submit with red-wall-of-errors
+  - 'reCAPTCHA before the user has typed anything'
+  - 'success state that just says "Thanks!" with no next step'
+  - 'required-field asterisks without explaining what is required'

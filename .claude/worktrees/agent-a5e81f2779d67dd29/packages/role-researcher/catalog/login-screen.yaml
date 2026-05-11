@@ -1,0 +1,37 @@
+category: login-screen
+synonyms: [sign-in, auth-screen, login-page]
+references:
+  - name: Vercel sign-in
+    url: https://vercel.com/login
+    why: SSO buttons primary (GitHub, GitLab, Bitbucket), email magic-link as fallback — no passwords by default
+    palette: ["#000000", "#ffffff", "#0070f3"]
+    typography:
+      primary: Geist
+    density: spacious
+    notes: Single column, branded but minimal. SSO buttons are full-width and labeled by provider.
+  - name: Linear sign-in
+    url: https://linear.app/login
+    why: Workspace-first auth flow (enter workspace URL → SSO), reflecting Linear's team-centric model
+    palette: ["#0a0a0a", "#5e6ad2", "#f4f5f8"]
+    typography:
+      primary: Inter
+    density: comfortable
+  - name: Notion auth
+    url: https://www.notion.so/login
+    why: Email + magic-link primary, SSO secondary; explicit "Continue with Apple/Google" buttons; no clutter
+    palette: ["#ffffff", "#191919", "#2eaadc"]
+    typography:
+      primary: Inter
+    density: spacious
+patternsThatWin:
+  - SSO buttons above password field (Google, GitHub, etc.)
+  - magic-link / passwordless as a primary option
+  - clear error messaging (wrong password vs. wrong account)
+  - single-column layout, no decorative imagery competing with the form
+  - '"forgot password" link inline near the field'
+patternsThatLose:
+  - password as the only option in 2026
+  - 'CAPTCHAs on every login attempt'
+  - splash-image-on-half-the-screen layouts that crowd the form on mobile
+  - 'generic "Login failed" without saying which field failed'
+  - autofocus on the wrong field (e.g., password before email)

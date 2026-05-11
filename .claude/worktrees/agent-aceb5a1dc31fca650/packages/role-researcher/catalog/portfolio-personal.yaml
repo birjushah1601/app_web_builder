@@ -1,0 +1,31 @@
+category: portfolio-personal
+synonyms: [personal-site, freelancer-portfolio, individual-portfolio]
+references:
+  - name: Pieter Levels
+    url: https://levels.io
+    why: Aggressively personal, direct copy, no design pretension, traffic-magnet through honesty
+    palette: ["#fef3c7", "#92400e", "#0f172a"]
+    density: compact
+  - name: Brian Lovin
+    url: https://brianlovin.com
+    why: Editorial layout, opinionated typography, integrates writing + figma + reading list as one site
+    palette: ["#0a0a0a", "#ffffff", "#3b82f6"]
+    typography:
+      primary: Soehne
+    density: comfortable
+  - name: Sara Soueidan
+    url: https://www.sarasoueidan.com
+    why: Accessibility-first design where the design itself demonstrates the practice
+    palette: ["#1a202c", "#fef3c7", "#553c9a"]
+    typography:
+      primary: Mulish
+    density: spacious
+patternsThatWin:
+  - face/photo of the person above the fold
+  - opinionated single-page summary, not a multi-page CV
+  - link to writing as primary content
+  - explicit "available for hire" or "not available" status
+patternsThatLose:
+  - '"I am a passionate developer who" copy'
+  - section called "Skills" with progress bars
+  - hover-glitching nav animations

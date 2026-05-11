@@ -1,0 +1,9 @@
+kind: compliance
+version: 1
+assertions:
+  - id: every-assertion-has-test
+    description: Each baselineAssertion on the ComplianceClass emits a matching test
+    rationale: I13 requires source=baseline coverage
+    checklistItem: "For each assertion in ComplianceClass.baselineAssertions → concrete test exists"
+    mustEmitTest: true
+    owner: compliance-team

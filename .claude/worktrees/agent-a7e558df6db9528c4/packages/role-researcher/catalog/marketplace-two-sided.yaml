@@ -1,0 +1,37 @@
+category: marketplace-two-sided
+synonyms: [marketplace, two-sided-platform, supplier-buyer-marketplace]
+references:
+  - name: Airbnb
+    url: https://www.airbnb.com
+    why: Search-first hero (where + when + who); trust signals (verified host, ratings, reviews); host vs. guest mode toggle in nav
+    palette: ["#ff5a5f", "#ffffff", "#222222", "#717171"]
+    typography:
+      primary: Cereal
+    density: comfortable
+    notes: The defining example of search-as-hero on a marketplace. Card grid below is media-heavy.
+  - name: Etsy
+    url: https://www.etsy.com
+    why: Curated category cards above, search bar persistent; seller spotlight; review-driven trust signals
+    palette: ["#f1641e", "#ffffff", "#222222", "#f9f9f7"]
+    typography:
+      primary: Graphik
+    density: comfortable
+  - name: Substack
+    url: https://substack.com
+    why: Two-sided (writers + readers) with discovery feed; subscriber count as social proof; minimal chrome
+    palette: ["#ff6719", "#ffffff", "#1a1a1a"]
+    typography:
+      primary: SF Pro
+    density: spacious
+patternsThatWin:
+  - search-first hero with rich filters (location, date, category)
+  - trust signals (reviews, verified badges, response time) on every supplier card
+  - clear toggle / separate flow for supplier vs. buyer
+  - 'social proof ("X bookings this week", "Y reviews avg 4.8")'
+  - card grid with consistent imagery + headline + price + rating
+patternsThatLose:
+  - text-only hero with no search affordance
+  - supplier and buyer flows on the same form
+  - no reviews or trust signals at all
+  - 'inconsistent card imagery (some have photos, some are empty)'
+  - '"Browse our marketplace" as the CTA instead of an actual search'

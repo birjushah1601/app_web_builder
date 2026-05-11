@@ -1,0 +1,11 @@
+# Local dbt profile pointing at the same DuckDB file the dlt
+# pipeline writes to. Co-located with dbt_project.yml so the sandbox
+# does not depend on $HOME/.dbt/. Always pass `--profiles-dir .` when
+# running dbt commands.
+atlas_dlt:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: /code/data/atlas.duckdb
+      threads: 1
