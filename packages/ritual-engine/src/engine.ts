@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Conductor } from "@atlas/conductor";
+import type { ArtifactKind } from "@atlas/canvas-runtime";
 import type { EventSink, EditClass, RitualEvent } from "./events.js";
 import type { PersonaPreferences } from "./personas.js";
 import { applyTransition, isTerminal, type RitualState, type RitualTransition } from "./state.js";
@@ -56,6 +57,10 @@ export interface StartInput {
    *  the prompt assembler can prepend a "## Current sandbox files" section.
    *  Absent → architect runs without anchor-file context (today's default). */
   currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
+  /** Plan PFP — optional user-provided hint that bypasses the architect's
+   *  artifactKind classification. Threads into the architect's
+   *  RoleInvocation.priorArtifact so role-architect can short-circuit. */
+  artifactKindHint?: ArtifactKind;
 }
 
 /** Plan K: refine starts a NEW ritual linked to the parent via
@@ -290,9 +295,17 @@ export class RitualEngine {
     // assembly can prepend a "Previous turn" preamble. When currentFiles
     // is set (atlas-web wires this from a live sandbox snapshot), thread
     // it through too so the architect prompt also gets a "## Current
-    // sandbox files" section.
+    // sandbox files" section. Plan PFP: when artifactKindHint is set,
+    // fold it into priorArtifact so role-architect can short-circuit the
+    // artifactKind classification pass.
     const dispatchOptions: { priorArtifact?: unknown; currentFiles?: ReadonlyArray<{ path: string; content?: string }> } = {};
-    if (input.priorContext) dispatchOptions.priorArtifact = input.priorContext;
+    const architectPriorArtifact = {
+      ...(input.priorContext ? input.priorContext : {}),
+      ...(input.artifactKindHint ? { artifactKindHint: input.artifactKindHint } : {})
+    };
+    if (Object.keys(architectPriorArtifact).length > 0) {
+      dispatchOptions.priorArtifact = architectPriorArtifact;
+    }
     if (input.currentFiles !== undefined) dispatchOptions.currentFiles = input.currentFiles;
 
     const result = await this.conductor.dispatch(
