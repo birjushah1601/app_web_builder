@@ -138,6 +138,22 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       })
     );
 
+    // Plan S.2 + S.3: register Researcher + Designer roles when their flags
+    // are on. The engine's canvas flow (canvasFlowEnabled) dispatches
+    // researcher → designer → pause-on-canvas.options.requested. Without
+    // registration here the conductor logs "unknown-role" for both and
+    // jumps straight from architect to developer (no design context).
+    if (isFeatureEnabled("researcher")) {
+      const { getResearcherRole } = await import("@/lib/llm/factory");
+      const researcherRole = await getResearcherRole();
+      if (researcherRole) roles.set("researcher", researcherRole as unknown as Role);
+    }
+    if (isFeatureEnabled("designer")) {
+      const { getDesignerRole } = await import("@/lib/llm/factory");
+      const designerRole = await getDesignerRole();
+      if (designerRole) roles.set("designer", designerRole as unknown as Role);
+    }
+
     // Plan I: register Security + Accessibility roles based on per-role
     // flags. Each role implements the Role interface from @atlas/conductor;
     // the engine dispatches them via forceRoleId after a successful
