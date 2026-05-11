@@ -14,5 +14,7 @@
 export { CanvasModeRegistry } from "../../../../packages/canvas-runtime/src/registry.js";
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports
 export { personaFilter } from "../../../../packages/canvas-runtime/src/persona-filter.js";
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+export { CanvasManifestSchema, ArtifactKindSchema, DesignIntentEmbeddedSchema } from "../../../../packages/canvas-runtime/src/types.js";
 
 export type { CanvasManifest, CanvasMode, ArtifactKind } from "../../../../packages/canvas-runtime/src/types.js";
