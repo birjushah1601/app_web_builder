@@ -6,8 +6,31 @@ import { SpecEventsSink } from "./event-sink";
 import { OpenAICompatProvider } from "./openai-compat-provider";
 import type { RitualEventType } from "@/lib/events/EventBroker";
 
-/** Lazy + per-request cached. Real DB client + Conductor wiring happens here. */
+// Pin the per-project engine instance to globalThis. React's cache() is
+// per-request, but the engine's in-memory ritual records (developerOutput.diff,
+// canvas-pause registrations, sandbox-apply state) need to survive across
+// requests — otherwise a Server Action like redeployPreview gets a fresh
+// engine with an empty rituals Map and the diff is lost. The hydrator pulls
+// what it can from spec_events, but developer diffs are not persisted there.
+// Same pattern as broker-singleton.ts and canvas-pause-singleton.ts.
+const ENGINE_KEY = "__atlas_ritual_engines__";
+type WithEngines = { [ENGINE_KEY]?: Map<string, RitualEngine> };
+
+function getEngineRegistry(): Map<string, RitualEngine> {
+  const g = globalThis as unknown as WithEngines;
+  if (!g[ENGINE_KEY]) g[ENGINE_KEY] = new Map();
+  return g[ENGINE_KEY];
+}
+
+/** Lazy + per-process cached. Real DB client + Conductor wiring happens here.
+ *  The outer cache() preserves per-request memoization (so multiple Server
+ *  Action calls in one render don't double-construct); the inner registry
+ *  pins the actual engine instance per Node process so cross-request state
+ *  (in-flight rituals, canvas pauses, developer diffs) is shared. */
 export const getRitualEngine = cache(async (projectId: string): Promise<RitualEngine> => {
+  const registry = getEngineRegistry();
+  const cached = registry.get(projectId);
+  if (cached) return cached;
   const { Pool } = await import("pg");
   const { PreferencesRepo, SpecEventRepo } = await import("@atlas/spec-graph-data");
   const { currentUser } = await import("@clerk/nextjs/server");
@@ -314,7 +337,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const canvasFlowEnabled = isFeatureEnabled("canvas-v1") && isFeatureEnabled("designer");
   const canvasPauseRegistry = canvasFlowEnabled ? getCanvasPauseRegistry() : undefined;
 
-  return new RitualEngine({
+  const engine = new RitualEngine({
     conductor,
     // SpecEventsSink wraps the broker singleton so canvas/designer events the
     // engine emits via this.emit() are also published to the SSE stream
@@ -406,6 +429,9 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       }
     }
   });
+
+  registry.set(projectId, engine);
+  return engine;
 });
 
 /** Map a Conductor checkpoint event into a `(type, payload)` pair the

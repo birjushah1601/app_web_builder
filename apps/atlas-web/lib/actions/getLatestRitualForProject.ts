@@ -48,20 +48,31 @@ export async function getLatestRitualForProject(
     // The spec_events.payload column stores ritualId nested under
     // payload.ritualId for `ritual.started` events. ORDER BY id DESC + LIMIT 1
     // is the simplest query that gives us the most recently started ritual
-    // for the project. RLS via withProjectContext is overkill here — a
-    // single-row read scoped by event_type and project_id is safe with the
-    // existing tenant policies (the row only exposes the ritualId).
-    const result = await pool.query<{ ritual_id: string }>(
-      `SELECT payload->>'ritualId' AS ritual_id
-       FROM spec_events
-       WHERE project_id = $1 AND event_type = 'ritual.started'
-       ORDER BY id DESC
-       LIMIT 1`,
-      [projectId]
-    );
-    const row = result.rows[0];
-    if (!row?.ritual_id) return null;
-    return { ritualId: row.ritual_id };
+    // for the project. spec_events has RLS keyed on app.project_id, so we
+    // wrap the read in a transaction that sets the GUC first — without it
+    // every SELECT returns 0 rows even when data exists.
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.project_id', $1, true)", [projectId]);
+      const result = await client.query<{ ritual_id: string }>(
+        `SELECT payload->>'ritualId' AS ritual_id
+         FROM spec_events
+         WHERE project_id = $1 AND event_type = 'ritual.started'
+         ORDER BY id DESC
+         LIMIT 1`,
+        [projectId]
+      );
+      await client.query("COMMIT");
+      const row = result.rows[0];
+      if (!row?.ritual_id) return null;
+      return { ritualId: row.ritual_id };
+    } catch (txErr) {
+      await client.query("ROLLBACK").catch(() => { /* swallow */ });
+      throw txErr;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     // DB unreachable, schema drift, etc. ChatPanel falls back to cold-start
     // — no UX degradation beyond losing context this turn.

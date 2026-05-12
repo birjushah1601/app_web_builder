@@ -44,17 +44,24 @@ export interface RedeployPreviewResult {
 }
 
 export async function redeployPreview(projectId: string): Promise<RedeployPreviewResult> {
+  const tag = `[redeployPreview ${projectId.slice(0, 8)}]`;
+  console.log(`${tag} start`);
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "unauthorized" };
   if (!projectId) return { ok: false, error: "projectId is required" };
 
   // Pull the latest ritual + its developer diff.
   const latest = await getLatestRitualForProject(projectId);
-  if (!latest) return { ok: false, error: "no ritual to redeploy — start one first" };
+  if (!latest) {
+    console.log(`${tag} no ritual found`);
+    return { ok: false, error: "no ritual to redeploy — start one first" };
+  }
+  console.log(`${tag} found ritual ${latest.ritualId.slice(0, 12)}`);
 
   const engine = await getRitualEngine(projectId);
   const snapshot = await engine.getRitual(latest.ritualId);
   const diff = snapshot?.developerOutput?.diff;
+  console.log(`${tag} snapshot=${snapshot ? "yes" : "no"} diff.length=${typeof diff === "string" ? diff.length : "n/a"}`);
   if (typeof diff !== "string" || diff.length === 0) {
     return { ok: false, error: "no developer output to redeploy on this ritual" };
   }
@@ -78,6 +85,7 @@ export async function redeployPreview(projectId: string): Promise<RedeployPrevie
     });
     const fs = createSandboxFsAdapter(sdk as never);
     const applyResult = await applyDiff(fs, diff);
+    console.log(`${tag} apply ok=${applyResult.ok} written=${applyResult.written} parsed=${applyResult.parsed} failed=${applyResult.failed} skipped=${applyResult.skipped}${applyResult.parseError ? ` parseError=${applyResult.parseError}` : ""}`);
     return {
       ok: applyResult.ok,
       previewUrl: session.previewUrl,
