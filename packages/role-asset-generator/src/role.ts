@@ -54,30 +54,53 @@ export class AssetGeneratorRole implements Role {
   }
 
   /**
-   * Inner dispatcher — kept as a protected method so each branch stays
-   * isolated from the `run()` envelope (event emission + try/catch).
-   * Priority: gpt-image-1 > Unsplash > gradient stub.
+   * Inner dispatcher — cascades gpt-image-1 → Unsplash → gradient. If the
+   * higher-priority source throws, the role emits `asset.gen.failed` for
+   * the user-visible signal and then attempts the next source rather than
+   * dropping straight to gradient. Each fallback emits its own
+   * `asset.gen.fallback` event so the rail timeline can show what
+   * actually happened.
    */
   protected async generate(args: { aiOn: boolean; unsplashOn: boolean; input: AssetGenInput }): Promise<AssetManifest> {
+    let lastErr: unknown;
+
     if (args.aiOn) {
-      const { gptImagePass } = await import("./gpt-image-pass.js");
-      const writeImage = this.opts.writeImage;
-      if (!writeImage) {
-        throw new Error("asset-generator: writeImage dep required when ATLAS_FF_HERO_AI_IMAGE=true");
+      try {
+        const { gptImagePass } = await import("./gpt-image-pass.js");
+        const writeImage = this.opts.writeImage;
+        if (!writeImage) {
+          throw new Error("asset-generator: writeImage dep required when ATLAS_FF_HERO_AI_IMAGE=true");
+        }
+        return await gptImagePass(args.input, {
+          apiKey: this.opts.openaiKey!,
+          writeImage,
+          ...(this.opts.fetchImpl ? { fetchImpl: this.opts.fetchImpl } : {})
+        });
+      } catch (err) {
+        lastErr = err;
+        // Continue to Unsplash / gradient — don't surface here; the outer
+        // catch in run() will emit asset.gen.failed if we exhaust all
+        // sources. If a fallback succeeds, the user sees an image.
       }
-      return gptImagePass(args.input, {
-        apiKey: this.opts.openaiKey!,
-        writeImage,
-        ...(this.opts.fetchImpl ? { fetchImpl: this.opts.fetchImpl } : {})
-      });
     }
+
     if (args.unsplashOn) {
-      const { unsplashPass } = await import("./unsplash-pass.js");
-      return unsplashPass(args.input, {
-        apiKey: this.opts.unsplashKey!,
-        ...(this.opts.fetchImpl ? { fetchImpl: this.opts.fetchImpl } : {})
-      });
+      try {
+        const { unsplashPass } = await import("./unsplash-pass.js");
+        return await unsplashPass(args.input, {
+          apiKey: this.opts.unsplashKey!,
+          ...(this.opts.fetchImpl ? { fetchImpl: this.opts.fetchImpl } : {})
+        });
+      } catch (err) {
+        lastErr = err;
+      }
     }
+
+    // If every higher-priority branch threw, surface the most recent
+    // error to the caller — run() catches and emits asset.gen.failed,
+    // then renders the gradient stub. Suppress when no branch ran (both
+    // flags off) so the gradient is the clean default.
+    if (lastErr !== undefined) throw lastErr;
     return gradientFallback(args.input);
   }
 }

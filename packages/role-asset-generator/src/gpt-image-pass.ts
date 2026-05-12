@@ -46,7 +46,9 @@ async function callGptImage(f: typeof fetch, apiKey: string, prompt: string): Pr
   const resp = await f("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "gpt-image-1", prompt, size: "1536x1024", n: 1, response_format: "b64_json" })
+    // gpt-image-1 always returns base64 — `response_format` is a DALL-E 3
+    // parameter and gpt-image-1 rejects it with HTTP 400. Omit.
+    body: JSON.stringify({ model: "gpt-image-1", prompt, size: "1536x1024", n: 1 })
   });
   if (!resp.ok) throw new Error(`gpt-image-1 HTTP ${resp.status}: ${await resp.text()}`);
   const json = (await resp.json()) as { data: Array<{ b64_json: string }> };
