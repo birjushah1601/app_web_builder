@@ -154,6 +154,29 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       if (designerRole) roles.set("designer", designerRole as unknown as Role);
     }
 
+    // Plan SPU — register AssetGenerator when ATLAS_FF_ASSET_GEN=true. The
+    // engine's canvas flow (engine.ts) dispatches it after the canvas pause
+    // resolves and folds the resulting assetManifest into the developer's
+    // priorArtifact. Without registration the engine's `hasRole()` check
+    // returns false and the dispatch branch is silently skipped. cacheImage
+    // is the sha256-keyed local cache from Slice C — gpt-image-1 outputs are
+    // expensive, so de-duping by content hash is the easy win. The two
+    // image-source flags (hero-ai-image / hero-unsplash) gate the
+    // AssetGenerator's own internal branches; this flag only gates whether
+    // the role is registered at all.
+    if (isFeatureEnabled("asset-gen")) {
+      const { AssetGeneratorRole } = await import("@atlas/role-asset-generator");
+      const { cacheImage } = await import("@/lib/assets/image-cache");
+      roles.set(
+        "asset-generator",
+        new AssetGeneratorRole({
+          ...(process.env.OPENAI_API_KEY ? { openaiKey: process.env.OPENAI_API_KEY } : {}),
+          ...(process.env.UNSPLASH_ACCESS_KEY ? { unsplashKey: process.env.UNSPLASH_ACCESS_KEY } : {}),
+          writeImage: cacheImage
+        }) as unknown as Role
+      );
+    }
+
     // Plan I: register Security + Accessibility roles based on per-role
     // flags. Each role implements the Role interface from @atlas/conductor;
     // the engine dispatches them via forceRoleId after a successful

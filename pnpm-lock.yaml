@@ -40,6 +40,9 @@ importers:
       '@atlas/role-architect':
         specifier: workspace:*
         version: link:../../packages/role-architect
+      '@atlas/role-asset-generator':
+        specifier: workspace:*
+        version: link:../../packages/role-asset-generator
       '@atlas/role-designer':
         specifier: workspace:*
         version: link:../../packages/role-designer
