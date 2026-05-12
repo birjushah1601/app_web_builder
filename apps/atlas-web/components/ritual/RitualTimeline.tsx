@@ -24,6 +24,7 @@ import { useTimelineCollapse } from "@/lib/ritual/use-timeline-collapse";
 import { useResearcherBrief } from "@/lib/research/useResearcherBrief";
 import { ResearcherBriefCard } from "@/components/research/ResearcherBriefCard";
 import { useEventStream } from "@/lib/events/EventSourceProvider";
+import { CritiqueDisclosure, type CritiqueFinding } from "@/components/ritual/CritiqueDisclosure";
 
 const ROW_TITLE: Record<Phase, string> = {
   architect:     "Architect planning",
@@ -35,7 +36,17 @@ const ROW_TITLE: Record<Phase, string> = {
 
 const ROW_ORDER: Phase[] = ["architect", "developer", "sandbox", "security", "accessibility"];
 
-export function RitualTimeline({ projectId }: { projectId: string }) {
+export function RitualTimeline({
+  projectId,
+  editablePlanEnabled = false
+}: {
+  projectId: string;
+  /** Plan UXO Task 7: server-evaluated editable-plan flag forwarded by
+   *  the layout. When on AND a designer.critique.completed event has
+   *  landed for the active ritual, render <CritiqueDisclosure /> between
+   *  the architect row and the developer row. */
+  editablePlanEnabled?: boolean;
+}) {
   const state = useTimelineState();
   const { open, setOpen } = useTimelineCollapse(projectId);
   const { briefByRitualId } = useResearcherBrief();
@@ -48,6 +59,29 @@ export function RitualTimeline({ projectId }: { projectId: string }) {
   const { events } = useEventStream();
   const activeRitualId = events.length > 0 ? events[events.length - 1]?.ritualId : undefined;
   const activeBrief = activeRitualId ? briefByRitualId[activeRitualId] : undefined;
+  // Plan UXO Task 7 — pluck the most recent designer.critique.completed for
+  // the active ritual. Empty array when the event hasn't arrived (or has
+  // arrived for a stale ritual the timeline reducer has already reset).
+  const critiqueFindings: ReadonlyArray<CritiqueFinding> = (() => {
+    if (!editablePlanEnabled || !activeRitualId) return [];
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (!e) continue;
+      if (e.ritualId !== activeRitualId) continue;
+      if (e.type !== "designer.critique.completed") continue;
+      // Broker passes the conductor payload through unchanged. The
+      // designer role wraps findings under `critique.findings`; tolerate
+      // the older `findings` shape too for forward compat.
+      const p = e.payload as {
+        critique?: { findings?: ReadonlyArray<CritiqueFinding> };
+        findings?: ReadonlyArray<CritiqueFinding>;
+      };
+      const arr = p?.critique?.findings ?? p?.findings;
+      if (Array.isArray(arr)) return arr;
+      return [];
+    }
+    return [];
+  })();
   // Plan PFP gap-fix: echo the user's prompt as the first line of the live
   // panel. Without this the chat looks "blank" because the prompt was
   // submitted at /projects/new and the canvas page only renders the
@@ -122,6 +156,14 @@ export function RitualTimeline({ projectId }: { projectId: string }) {
              *  even when developer / sandbox / gate rows are pending. */}
             {phase === "architect" && activeBrief && activeRitualId && (
               <ResearcherBriefCard brief={activeBrief} ritualId={activeRitualId} />
+            )}
+            {/* Plan UXO Task 7 — collapsed designer-critique disclosure,
+             *  slotted between the architect row and the developer row
+             *  (Atlas does not surface a dedicated "designer" row in the
+             *  rail; the designer role's output lives inline as part of
+             *  the architect-to-developer handoff). */}
+            {phase === "architect" && editablePlanEnabled && critiqueFindings.length > 0 && (
+              <CritiqueDisclosure findings={critiqueFindings} />
             )}
           </Fragment>
         ))}

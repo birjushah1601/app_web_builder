@@ -32,6 +32,8 @@ export default async function ProjectLayout({
   const editorLayoutV2On = isFeatureEnabled("editor-layout-v2");
   // Plan UXO Task 6 — gate ReferenceDropZone in RailShell's ChatPanel.
   const referenceInputOn = isFeatureEnabled("reference-input");
+  // Plan UXO Task 7 — gate CritiqueDisclosure in the rail's RitualTimeline.
+  const editablePlanOn = isFeatureEnabled("editable-plan");
   // Refine-by-default — server-side fetch of the most recent ritualId so
   // ChatPanel auto-routes the next submit through refineRitual. Failure-safe:
   // returns null when DB unreachable OR project has no rituals yet → ChatPanel
@@ -66,7 +68,7 @@ export default async function ProjectLayout({
           <div className="flex flex-1 min-h-0">
             <EditorShell
               projectId={projectId}
-              left={<RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} referenceInputEnabled={referenceInputOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />}
+              left={<RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} referenceInputEnabled={referenceInputOn} editablePlanEnabled={editablePlanOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />}
               right={<main className="flex-1 min-w-0 overflow-auto">{children}</main>}
             />
           </div>
@@ -80,7 +82,7 @@ export default async function ProjectLayout({
       <div className="flex h-screen flex-col">
         {topNav}
         <div className="flex flex-1 min-h-0">
-          <RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} referenceInputEnabled={referenceInputOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />
+          <RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} referenceInputEnabled={referenceInputOn} editablePlanEnabled={editablePlanOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />
           <main className="flex-1 min-w-0 overflow-auto">{children}</main>
         </div>
       </div>

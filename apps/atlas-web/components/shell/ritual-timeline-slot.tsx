@@ -10,17 +10,20 @@ import { RitualTimeline } from "@/components/ritual/RitualTimeline";
  * `RailShell.tsx`.
  *
  * The `data-testid="ritual-timeline-host"` wrapper preserves the contract
- * unit + e2e tests target. Plan E's RitualTimeline reads no props — it
- * subscribes to the ambient `EventSourceProvider` for events.
+ * unit + e2e tests target. Plan E's RitualTimeline reads no env-driven
+ * flags — flag values arrive via props so this component stays test-friendly.
  */
 interface SlotProps {
   projectId: string;
+  /** Plan UXO Task 7: forwarded to RitualTimeline so it can render the
+   *  CritiqueDisclosure when a designer.critique.completed event lands. */
+  editablePlanEnabled?: boolean;
 }
 
-export function RitualTimelineSlot(_props: SlotProps): React.ReactElement {
+export function RitualTimelineSlot({ projectId, editablePlanEnabled = false }: SlotProps): React.ReactElement {
   return (
     <div data-testid="ritual-timeline-host">
-      <RitualTimeline projectId={_props.projectId} />
+      <RitualTimeline projectId={projectId} editablePlanEnabled={editablePlanEnabled} />
     </div>
   );
 }

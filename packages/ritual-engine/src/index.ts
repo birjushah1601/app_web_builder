@@ -10,5 +10,7 @@ export { buildPriorRitualContext, isPriorRitualContext, type PriorRitualContext 
 export {
   CanvasPauseRegistry,
   DEFAULT_CANVAS_PAUSE_TIMEOUT_MS,
-  type CanvasOptionResolution
+  type CanvasOptionResolution,
+  type PlanCheckpoint,
+  type PlanApprovalResolution
 } from "./canvas-pause.js";

@@ -20,9 +20,12 @@ interface RailShellProps {
   /** Plan UXO Task 6: server-evaluated reference-input flag forwarded to
    *  ChatPanel so it mounts a ReferenceDropZone above the textarea. */
   referenceInputEnabled?: boolean;
+  /** Plan UXO Task 7: server-evaluated editable-plan flag forwarded to
+   *  the embedded RitualTimelineSlot. */
+  editablePlanEnabled?: boolean;
 }
 
-export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLatestRitualId, referenceInputEnabled = false }: RailShellProps): React.ReactElement {
+export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLatestRitualId, referenceInputEnabled = false, editablePlanEnabled = false }: RailShellProps): React.ReactElement {
   const cfg = RAIL_SHELL_CONFIG;
   return (
     <aside
@@ -52,7 +55,7 @@ export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLate
         <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
           Live progress
         </div>
-        <RitualTimelineSlot projectId={projectId} />
+        <RitualTimelineSlot projectId={projectId} editablePlanEnabled={editablePlanEnabled} />
       </section>
       <div className="flex flex-1 min-h-0 flex-col">
         <ChatPanel
