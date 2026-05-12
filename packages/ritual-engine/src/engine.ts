@@ -345,6 +345,9 @@ export class RitualEngine {
     // Designer → emit canvas.options.requested → await pause → emit
     // canvas.option.selected → fold selectedTokens into developer's priorArtifact.
     let selectedTokens: unknown | undefined;
+    // Plan SPU — captured inside the canvas-flow block when AssetGenerator runs
+    // after the canvas pause; folded into the developer's priorArtifact below.
+    let assetManifest: unknown | undefined;
     if (this.canvasFlowEnabled && artifact && input.editClass !== "cosmetic") {
       const manifest = (artifact as { canvasManifest?: unknown }).canvasManifest;
       const designIntent = (artifact as { designIntent?: unknown }).designIntent;
@@ -449,16 +452,58 @@ export class RitualEngine {
               autoSelected: resolution.autoSelected
             }
           });
+
+          // Plan SPU — dispatch AssetGenerator after the canvas pause when it's
+          // registered in the conductor. Silently skipped when the role isn't
+          // present (atlas-web's factory only registers it behind asset-gen flag).
+          // Failures collapse to an `asset.gen.failed` synthetic event in
+          // roleEvents — the ritual still proceeds without imagery rather than
+          // failing outright.
+          if (this.conductor.hasRole?.("asset-generator")) {
+            try {
+              const a = await this.conductor.dispatch(
+                {
+                  ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+                  graphVersion: 0,
+                  userTurn: input.userTurn,
+                  projectId: input.projectId
+                },
+                {
+                  forceRoleId: "asset-generator",
+                  priorArtifact: { proposal, brief, projectId: input.projectId }
+                }
+              );
+              record.roleEvents = [
+                ...(record.roleEvents ?? []),
+                ...a.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
+              ];
+              const out = a.output as { artifact?: { assetManifest?: unknown } };
+              assetManifest = out.artifact?.assetManifest;
+            } catch (err) {
+              record.roleEvents = [
+                ...(record.roleEvents ?? []),
+                {
+                  eventType: "asset.gen.failed",
+                  payload: { error: err instanceof Error ? err.message : String(err) }
+                }
+              ];
+            }
+          }
         }
       }
     }
 
-    // Plan S.4: developer receives architect artifact merged with selectedTokens
-    // (when canvas flow resolved). Falls back to the bare architect artifact
-    // when canvas flow is off or no design pause occurred.
+    // Plan S.4 + SPU: developer receives architect artifact merged with
+    // selectedTokens (when canvas flow resolved) and assetManifest (when
+    // AssetGenerator ran). Falls back to the bare architect artifact when
+    // canvas flow is off or no design pause occurred.
     const developerPriorArtifact =
       selectedTokens !== undefined && artifact && typeof artifact === "object"
-        ? { ...(artifact as object), selectedTokens }
+        ? {
+            ...(artifact as object),
+            selectedTokens,
+            ...(assetManifest !== undefined ? { assetManifest } : {})
+          }
         : artifact;
 
     // Plan B: chain into the developer role when:
