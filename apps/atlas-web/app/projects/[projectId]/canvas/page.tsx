@@ -9,6 +9,7 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { isFeatureEnabledForRequest } from "@/lib/feature-flags-server";
 import { CanvasPreviewClient } from "./_components/CanvasPreviewClient";
 import { CanvasShellWired } from "@/components/canvas/CanvasShellWired";
+import { ModeToolbarHost } from "@/components/canvas/ModeToolbarHost";
 // Side-effect import — populates the canvasModeRegistry singleton at module
 // load time (atlas-web only mounts CanvasShell when the canvas-v1 flag is on,
 // but the registration runs unconditionally so the registry is always ready).
@@ -55,6 +56,11 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // renders <EmptyCanvas> until the manifest arrives. Flag-OFF preserves
   // today's preview-only tree byte-for-byte.
   const canvasV1On = isFeatureEnabled("canvas-v1");
+  // Plan UXO change 2 — three-mode (Agent/Plan/Visual-Edits) toolbar.
+  // Visible only inside the canvas-v1 branch (the bare CanvasPreviewClient
+  // branch is preview-only — no mode-switch surface to host). Downstream
+  // consumers (Visual-Edits panel, Plan UI) wire in later UXO slices.
+  const modeToolbarOn = isFeatureEnabled("mode-toolbar");
   // Plan Q.UI — pass the per-request demo-mode state (env OR cookie) to
   // the toggle so its checkbox renders in the correct initial position
   // on first paint.
@@ -71,13 +77,20 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
       <div className="flex flex-1 min-h-0">
       <section className="flex-1 flex flex-col">
         {canvasV1On ? (
-          <CanvasShellWired
-            projectId={projectId}
-            persona="ama"
-            {...(sandboxId ? { sandboxId } : {})}
-            {...(previewUrl !== undefined ? { previewUrl } : {})}
-            {...(previewError !== undefined ? { previewError } : {})}
-          />
+          <>
+            {modeToolbarOn && (
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-2">
+                <ModeToolbarHost projectId={projectId} />
+              </div>
+            )}
+            <CanvasShellWired
+              projectId={projectId}
+              persona="ama"
+              {...(sandboxId ? { sandboxId } : {})}
+              {...(previewUrl !== undefined ? { previewUrl } : {})}
+              {...(previewError !== undefined ? { previewError } : {})}
+            />
+          </>
         ) : (
           <CanvasPreviewClient
             projectId={projectId}

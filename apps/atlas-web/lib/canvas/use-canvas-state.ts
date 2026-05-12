@@ -14,10 +14,18 @@
  *
  * Pure-ish: the hook listens to `useEventStream()` from
  * EventSourceProvider but takes no other side effects.
+ *
+ * NOTE: this hook owns the *manifest mode* dimension (designing/preview).
+ * Plan UXO change 2 introduces a separate top-level workspace mode
+ * (agent/plan/visual-edits) via `useCanvasMode` below — orthogonal axis,
+ * persisted to localStorage per-project.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasManifest } from "@atlas/canvas-runtime";
 import { useEventStream } from "@/lib/events/EventSourceProvider";
+import type { CanvasMode } from "@/components/canvas/ModeToolbar";
+
+export type { CanvasMode };
 
 export interface UseCanvasStateInput {
   manifest: CanvasManifest | undefined;
@@ -80,4 +88,68 @@ export function useCanvasState({ manifest }: UseCanvasStateInput): UseCanvasStat
       setActiveModeState(id);
     }
   };
+}
+
+/* -----------------------------------------------------------------------
+ * Plan UXO change 2 — three-mode workspace toolbar.
+ *
+ * `useCanvasMode` owns the Agent/Plan/Visual-Edits dimension for one
+ * project. Persisted to `localStorage["atlas-canvas-mode:" + projectId]`
+ * so the user's last choice survives reloads and SSR transitions.
+ *
+ * Defaults to "agent" — that's today's behavior (conversation-driven).
+ * Consumer wiring (which panels react to which mode) lands in later UXO
+ * slices; for this commit the only consumer is <ModeToolbar /> itself.
+ *
+ * SSR-safe: `localStorage` is read inside a `useEffect`, so the initial
+ * render returns the default and we hydrate the persisted value on the
+ * client. Anything else trips React 19's hydration mismatch guard.
+ * --------------------------------------------------------------------- */
+
+export const DEFAULT_CANVAS_MODE: CanvasMode = "agent";
+const VALID_MODES: ReadonlySet<CanvasMode> = new Set(["agent", "plan", "visual-edits"]);
+
+export function canvasModeStorageKey(projectId: string): string {
+  return `atlas-canvas-mode:${projectId}`;
+}
+
+export interface UseCanvasModeResult {
+  mode: CanvasMode;
+  setMode: (m: CanvasMode) => void;
+}
+
+export function useCanvasMode(projectId: string): UseCanvasModeResult {
+  const [mode, setModeState] = useState<CanvasMode>(DEFAULT_CANVAS_MODE);
+
+  // Hydrate from localStorage on mount. We do NOT include `projectId` in
+  // the dep array of the initial-state lazy initializer because that runs
+  // server-side too — useEffect-after-mount is the only SSR-safe path.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(canvasModeStorageKey(projectId));
+      if (raw && VALID_MODES.has(raw as CanvasMode)) {
+        setModeState(raw as CanvasMode);
+      }
+    } catch {
+      // localStorage can throw (private mode, quota, disabled). Silently
+      // fall back to the default — the toolbar still works, it just won't
+      // persist this session.
+    }
+  }, [projectId]);
+
+  const setMode = useCallback(
+    (next: CanvasMode) => {
+      setModeState(next);
+      if (typeof window === "undefined") return;
+      try {
+        window.localStorage.setItem(canvasModeStorageKey(projectId), next);
+      } catch {
+        // Same swallow as above.
+      }
+    },
+    [projectId]
+  );
+
+  return { mode, setMode };
 }
