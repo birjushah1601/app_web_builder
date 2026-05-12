@@ -37,6 +37,10 @@ export interface CanvasShellWiredProps {
    *  PreviewCanvas. Threaded through unchanged; the overlay itself adds
    *  the mode === "visual-edits" check. */
   clickToEditEnabled?: boolean;
+  /** Plan UXO Task 8 / change 6 — gates the ElementInspector side panel
+   *  inside PreviewCanvas. Threaded through unchanged; the inspector
+   *  itself adds the mode === "visual-edits" check. */
+  elementSlidersEnabled?: boolean;
   /** Test seam — defaults to the Server Action import. Tests can pass a
    *  vitest mock fn here so they don't need to mock the action module. */
   onSelectDirection?: (input: { ritualId: string; directionId: string; tokens?: unknown }) => Promise<void>;
@@ -52,6 +56,7 @@ export function CanvasShellWired({
   previewUrl,
   previewError,
   clickToEditEnabled,
+  elementSlidersEnabled,
   onSelectDirection,
   manifestOverride
 }: CanvasShellWiredProps) {
@@ -97,7 +102,8 @@ export function CanvasShellWired({
       ...(sandboxId !== undefined ? { sandboxId } : {}),
       ...(previewUrl !== undefined ? { previewUrl } : {}),
       ...(previewError !== undefined ? { previewError } : {}),
-      ...(clickToEditEnabled !== undefined ? { clickToEditEnabled } : {})
+      ...(clickToEditEnabled !== undefined ? { clickToEditEnabled } : {}),
+      ...(elementSlidersEnabled !== undefined ? { elementSlidersEnabled } : {})
     };
     if (proposalState.ritualId === null) {
       return { persona, ...previewProps };
@@ -109,7 +115,7 @@ export function CanvasShellWired({
       onRefine: handleRefine,
       ...previewProps
     };
-  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, handleSelect, handleRefine]);
+  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, handleSelect, handleRefine]);
 
   return (
     <CanvasShell

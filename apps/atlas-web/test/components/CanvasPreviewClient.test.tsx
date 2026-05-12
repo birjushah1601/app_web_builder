@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { CanvasPreviewClient } from "@/app/projects/[projectId]/canvas/_components/CanvasPreviewClient";
 
 // HmrIframe imports iframe-resizer dynamically; jsdom doesn't need it for
 // these tests. Stub it so the import doesn't crash environments without
@@ -11,6 +10,21 @@ vi.mock("iframe-resizer", () => ({ iframeResize: () => undefined }));
 vi.mock("@/lib/events/EventSourceProvider", () => ({
   useEventStream: vi.fn(() => ({ events: [], status: "disabled", lastEventId: null }))
 }));
+
+// Plan UXO Task 8 — CanvasPreviewClient now imports ElementInspector,
+// which in turn pulls in applyElementAxisChange → lib/sandbox/factory
+// → @atlas/sandbox-e2b. Vitest can't resolve that workspace package's
+// entry here, so we stub both server actions at the module boundary.
+// The inspector itself is only mounted when both flag+mode line up, so
+// these stubs are effectively never called by the existing test cases.
+vi.mock("@/lib/actions/proposeElementAxes", () => ({
+  proposeElementAxes: vi.fn().mockResolvedValue([])
+}));
+vi.mock("@/lib/actions/applyElementAxisChange", () => ({
+  applyElementAxisChange: vi.fn().mockResolvedValue(undefined)
+}));
+
+import { CanvasPreviewClient } from "@/app/projects/[projectId]/canvas/_components/CanvasPreviewClient";
 
 describe("CanvasPreviewClient", () => {
   it("renders the iframe when a previewUrl is supplied", () => {

@@ -69,6 +69,10 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // path so the client component never needs to read process.env. The
   // overlay only mounts when this flag is on AND useCanvasMode === "visual-edits".
   const clickToEditOn = isFeatureEnabled("click-to-edit");
+  // Plan UXO Task 8 / change 6 — per-element Haiku-proposed slider
+  // inspector. Same dual gate as click-to-edit (flag + visual-edits mode);
+  // resolved on the server so CanvasPreviewClient stays env-free.
+  const elementSlidersOn = isFeatureEnabled("element-sliders");
   // Plan Q.UI — pass the per-request demo-mode state (env OR cookie) to
   // the toggle so its checkbox renders in the correct initial position
   // on first paint.
@@ -98,6 +102,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
               {...(previewUrl !== undefined ? { previewUrl } : {})}
               {...(previewError !== undefined ? { previewError } : {})}
               clickToEditEnabled={clickToEditOn}
+              elementSlidersEnabled={elementSlidersOn}
             />
           </>
         ) : (
@@ -107,6 +112,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
             previewUrl={previewUrl}
             previewError={previewError}
             clickToEditEnabled={clickToEditOn}
+            elementSlidersEnabled={elementSlidersOn}
           />
         )}
         <CanvasClient graph={graph} projectId={projectId} />
