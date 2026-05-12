@@ -33,6 +33,10 @@ export interface CanvasShellWiredProps {
   sandboxId?: string;
   previewUrl?: string;
   previewError?: string;
+  /** Plan UXO change 3 — gates the click-to-edit IframeOverlay inside
+   *  PreviewCanvas. Threaded through unchanged; the overlay itself adds
+   *  the mode === "visual-edits" check. */
+  clickToEditEnabled?: boolean;
   /** Test seam — defaults to the Server Action import. Tests can pass a
    *  vitest mock fn here so they don't need to mock the action module. */
   onSelectDirection?: (input: { ritualId: string; directionId: string; tokens?: unknown }) => Promise<void>;
@@ -47,6 +51,7 @@ export function CanvasShellWired({
   sandboxId,
   previewUrl,
   previewError,
+  clickToEditEnabled,
   onSelectDirection,
   manifestOverride
 }: CanvasShellWiredProps) {
@@ -91,7 +96,8 @@ export function CanvasShellWired({
       projectId,
       ...(sandboxId !== undefined ? { sandboxId } : {}),
       ...(previewUrl !== undefined ? { previewUrl } : {}),
-      ...(previewError !== undefined ? { previewError } : {})
+      ...(previewError !== undefined ? { previewError } : {}),
+      ...(clickToEditEnabled !== undefined ? { clickToEditEnabled } : {})
     };
     if (proposalState.ritualId === null) {
       return { persona, ...previewProps };
@@ -103,7 +109,7 @@ export function CanvasShellWired({
       onRefine: handleRefine,
       ...previewProps
     };
-  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, handleSelect, handleRefine]);
+  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, handleSelect, handleRefine]);
 
   return (
     <CanvasShell
