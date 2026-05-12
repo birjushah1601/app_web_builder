@@ -69,6 +69,11 @@ COPY src/app/page.tsx ./src/app/page.tsx
 COPY src/app/globals.css ./src/app/globals.css
 COPY src/app/design-tokens-style.tsx ./src/app/design-tokens-style.tsx
 
+# Click-to-edit bridge — client component imported by layout.tsx. Streams
+# the sandbox's editable DOM tree to the parent atlas-web window via
+# postMessage so IframeOverlay can render hit-zones over the preview.
+COPY src/atlas-edit-bridge.ts ./src/atlas-edit-bridge.ts
+
 # shadcn primitives (11 components, one COPY each — globs also collapse to
 # one source under E2B's build).
 COPY src/components/ui/badge.tsx ./src/components/ui/badge.tsx

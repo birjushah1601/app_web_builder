@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { HmrIframe } from "./HmrIframe";
 import { VIEWPORTS } from "./ViewportToggle";
 import { ShareableUrlModal } from "./ShareableUrlModal";
 import { CanvasPreviewToolbar, type ViewportId } from "./CanvasPreviewToolbar";
+import { IframeOverlay } from "@/components/canvas/IframeOverlay";
+import { useCanvasMode } from "@/lib/canvas/use-canvas-state";
+import type { DomNode } from "@/lib/canvas/use-element-selection";
 
 interface CanvasPreviewClientProps {
   projectId: string;
@@ -12,12 +15,46 @@ interface CanvasPreviewClientProps {
   previewUrl: string | undefined;
   /** Reason the sandbox provision failed, if any. Drives the error panel. */
   previewError?: string;
+  /**
+   * Plan UXO change 3 — when true, mount <IframeOverlay /> over the
+   * preview iframe (only while the workspace mode is "visual-edits").
+   * Read from the `click-to-edit` (ATLAS_FF_CLICK_TO_EDIT) feature flag
+   * by the server page and threaded down as a boolean so this client
+   * component does not need to consult process.env at render time.
+   */
+  clickToEditEnabled?: boolean;
 }
 
-export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewError }: CanvasPreviewClientProps) {
+export function CanvasPreviewClient({
+  projectId,
+  sandboxId,
+  previewUrl,
+  previewError,
+  clickToEditEnabled
+}: CanvasPreviewClientProps) {
   const [viewport, setViewport] = useState<ViewportId>("desktop");
   const [shareOpen, setShareOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // Held so we can hand a stable ref to <IframeOverlay /> — the overlay
+  // does not read it today (coordinates come pre-translated from inside
+  // the sandbox) but keeps the API door open for future scroll-into-view
+  // / scroll-sync behavior without a breaking change.
+  const overlayIframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Click-to-edit overlay is gated on BOTH the feature flag (server-resolved
+  // and threaded down as a prop) AND the workspace mode being "visual-edits".
+  // useCanvasMode is the same hook ModeToolbarHost writes to, so the toolbar
+  // and the overlay stay in sync without prop-drilling the mode through every
+  // canvas-shell descendant.
+  const { mode } = useCanvasMode(projectId);
+  const overlayActive = clickToEditEnabled === true && mode === "visual-edits";
+
+  function handleSelect(_n: DomNode) {
+    // Downstream Visual Edits panel wiring (className edits, Haiku slider
+    // proposals, etc.) lands in a follow-up UXO slice. For this commit
+    // selection is purely visible — the overlay paints a green ring on the
+    // clicked element and stops there.
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -44,7 +81,7 @@ export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewE
         ) : (
           <div
             data-testid="canvas-preview-frame"
-            className="rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col transition-all duration-200"
+            className="relative rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col transition-all duration-200"
             style={{
               width: VIEWPORTS[viewport].width,
               maxWidth: "100%",
@@ -53,6 +90,12 @@ export function CanvasPreviewClient({ projectId, sandboxId, previewUrl, previewE
             }}
           >
             <HmrIframe key={reloadKey} src={previewUrl} title="Live preview" projectId={projectId} />
+            {overlayActive && (
+              <IframeOverlay
+                iframeRef={overlayIframeRef}
+                onSelect={handleSelect}
+              />
+            )}
           </div>
         )}
       </div>
