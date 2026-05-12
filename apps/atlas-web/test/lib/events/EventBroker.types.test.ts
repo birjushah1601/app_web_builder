@@ -29,7 +29,12 @@ describe("EventBroker types (Plan E.0 contract)", () => {
       | "architect.canvas_manifest.emitted"
       | "designer.proposal.emitted" | "designer.proposal.failed"
       | "canvas.options.requested" | "canvas.option.selected"
-      | "canvas.refinement.started" | "canvas.refinement.completed";
+      | "canvas.refinement.started" | "canvas.refinement.completed"
+      // Plan SPU: Designer three-pass + AssetGenerator lifecycle.
+      | "designer.draft.completed"
+      | "designer.critique.started" | "designer.critique.completed"
+      | "designer.revise.started" | "designer.revise.completed"
+      | "asset.gen.started" | "asset.gen.completed" | "asset.gen.failed";
     expectTypeOf<RitualEventType>().toEqualTypeOf<Expected>();
   });
 

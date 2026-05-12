@@ -479,6 +479,19 @@ function mapCheckpointToBrokerEvent(
     case "canvas.refinement.started":          return { type: "canvas.refinement.started",          payload };
     case "canvas.refinement.completed":        return { type: "canvas.refinement.completed",        payload };
 
+    // Plan SPU — Designer three-pass + AssetGenerator events. Pass-through
+    // mapping (same shape on both sides) so the SSE stream surfaces them to
+    // any client hook subscribing to the broker. UI consumers land in a
+    // separate slice; for now the events flow through unchanged.
+    case "designer.draft.completed":     return { type: "designer.draft.completed",     payload };
+    case "designer.critique.started":    return { type: "designer.critique.started",    payload };
+    case "designer.critique.completed":  return { type: "designer.critique.completed",  payload };
+    case "designer.revise.started":      return { type: "designer.revise.started",      payload };
+    case "designer.revise.completed":    return { type: "designer.revise.completed",    payload };
+    case "asset.gen.started":            return { type: "asset.gen.started",            payload };
+    case "asset.gen.completed":          return { type: "asset.gen.completed",          payload };
+    case "asset.gen.failed":             return { type: "asset.gen.failed",             payload };
+
     default:                        return null;
   }
 }

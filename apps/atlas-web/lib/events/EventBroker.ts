@@ -71,7 +71,21 @@ export type RitualEventType =
   | "canvas.options.requested"
   | "canvas.option.selected"
   | "canvas.refinement.started"
-  | "canvas.refinement.completed";
+  | "canvas.refinement.completed"
+  // Plan SPU — Designer three-pass (draft → critique → revise) lifecycle.
+  // Surfaces on the rail timeline once mapped through factory.ts; for now
+  // the broker accepts them so the SSE path doesn't drop the events.
+  | "designer.draft.completed"
+  | "designer.critique.started"
+  | "designer.critique.completed"
+  | "designer.revise.started"
+  | "designer.revise.completed"
+  // Plan SPU — AssetGenerator lifecycle. Fired when the engine dispatches
+  // the role after the canvas pause resolves; manifest is folded into the
+  // developer's priorArtifact so generated code can reference real image URLs.
+  | "asset.gen.started"
+  | "asset.gen.completed"
+  | "asset.gen.failed";
 
 /** A published event. The broker assigns `id` on publish; it is opaque to
  *  clients (they echo it back via Last-Event-ID for resume). Format today

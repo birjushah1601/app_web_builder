@@ -221,6 +221,61 @@ const SandboxApplyFailedSchema = z.object({
   payload: z.unknown()
 });
 
+// Plan SPU — Designer three-pass (draft → critique → revise) lifecycle.
+// Loose mirror schemas (payload typed as z.unknown()) following the same
+// pattern as the canvas mirror schemas above. See top-of-file comment for why.
+const DesignerDraftCompletedSchema = z.object({
+  type: z.literal("designer.draft.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerCritiqueStartedSchema = z.object({
+  type: z.literal("designer.critique.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerCritiqueCompletedSchema = z.object({
+  type: z.literal("designer.critique.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerReviseStartedSchema = z.object({
+  type: z.literal("designer.revise.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerReviseCompletedSchema = z.object({
+  type: z.literal("designer.revise.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+
+// Plan SPU — AssetGenerator role lifecycle. started/completed/failed land
+// on the rail timeline as their own row once the broker mapping ships.
+const AssetGenStartedSchema = z.object({
+  type: z.literal("asset.gen.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const AssetGenCompletedSchema = z.object({
+  type: z.literal("asset.gen.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const AssetGenFailedSchema = z.object({
+  type: z.literal("asset.gen.failed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+
 export const RitualEventSchema = z.discriminatedUnion("type", [
   RitualStartedSchema,
   RitualTransitionedSchema,
@@ -246,7 +301,16 @@ export const RitualEventSchema = z.discriminatedUnion("type", [
   CanvasRefinementCompletedSchema,
   SandboxApplyStartedSchema,
   SandboxApplyCompletedSchema,
-  SandboxApplyFailedSchema
+  SandboxApplyFailedSchema,
+  // Plan SPU — designer three-pass + asset generation events
+  DesignerDraftCompletedSchema,
+  DesignerCritiqueStartedSchema,
+  DesignerCritiqueCompletedSchema,
+  DesignerReviseStartedSchema,
+  DesignerReviseCompletedSchema,
+  AssetGenStartedSchema,
+  AssetGenCompletedSchema,
+  AssetGenFailedSchema
 ]);
 export type RitualEvent = z.infer<typeof RitualEventSchema>;
 
