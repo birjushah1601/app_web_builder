@@ -30,8 +30,17 @@ const nextConfig: NextConfig = {
     "@atlas/observability",
     "@atlas/payments-hardening",
     "@atlas/postgres-branching",
-    "@atlas/deploy-orchestrator"
-  ]
+    "@atlas/deploy-orchestrator",
+    "@atlas/role-asset-generator"
+  ],
+  // Plan SPU — cached AI hero images live under `.next/cache/atlas-assets/`
+  // and are served back through the dynamic API route. Rewriting keeps the
+  // public URL stable across `/atlas-assets/<sha>.jpg`.
+  async rewrites() {
+    return [
+      { source: "/atlas-assets/:hash.jpg", destination: "/api/atlas-assets/:hash" }
+    ];
+  }
 };
 
 export default nextConfig;
