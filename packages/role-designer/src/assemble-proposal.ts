@@ -77,7 +77,7 @@ const DIRECTION_SCHEMA = {
   required: ["id", "name", "shortDescription", "technicalDescription", "citedReferences", "tokens"]
 } as const;
 
-const TOOL_SCHEMA = {
+export const PROPOSAL_TOOL_SCHEMA = {
   type: "object",
   properties: {
     recommended: DIRECTION_SCHEMA,
@@ -118,7 +118,7 @@ export async function assembleProposal(input: AssembleProposalInput): Promise<De
         {
           name: "emit_proposal",
           description: "Emit the DesignProposal (1 recommended + 2 alternates + reasoning)",
-          input_schema: TOOL_SCHEMA
+          input_schema: PROPOSAL_TOOL_SCHEMA
         }
       ],
       toolChoice: { type: "tool", name: "emit_proposal" }

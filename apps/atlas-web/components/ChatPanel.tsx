@@ -181,6 +181,7 @@ export function ChatPanel({
           </div>
         )}
         <textarea
+          data-prompt-input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Describe your change…"

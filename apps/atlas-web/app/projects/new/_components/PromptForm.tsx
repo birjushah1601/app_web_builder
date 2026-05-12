@@ -20,8 +20,29 @@ export interface PromptFormProps {
 export function PromptForm({ action }: PromptFormProps) {
   const [kind, setKind] = React.useState<PillValue>("auto");
 
+  /**
+   * Plan UXO change 1 — wrap submit in `document.startViewTransition` when
+   * the API is available so Chromium + Safari 18 animate the morph from
+   * the hero textarea on `/` into the canvas chat input on the project
+   * page. Firefox lacks the API (as of 2026-05) — the guard short-circuits
+   * and we invoke the server action synchronously, preserving today's
+   * behavior. `document.startViewTransition` is typed as `any` deliberately
+   * — Next.js's bundled lib.dom does not yet ship its signature.
+   */
+  const onSubmit = (formData: FormData): void => {
+    if ("startViewTransition" in document) {
+      (document as unknown as {
+        startViewTransition: (cb: () => void | Promise<void>) => unknown;
+      }).startViewTransition(() => {
+        void action(formData);
+      });
+      return;
+    }
+    void action(formData);
+  };
+
   return (
-    <form action={action} className="mx-auto max-w-2xl space-y-6 p-8">
+    <form action={onSubmit} className="mx-auto max-w-2xl space-y-6 p-8">
       <h1 className="text-2xl font-semibold text-slate-900">What do you want to build?</h1>
 
       <div className="flex flex-wrap gap-2">
@@ -50,6 +71,7 @@ export function PromptForm({ action }: PromptFormProps) {
 
       <textarea
         name="prompt"
+        data-prompt-input
         required
         rows={6}
         placeholder="What do you want to build? e.g. A landing page for my Mumbai spice kitchen with menu + online ordering"
