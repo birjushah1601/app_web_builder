@@ -65,6 +65,25 @@ export function renderDeveloperUserTurn(userTurn: string, architectArtifact: unk
   const tokens = extractSelectedTokens(architectArtifact);
   if (tokens) sections.push("", renderTokensSection(tokens));
 
+  // Plan SPU — when the engine's AssetGenerator ran, the architect artifact
+  // arrives with an `assetManifest` field containing hero + per-section image
+  // URLs (e.g. `/atlas-assets/<sha>.jpg`). Surface these as a separate section
+  // so the LLM uses them verbatim instead of inventing `https://example.com`
+  // placeholders. Falls back silently when assetManifest is absent.
+  const manifest = (architectArtifact as { assetManifest?: { hero?: { slot?: string; url?: string; alt?: string }; sections?: Array<{ slot?: string; url?: string; alt?: string }> } } | undefined)?.assetManifest;
+  if (manifest && (manifest.hero || (manifest.sections?.length ?? 0) > 0)) {
+    const lines = ["## Asset manifest (use these URLs verbatim — don't invent image URLs)"];
+    if (manifest.hero?.url) {
+      lines.push(`- Hero: \`<img src="${manifest.hero.url}" alt="${manifest.hero.alt ?? ""}" />\``);
+    }
+    for (const s of manifest.sections ?? []) {
+      if (s.url) {
+        lines.push(`- ${s.slot ?? "section"}: \`<img src="${s.url}" alt="${s.alt ?? ""}" />\``);
+      }
+    }
+    if (lines.length > 1) sections.push("", lines.join("\n"));
+  }
+
   sections.push(
     "",
     "## Build target",
