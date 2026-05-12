@@ -14,6 +14,10 @@ export interface StartRitualInput {
   /** Plan PFP — optional user-provided hint that bypasses the architect's
    *  artifactKind classification. Forwarded to engine.start(). */
   artifactKindHint?: ArtifactKind;
+  /** Plan SPU — user-supplied reference imagery. Forwarded to engine.start()
+   *  which folds it into the architect's priorArtifact so it flows through
+   *  to Designer. Empty array → omitted (no behavior change). */
+  referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
 }
 
 /** Plain JSON-serializable shape returned to the client. ChatPanel renders
@@ -74,7 +78,12 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
     projectId: input.projectId,
     userId,
     ...(input.artifactKindHint ? { artifactKindHint: input.artifactKindHint } : {}),
-    ...(currentFiles.length > 0 ? { currentFiles } : {})
+    ...(currentFiles.length > 0 ? { currentFiles } : {}),
+    // Plan SPU — only forward referenceImages when non-empty so the engine's
+    // exactOptionalPropertyTypes-driven `=== undefined` checks behave consistently.
+    ...(input.referenceImages && input.referenceImages.length > 0
+      ? { referenceImages: input.referenceImages }
+      : {})
   });
   // Snapshot is in-memory; same engine instance is cached per-request via
   // React `cache()` in factory.ts, so this getRitual() always finds the
