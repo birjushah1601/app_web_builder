@@ -3,7 +3,10 @@
 import { z } from "zod";
 import { auth } from "@/lib/auth/clerk-compat";
 
-export const AccessModeSchema = z.enum(["public", "password", "auth"]);
+// Next.js 15: "use server" files may only export async functions. The Zod
+// schema stays file-local; the inferred type is re-exported as a pure type
+// (types are erased at compile time, so they don't violate the rule).
+const AccessModeSchema = z.enum(["public", "password", "auth"]);
 export type AccessMode = z.infer<typeof AccessModeSchema>;
 
 const CreateShareableUrlInputSchema = z.object({
