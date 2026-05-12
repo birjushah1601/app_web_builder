@@ -24,7 +24,13 @@ export type FeatureFlag =
   | "designer"
   | "canvas-v1"
   | "visual-quality-gate"
-  | "multi-stack";
+  | "multi-stack"
+  | "prompt-morph"
+  | "mode-toolbar"
+  | "click-to-edit"
+  | "reference-input"
+  | "editable-plan"
+  | "element-sliders";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -70,7 +76,29 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // architect's canvasManifest.artifactKind to a per-kind E2B template
   // (frontend-app → atlas-next-ts-v2, backend-rest-api → atlas-fastapi).
   // Flag-OFF preserves today's behavior — every project provisions atlas-next-ts-v2.
-  "multi-stack": "ATLAS_FF_MULTI_STACK"
+  "multi-stack": "ATLAS_FF_MULTI_STACK",
+  // Plan UXO (2026-05-12-canvas-ux-overhaul) — six independently flag-gated
+  // UX changes that lift Atlas's canvas to May-2026 SOTA. Each defaults OFF.
+  // "prompt-morph" → renders PromptForm as a hero on `/` for signed-in users
+  //                  and morphs the textarea into the canvas chat input via
+  //                  the View Transitions API.
+  "prompt-morph": "ATLAS_FF_PROMPT_MORPH",
+  // "mode-toolbar" → three-mode (Agent/Plan/Visual-Edits) radio in the
+  //                  canvas header. Visible only; consumer wiring comes in
+  //                  follow-up UXO slices.
+  "mode-toolbar": "ATLAS_FF_MODE_TOOLBAR",
+  // "click-to-edit" → IframeOverlay renders hit-zones over the preview
+  //                   driven by a postMessage DOM tree from the sandbox.
+  "click-to-edit": "ATLAS_FF_CLICK_TO_EDIT",
+  // "reference-input" → ReferenceDropZone in PromptForm + ChatPanel for
+  //                     drag/drop / paste-URL style-match references.
+  "reference-input": "ATLAS_FF_REFERENCE_INPUT",
+  // "editable-plan" → PlanCheckpoints (editable architect plan) +
+  //                   CritiqueDisclosure (collapsed designer.critique).
+  "editable-plan": "ATLAS_FF_EDITABLE_PLAN",
+  // "element-sliders" → ElementInspector with Haiku-proposed axes that
+  //                     patch design-tokens.json or scoped Tailwind classes.
+  "element-sliders": "ATLAS_FF_ELEMENT_SLIDERS"
 };
 
 export interface FeatureFlagSource {
@@ -164,6 +192,12 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "designer": isFeatureEnabled("designer", source),
     "canvas-v1": isFeatureEnabled("canvas-v1", source),
     "visual-quality-gate": isFeatureEnabled("visual-quality-gate", source),
-    "multi-stack": isFeatureEnabled("multi-stack", source)
+    "multi-stack": isFeatureEnabled("multi-stack", source),
+    "prompt-morph": isFeatureEnabled("prompt-morph", source),
+    "mode-toolbar": isFeatureEnabled("mode-toolbar", source),
+    "click-to-edit": isFeatureEnabled("click-to-edit", source),
+    "reference-input": isFeatureEnabled("reference-input", source),
+    "editable-plan": isFeatureEnabled("editable-plan", source),
+    "element-sliders": isFeatureEnabled("element-sliders", source)
   };
 }
