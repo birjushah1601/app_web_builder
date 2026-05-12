@@ -61,6 +61,10 @@ export interface StartInput {
    *  artifactKind classification. Threads into the architect's
    *  RoleInvocation.priorArtifact so role-architect can short-circuit. */
   artifactKindHint?: ArtifactKind;
+  /** Plan SPU — user-supplied reference imagery. Folded into the
+   *  architect's priorArtifact so it flows through to Designer for
+   *  visual conditioning. Empty array → omitted from priorArtifact. */
+  referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
 }
 
 /** Plan K: refine starts a NEW ritual linked to the parent via
@@ -301,7 +305,12 @@ export class RitualEngine {
     const dispatchOptions: { priorArtifact?: unknown; currentFiles?: ReadonlyArray<{ path: string; content?: string }> } = {};
     const architectPriorArtifact = {
       ...(input.priorContext ? input.priorContext : {}),
-      ...(input.artifactKindHint ? { artifactKindHint: input.artifactKindHint } : {})
+      ...(input.artifactKindHint ? { artifactKindHint: input.artifactKindHint } : {}),
+      // Plan SPU — only thread referenceImages when non-empty so downstream
+      // `=== undefined` checks behave consistently with exactOptionalPropertyTypes.
+      ...(input.referenceImages && input.referenceImages.length > 0
+        ? { referenceImages: input.referenceImages }
+        : {})
     };
     if (Object.keys(architectPriorArtifact).length > 0) {
       dispatchOptions.priorArtifact = architectPriorArtifact;

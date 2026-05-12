@@ -29,6 +29,11 @@ export interface RoleInvocation {
    *  current tree instead of recreating files from scratch. Conductor +
    *  engine pass this through verbatim — they do not interpret the shape. */
   currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
+  /** Plan SPU — user-supplied reference imagery threaded from form/refine.
+   *  Folded into the architect's priorArtifact by the engine; downstream
+   *  Designer reads it for visual conditioning. Conductor + engine pass
+   *  this through verbatim — they do not interpret the shape. */
+  referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
 }
 
 export interface Role {
