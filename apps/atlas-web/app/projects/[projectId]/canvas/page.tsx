@@ -43,6 +43,8 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // conversation across two trees — gate the local mount on the flag.
   const liveEventsOn = isFeatureEnabled("live-events");
   const multiTurnOn = isFeatureEnabled("multi-turn");
+  // Plan UXO Task 6 — pass through to ChatPanel when live-events is OFF.
+  const referenceInputOn = isFeatureEnabled("reference-input");
   // Refine-by-default — when multi-turn is on, look up the most recent
   // ritual for this project so ChatPanel auto-routes the next submit
   // through refineAction. Failure-safe: returns null if DB unreachable
@@ -107,6 +109,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
           action={startRitual}
           multiTurnFlagEnabled={multiTurnOn}
           refineAction={refineRitual}
+          referenceInputEnabled={referenceInputOn}
           {...(latestRitual ? { initialLatestRitualId: latestRitual.ritualId } : {})}
         />
       )}

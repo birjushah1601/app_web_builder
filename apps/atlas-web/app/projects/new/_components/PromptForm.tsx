@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import { ReferenceDropZone, type ReferenceImage } from "@/components/prompt/ReferenceDropZone";
 
 const PILLS = [
   { value: "frontend-app",     label: "🌐 Website" },
@@ -15,10 +16,17 @@ type PillValue = (typeof PILLS)[number]["value"];
 
 export interface PromptFormProps {
   action: (formData: FormData) => void | Promise<void>;
+  /**
+   * Plan UXO Task 6 — mounts the ReferenceDropZone when on. Resolved
+   * server-side via `isFeatureEnabledForRequest("reference-input")` and
+   * passed in as a plain bool so this client component stays flag-agnostic.
+   */
+  referenceInputEnabled?: boolean;
 }
 
-export function PromptForm({ action }: PromptFormProps) {
+export function PromptForm({ action, referenceInputEnabled = false }: PromptFormProps) {
   const [kind, setKind] = React.useState<PillValue>("auto");
+  const [references, setReferences] = React.useState<ReadonlyArray<ReferenceImage>>([]);
 
   /**
    * Plan UXO change 1 — wrap submit in `document.startViewTransition` when
@@ -77,6 +85,20 @@ export function PromptForm({ action }: PromptFormProps) {
         placeholder="What do you want to build? e.g. A landing page for my Mumbai spice kitchen with menu + online ordering"
         className="block w-full resize-y rounded-md border border-slate-300 px-4 py-3 text-base focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20"
       />
+
+      {/* Plan UXO Task 6 — drag/drop screenshots that flow through to startRitual's
+       *  referenceImages. Hidden inputs named reference[] survive the form
+       *  submit; the Server Action collects them via formData.getAll(). */}
+      {referenceInputEnabled && (
+        <>
+          <ReferenceDropZone
+            onAdd={(ref) => setReferences((cur) => [...cur, ref])}
+          />
+          {references.map((r, i) => (
+            <input key={i} type="hidden" name="reference[]" value={r.url} />
+          ))}
+        </>
+      )}
 
       <button
         type="submit"

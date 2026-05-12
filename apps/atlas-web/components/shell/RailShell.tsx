@@ -17,9 +17,12 @@ interface RailShellProps {
    *  box auto-routes the next submit through refineAction. Forwarded to
    *  ChatPanel. */
   initialLatestRitualId?: string;
+  /** Plan UXO Task 6: server-evaluated reference-input flag forwarded to
+   *  ChatPanel so it mounts a ReferenceDropZone above the textarea. */
+  referenceInputEnabled?: boolean;
 }
 
-export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLatestRitualId }: RailShellProps): React.ReactElement {
+export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLatestRitualId, referenceInputEnabled = false }: RailShellProps): React.ReactElement {
   const cfg = RAIL_SHELL_CONFIG;
   return (
     <aside
@@ -57,6 +60,7 @@ export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLate
           action={startRitual}
           multiTurnFlagEnabled={multiTurnFlagEnabled}
           refineAction={refineRitual}
+          referenceInputEnabled={referenceInputEnabled}
           {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})}
         />
       </div>

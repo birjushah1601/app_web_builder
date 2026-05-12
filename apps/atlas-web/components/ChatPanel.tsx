@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SecurityReportPanel, type SecurityReport } from "@/components/SecurityReportPanel";
 import { AccessibilityReportPanel, type AccessibilityReport } from "@/components/AccessibilityReportPanel";
 import { RefinementInputBar } from "@/components/RefinementInputBar";
+import { ReferenceDropZone, type ReferenceImage } from "@/components/prompt/ReferenceDropZone";
 
 export interface RoleEvent {
   eventType: string;
@@ -50,7 +51,15 @@ export interface ChatPanelProps {
     projectId: string;
     userTurn: string;
     editClass: "structural" | "cosmetic";
+    /** Plan UXO Task 6 — when reference-input is on, ChatPanel forwards the
+     *  user's drag/dropped screenshots so they flow into startRitual's
+     *  referenceImages field. Omitted when reference-input is off or no
+     *  references were dropped (exactOptionalPropertyTypes: omit ≠ undefined). */
+    referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
   }) => Promise<StartRitualResult>;
+  /** Plan UXO Task 6 — when ATLAS_FF_REFERENCE_INPUT is on (read server-side),
+   *  render the ReferenceDropZone above the textarea. */
+  referenceInputEnabled?: boolean;
   /** Plan K: when ATLAS_FF_MULTI_TURN is on (read server-side), render
    *  the <RefinementInputBar /> beneath each developer-output card so the
    *  user can iterate on the prior result. */
@@ -94,12 +103,16 @@ export function ChatPanel({
   action,
   multiTurnFlagEnabled = false,
   refineAction,
-  initialLatestRitualId
+  initialLatestRitualId,
+  referenceInputEnabled = false
 }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // Plan UXO Task 6 — accumulate ReferenceDropZone results. Cleared after
+  // a successful submit alongside the textarea (same "fresh prompt" semantics).
+  const [references, setReferences] = useState<ReadonlyArray<ReferenceImage>>([]);
   // Refine-by-default state: starts at server-supplied initialLatestRitualId
   // (so chats survive a page refresh) and rolls forward on each successful
   // submit so subsequent sends in the same session continue the thread.
@@ -131,12 +144,21 @@ export function ChatPanel({
           userTurn: text
         });
       } else {
-        result = await action({ projectId, userTurn: text, editClass: "structural" });
+        // Plan UXO Task 6 — only include referenceImages on the call when
+        // we have at least one. Empty arrays are omitted to keep the action
+        // call shape backwards-compatible with existing tests + flag-OFF.
+        result = await action({
+          projectId,
+          userTurn: text,
+          editClass: "structural",
+          ...(references.length > 0 ? { referenceImages: references } : {})
+        });
       }
       setHistory((h) => [...h, { role: "architect", result }]);
       // Roll the parent forward so the next send refines on this turn.
       setLatestRitualId(result.ritualId);
       setText("");
+      setReferences([]);
     } catch (err) {
       // Surface the failure so users don't experience a silent "the button did nothing"
       // crash. The message is intentionally short — full stacks belong in server logs.
@@ -178,6 +200,13 @@ export function ChatPanel({
         {error && (
           <div role="alert" className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
             {error}
+          </div>
+        )}
+        {referenceInputEnabled && (
+          <div className="mb-2">
+            <ReferenceDropZone
+              onAdd={(ref) => setReferences((cur) => [...cur, ref])}
+            />
           </div>
         )}
         <textarea

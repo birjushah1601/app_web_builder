@@ -30,6 +30,8 @@ export default async function ProjectLayout({
   const liveEventsOn = isFeatureEnabled("live-events");
   const multiTurnOn = isFeatureEnabled("multi-turn");
   const editorLayoutV2On = isFeatureEnabled("editor-layout-v2");
+  // Plan UXO Task 6 — gate ReferenceDropZone in RailShell's ChatPanel.
+  const referenceInputOn = isFeatureEnabled("reference-input");
   // Refine-by-default — server-side fetch of the most recent ritualId so
   // ChatPanel auto-routes the next submit through refineRitual. Failure-safe:
   // returns null when DB unreachable OR project has no rituals yet → ChatPanel
@@ -64,7 +66,7 @@ export default async function ProjectLayout({
           <div className="flex flex-1 min-h-0">
             <EditorShell
               projectId={projectId}
-              left={<RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />}
+              left={<RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} referenceInputEnabled={referenceInputOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />}
               right={<main className="flex-1 min-w-0 overflow-auto">{children}</main>}
             />
           </div>
@@ -78,7 +80,7 @@ export default async function ProjectLayout({
       <div className="flex h-screen flex-col">
         {topNav}
         <div className="flex flex-1 min-h-0">
-          <RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />
+          <RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} referenceInputEnabled={referenceInputOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />
           <main className="flex-1 min-w-0 overflow-auto">{children}</main>
         </div>
       </div>

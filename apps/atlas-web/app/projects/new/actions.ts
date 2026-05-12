@@ -30,11 +30,15 @@ export async function submitPromptedProject(formData: FormData): Promise<void> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const project = await new ProjectsRepo(pool).create({ userId, name });
 
-  // Plan SPU — stub field for reference imagery. UI upload widget lives in a
-  // separate slice; for now we read whatever the form posts (today: nothing,
-  // so the array is empty) and pass it through so the call chain accepts the
-  // field. Empty array → engine omits it from priorArtifact (no behavior change).
-  const referenceImages: ReadonlyArray<{ url: string; caption?: string }> = [];
+  // Plan SPU + UXO Task 6 — collect reference URLs the ReferenceDropZone
+  // posted as `reference[]` hidden inputs. URLs are content-addressed and
+  // served by the /api/atlas-references/[hash] route. Empty array when the
+  // reference-input flag is off (no drop zone, no hidden inputs) — engine
+  // then omits referenceImages from priorArtifact (no behavior change).
+  const referenceImages: ReadonlyArray<{ url: string; caption?: string }> = formData
+    .getAll("reference[]")
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
+    .map((url) => ({ url }));
 
   // Fire-and-forget — the user shouldn't wait at submit. Canvas page picks
   // up the architect's first events via SSE the moment they fire.
