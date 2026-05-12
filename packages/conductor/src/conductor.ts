@@ -74,6 +74,13 @@ export class Conductor {
     this.sleep = opts.sleep ?? defaultSleep;
   }
 
+  /** Plan SPU — true when the role registry has a role registered under `id`.
+   *  Lets callers (RitualEngine) avoid dispatching a role that's missing so
+   *  they can branch cleanly instead of catching an "unknown role" throw. */
+  hasRole(id: string): boolean {
+    return this.roles.has(id);
+  }
+
   async dispatch(ctx: DispatchContext, options: DispatchOptions = {}): Promise<DispatchResult> {
     const policy = options.retry ?? DEFAULT_DISPATCH_RETRY;
     // forceRoleId bypasses the classifier (used when chaining roles in a

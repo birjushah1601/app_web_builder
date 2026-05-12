@@ -30,7 +30,14 @@ export type FeatureFlag =
   | "click-to-edit"
   | "reference-input"
   | "editable-plan"
-  | "element-sliders";
+  | "element-sliders"
+  // Plan SPU — pipeline upgrade. Designer three-pass, reference imagery as
+  // Designer input, AssetGenerator dispatch + its two image-source fallbacks.
+  | "designer-critique"
+  | "reference-images"
+  | "asset-gen"
+  | "hero-unsplash"
+  | "hero-ai-image";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -98,7 +105,22 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "editable-plan": "ATLAS_FF_EDITABLE_PLAN",
   // "element-sliders" → ElementInspector with Haiku-proposed axes that
   //                     patch design-tokens.json or scoped Tailwind classes.
-  "element-sliders": "ATLAS_FF_ELEMENT_SLIDERS"
+  "element-sliders": "ATLAS_FF_ELEMENT_SLIDERS",
+  // Plan SPU (2026-05-12-stunning-pipeline-upgrade) — five independently
+  // flag-gated pipeline upgrades. Each defaults OFF.
+  // "designer-critique" → 3-pass Designer (draft → critique → revise) for
+  //                       higher-quality proposals at +latency +cost.
+  "designer-critique": "ATLAS_FF_DESIGNER_CRITIQUE",
+  // "reference-images" → architect threads user-uploaded reference imagery
+  //                      through priorArtifact for Designer to honor.
+  "reference-images": "ATLAS_FF_REFERENCE_IMAGES",
+  // "asset-gen" → AssetGenerator dispatched by the engine after the canvas
+  //               pause; produces hero + section image URLs for Developer.
+  "asset-gen": "ATLAS_FF_ASSET_GEN",
+  // "hero-unsplash" → Unsplash fallback for hero. Requires UNSPLASH_ACCESS_KEY.
+  "hero-unsplash": "ATLAS_FF_HERO_UNSPLASH",
+  // "hero-ai-image" → gpt-image-1 hero. Requires OPENAI_API_KEY.
+  "hero-ai-image": "ATLAS_FF_HERO_AI_IMAGE"
 };
 
 export interface FeatureFlagSource {
@@ -198,6 +220,11 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "click-to-edit": isFeatureEnabled("click-to-edit", source),
     "reference-input": isFeatureEnabled("reference-input", source),
     "editable-plan": isFeatureEnabled("editable-plan", source),
-    "element-sliders": isFeatureEnabled("element-sliders", source)
+    "element-sliders": isFeatureEnabled("element-sliders", source),
+    "designer-critique": isFeatureEnabled("designer-critique", source),
+    "reference-images": isFeatureEnabled("reference-images", source),
+    "asset-gen": isFeatureEnabled("asset-gen", source),
+    "hero-unsplash": isFeatureEnabled("hero-unsplash", source),
+    "hero-ai-image": isFeatureEnabled("hero-ai-image", source)
   };
 }
