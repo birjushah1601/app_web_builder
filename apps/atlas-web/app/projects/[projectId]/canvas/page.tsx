@@ -10,6 +10,7 @@ import { isFeatureEnabledForRequest } from "@/lib/feature-flags-server";
 import { CanvasPreviewClient } from "./_components/CanvasPreviewClient";
 import { CanvasShellWired } from "@/components/canvas/CanvasShellWired";
 import { ModeToolbarHost } from "@/components/canvas/ModeToolbarHost";
+import { RedeployButton } from "@/components/canvas/RedeployButton";
 // Side-effect import — populates the canvasModeRegistry singleton at module
 // load time (atlas-web only mounts CanvasShell when the canvas-v1 flag is on,
 // but the registration runs unconditionally so the registry is always ready).
@@ -84,6 +85,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
         data-testid="canvas-header"
         className="flex items-center justify-end gap-3 border-b border-slate-200 bg-white px-4 py-1.5"
       >
+        <RedeployButton projectId={projectId} />
         <DemoModeToggle projectId={projectId} initialEnabled={demoModeOn} />
       </header>
       <div className="flex flex-1 min-h-0">

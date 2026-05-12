@@ -52,9 +52,17 @@ export class E2BLifecycle implements SandboxLifecycle {
     const digest = this.config.templateDigests[templateId];
     let sdk: { sandboxId: string; kill: () => Promise<void> };
     try {
+      // E2B's default sandbox idle timeout is ~5 minutes, which kills the
+      // preview between rituals (user reads the cards, clicks Use this, the
+      // engine generates for 60s, applies → success — but if the user then
+      // pauses to read the rendered site for >5min the sandbox dies and a
+      // refresh hits "Paused sandbox not found". Bump to 1 hour by default,
+      // override via ATLAS_SANDBOX_TIMEOUT_MS.
+      const timeoutMs = Number(process.env.ATLAS_SANDBOX_TIMEOUT_MS ?? 60 * 60 * 1000);
       sdk = await Sandbox.create(templateId, {
         apiKey: this.config.apiKey,
         metadata: { projectId, digest: digest ?? "unpinned" },
+        timeoutMs,
       }) as typeof sdk;
     } catch (err) {
       throw new SandboxProvisionError(
