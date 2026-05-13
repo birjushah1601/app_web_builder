@@ -41,4 +41,45 @@ describe("useEditPatchQueue", () => {
       patch: { kind: "text-replace", oldText: "Hi", newText: "Hello" }
     });
   });
+
+  it("redo() re-applies the patch that undo just reverted", async () => {
+    const apply = vi.fn()
+      .mockResolvedValueOnce({ ok: true, inverse: { kind: "text-replace", atlasId: "h", oldText: "Hi", newText: "Hello" } })
+      .mockResolvedValueOnce({ ok: true, inverse: { kind: "text-replace", atlasId: "h", oldText: "Hello", newText: "Hi" } })
+      .mockResolvedValueOnce({ ok: true, inverse: { kind: "text-replace", atlasId: "h", oldText: "Hi", newText: "Hello" } });
+    const { result } = renderHook(() => useEditPatchQueue({ apply }));
+    await act(async () => {
+      await result.current.submitPatch({
+        filePath: "/code/src/app/page.tsx",
+        patch: { kind: "text-replace", atlasId: "h", oldText: "Hello", newText: "Hi" }
+      });
+    });
+    await act(async () => { await result.current.undo(); });
+    expect(result.current.canRedo).toBe(true);
+    await act(async () => { await result.current.redo(); });
+    expect(apply).toHaveBeenCalledTimes(3);
+  });
+
+  it("a new submitPatch clears the redo stack", async () => {
+    const apply = vi.fn().mockResolvedValue({
+      ok: true,
+      inverse: { kind: "text-replace", atlasId: "h", oldText: "Hi", newText: "Hello" }
+    });
+    const { result } = renderHook(() => useEditPatchQueue({ apply }));
+    await act(async () => {
+      await result.current.submitPatch({
+        filePath: "/code/src/app/page.tsx",
+        patch: { kind: "text-replace", atlasId: "h", oldText: "Hello", newText: "Hi" }
+      });
+    });
+    await act(async () => { await result.current.undo(); });
+    expect(result.current.canRedo).toBe(true);
+    await act(async () => {
+      await result.current.submitPatch({
+        filePath: "/code/src/app/page.tsx",
+        patch: { kind: "text-replace", atlasId: "h", oldText: "x", newText: "y" }
+      });
+    });
+    expect(result.current.canRedo).toBe(false);
+  });
 });

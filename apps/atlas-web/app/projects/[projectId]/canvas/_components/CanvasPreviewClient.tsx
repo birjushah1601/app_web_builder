@@ -133,6 +133,30 @@ export function CanvasPreviewClient({
     );
   }, []);
 
+  // Keyboard shortcuts: Cmd/Ctrl+Z → undo, Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y → redo.
+  // Only fires when inlineEditEnabled is true and the target is NOT a text input,
+  // so the browser's native per-character undo still works inside contenteditable.
+  React.useEffect(() => {
+    if (!inlineEditEnabled) return;
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea") return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      if (e.key.toLowerCase() === "z" && !e.shiftKey) {
+        e.preventDefault();
+        void queue.undo();
+      } else if ((e.key.toLowerCase() === "z" && e.shiftKey) || e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        void queue.redo();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inlineEditEnabled, queue]);
+
   // Listen for atlas-text-committed messages from the bridge → submit text-replace patch.
   React.useEffect(() => {
     function onMessage(ev: MessageEvent) {
@@ -235,6 +259,28 @@ export function CanvasPreviewClient({
                   onAction={handleContextAction}
                   onClose={() => setContextMenu(null)}
                 />
+              )}
+              {inlineEditEnabled && (queue.canUndo || queue.canRedo) && (
+                <div className="absolute top-2 right-2 z-40 flex gap-1 rounded-md border border-slate-200 bg-white/95 px-1 py-1 text-xs shadow-sm">
+                  <button
+                    type="button"
+                    disabled={!queue.canUndo}
+                    onClick={() => void queue.undo()}
+                    title="Undo (Cmd/Ctrl+Z)"
+                    className="rounded px-2 py-0.5 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    ↶ Undo
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!queue.canRedo}
+                    onClick={() => void queue.redo()}
+                    title="Redo (Cmd/Ctrl+Shift+Z)"
+                    className="rounded px-2 py-0.5 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    ↷ Redo
+                  </button>
+                </div>
               )}
               {inlineEditEnabled && imagePopoverOpen && selected && (
                 <ImageReplacePopover
