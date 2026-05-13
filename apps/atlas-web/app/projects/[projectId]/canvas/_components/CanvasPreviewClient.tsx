@@ -68,10 +68,13 @@ export function CanvasPreviewClient({
   // canvas-shell descendant.
   const { mode } = useCanvasMode(projectId);
   const overlayActive = clickToEditEnabled === true && mode === "visual-edits";
-  // Plan UXO Task 8 — element inspector panel. Same dual gate as the overlay:
-  // server-resolved flag AND visual-edits mode. When OFF, the side panel
-  // collapses out so the iframe regains its full width (today's behavior).
-  const inspectorActive = elementSlidersEnabled === true && mode === "visual-edits";
+  // Plan UXO Task 8 — element inspector panel. Triple gate: server-resolved
+  // flag AND visual-edits mode AND a selected element to inspect. Without
+  // the third clause, the panel sat empty showing "Click a node to inspect"
+  // and just wasted ~256px of canvas width — surface it only when there's
+  // actually something to render, so the iframe gets the full width by
+  // default and the panel slides in when the user clicks an element.
+  const inspectorActive = elementSlidersEnabled === true && mode === "visual-edits" && selected !== null;
 
   return (
     <div className="flex flex-col h-full">
