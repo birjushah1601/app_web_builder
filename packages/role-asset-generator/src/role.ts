@@ -31,7 +31,14 @@ export class AssetGeneratorRole implements Role {
   constructor(private readonly opts: AssetGeneratorRoleOptions = {}) {}
 
   async run(inv: RoleInvocation): Promise<RoleOutput> {
-    const input = inv.priorArtifact as AssetGenInput;
+    // Fold the conductor's userTurn into the input so the image-prompt
+    // builder can use it as subject matter. The engine passes priorArtifact
+    // = { proposal, brief, projectId }; merging userTurn here keeps the
+    // engine wiring untouched.
+    const input: AssetGenInput = {
+      ...(inv.priorArtifact as AssetGenInput),
+      ...(typeof inv.userTurn === "string" && inv.userTurn.length > 0 ? { userTurn: inv.userTurn } : {})
+    };
     const events: RoleOutput["events"] = [];
     const aiOn =
       process.env.ATLAS_FF_HERO_AI_IMAGE === "true" && typeof this.opts.openaiKey === "string" && this.opts.openaiKey.length > 0;

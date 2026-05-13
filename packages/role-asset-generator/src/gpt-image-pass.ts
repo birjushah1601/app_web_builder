@@ -31,13 +31,23 @@ export async function gptImagePass(input: AssetGenInput, deps: GptImagePassDeps)
 function buildHeroPrompt(input: AssetGenInput): string {
   const proposal = input.proposal as { recommended?: { shortDescription?: string; tokens?: { palette?: unknown } } } | undefined;
   const brief = input.brief as { category?: string } | undefined;
-  const category = brief?.category ?? "landing page";
+  // User's actual ask is the subject. When absent, fall back to the
+  // architect's artifactKind / Researcher's category so we never produce a
+  // blank prompt — but the absent-userTurn path is the generic-mockup case
+  // we're fixing.
+  const subject = (typeof input.userTurn === "string" && input.userTurn.length > 0)
+    ? input.userTurn
+    : (brief?.category ?? "a modern landing page");
   const style = proposal?.recommended?.shortDescription ?? "modern, accessible";
   const palette = JSON.stringify(proposal?.recommended?.tokens?.palette ?? {});
-  return `Photorealistic hero image for: ${category}. Style: ${style}. Palette inspiration: ${palette}. Composition: centered, generous negative space, no text overlay. 16:9, vibrant.`;
+  return `Photorealistic hero image for the following website: "${subject}". Use it as subject matter — the image should depict what the user is building (a luxury real estate property if that's the ask, a SaaS dashboard if that's the ask, etc.), NOT a generic UI mockup. Visual style: ${style}. Palette inspiration: ${palette}. Composition: centered, generous negative space, no text overlay. 16:9, vibrant, professional photography.`;
 }
 
 function deriveAlt(input: AssetGenInput): string {
+  if (typeof input.userTurn === "string" && input.userTurn.length > 0) {
+    // Truncate so the alt stays accessible-readable, not a sentence dump.
+    return input.userTurn.length > 120 ? `${input.userTurn.slice(0, 117)}…` : input.userTurn;
+  }
   const brief = input.brief as { category?: string } | undefined;
   return `Hero image for ${brief?.category ?? "landing page"}`;
 }

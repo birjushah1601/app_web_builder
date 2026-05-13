@@ -18,4 +18,11 @@ export interface AssetGenInput {
   proposal: unknown; // DesignProposal from role-designer
   brief: unknown;    // InspirationBrief from role-researcher
   projectId: string;
+  /** The user's actual prompt ("a luxury real estate site for Skyline Estates").
+   *  Without this the image prompt only sees the architect's artifactKind
+   *  ("frontend-app") + the designer's generic style description, which
+   *  makes gpt-image-1 produce a generic UI mockup rather than a
+   *  subject-matter hero photo. Optional for backwards compat; when
+   *  present, buildHeroPrompt prepends it as the subject. */
+  userTurn?: string;
 }
