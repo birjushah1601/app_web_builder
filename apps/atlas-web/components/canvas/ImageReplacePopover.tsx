@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { uploadElementImage } from "@/lib/actions/uploadElementImage";
+import { regenerateElementImage } from "@/lib/actions/regenerateElementImage";
 
 export interface ImageReplacePopoverProps {
   onSubmit: (input: { url: string; alt?: string }) => void;
@@ -11,6 +12,27 @@ export function ImageReplacePopover({ onSubmit, onClose }: ImageReplacePopoverPr
   const [url, setUrl] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = React.useState("");
+  const [generating, setGenerating] = React.useState(false);
+  const [aiError, setAiError] = React.useState<string | null>(null);
+
+  async function onGenerate() {
+    if (!aiPrompt.trim()) return;
+    setGenerating(true);
+    setAiError(null);
+    try {
+      const result = await regenerateElementImage({ instruction: aiPrompt.trim() });
+      if (result.ok && result.url) {
+        onSubmit({ url: result.url });
+      } else {
+        setAiError(result.error ?? "Generation failed");
+      }
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   async function onFile(file: File) {
     setUploading(true);
@@ -66,6 +88,28 @@ export function ImageReplacePopover({ onSubmit, onClose }: ImageReplacePopoverPr
         </button>
       </div>
       {error && <div role="alert" className="mt-2 text-red-600">{error}</div>}
+      <div className="mt-3 border-t border-slate-200 pt-2">
+        <p className="mb-1 text-slate-400">Or describe an image to generate</p>
+        <div className="flex gap-1">
+          <input
+            type="text"
+            placeholder="Describe the image…"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            disabled={generating}
+            className="flex-1 rounded border border-slate-300 px-2 py-1 disabled:opacity-50"
+          />
+          <button
+            type="button"
+            disabled={!aiPrompt.trim() || generating}
+            onClick={onGenerate}
+            className="rounded bg-slate-700 px-2 py-1 text-white disabled:opacity-50"
+          >
+            {generating ? "…" : "Generate"}
+          </button>
+        </div>
+        {aiError && <div role="alert" className="mt-1 text-red-600">{aiError}</div>}
+      </div>
     </div>
   );
 }
