@@ -66,19 +66,23 @@ export async function redeployPreview(projectId: string): Promise<RedeployPrevie
     return { ok: false, error: "no developer output to redeploy on this ritual" };
   }
 
-  // Evict + provision fresh.
+  // Reuse the cached sandbox if it's still alive. Only evict + reprovision
+  // when the existing one fails the Sandbox.connect / apply path with a
+  // "paused / not found" signal — that's the same retry pattern the engine
+  // factory uses on the developer-completed apply step. The previous
+  // implementation evicted unconditionally on every redeploy click, which
+  // meant burning a fresh E2B sandbox every time and leaving the old one
+  // to be cleaned up by E2B's idle timer.
   const factory = getSandboxFactory();
-  factory.evict(projectId);
 
-  let session: Awaited<ReturnType<typeof factory.getOrProvision>>;
-  try {
-    session = await factory.getOrProvision(projectId);
-  } catch (err) {
-    return { ok: false, error: `sandbox provision failed: ${err instanceof Error ? err.message : String(err)}` };
-  }
+  const isStaleSandboxError = (err: unknown): boolean => {
+    const msg = err instanceof Error ? err.message : String(err);
+    return /paused\s+sandbox.*not\s+found|sandbox\s+not\s+found|sandbox.*was\s+killed/i.test(msg);
+  };
 
-  // Apply diff to the new sandbox.
-  try {
+  const applyOnSession = async (
+    session: Awaited<ReturnType<typeof factory.getOrProvision>>
+  ): Promise<RedeployPreviewResult> => {
     const { Sandbox } = await import("@e2b/sdk");
     const sdk = await Sandbox.connect(session.record.sandboxId, {
       apiKey: process.env.E2B_API_KEY ?? ""
@@ -88,10 +92,6 @@ export async function redeployPreview(projectId: string): Promise<RedeployPrevie
     const fileSummary = Array.isArray(applyResult.files)
       ? applyResult.files.map((f) => `${f.path ?? "?"}=${f.status ?? "?"}`).slice(0, 12).join(",")
       : "no-file-list";
-    // Push hero images into the sandbox's public folder so the developer's
-    // `/atlas-assets/<sha>.jpg` references resolve. Mirrors the engine
-    // factory's apply path; redeploy needs its own call because the
-    // factory's path doesn't run on a redeploy.
     let assetSync = "skipped";
     try {
       const { syncAtlasAssetsToSandbox } = await import("@/lib/sandbox/sync-atlas-assets");
@@ -108,12 +108,46 @@ export async function redeployPreview(projectId: string): Promise<RedeployPrevie
       filesWritten: applyResult.written,
       ...(applyResult.parseError ? { error: applyResult.parseError } : {})
     };
+  };
+
+  // First try: reuse whatever the factory hands us. getOrProvision returns
+  // the cached session when present, otherwise provisions on demand.
+  let session: Awaited<ReturnType<typeof factory.getOrProvision>>;
+  try {
+    session = await factory.getOrProvision(projectId);
   } catch (err) {
-    return {
-      ok: false,
-      previewUrl: session.previewUrl,
-      sandboxId: session.record.sandboxId,
-      error: `diff apply failed: ${err instanceof Error ? err.message : String(err)}`
-    };
+    return { ok: false, error: `sandbox provision failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  try {
+    return await applyOnSession(session);
+  } catch (err) {
+    if (!isStaleSandboxError(err)) {
+      return {
+        ok: false,
+        previewUrl: session.previewUrl,
+        sandboxId: session.record.sandboxId,
+        error: `diff apply failed: ${err instanceof Error ? err.message : String(err)}`
+      };
+    }
+    // Cached session points at a dead sandbox — evict and reprovision once,
+    // then re-apply. Matches the engine factory's retry-on-stale path.
+    console.log(`${tag} cached sandbox stale, evicting + reprovisioning`);
+    factory.evict(projectId);
+    try {
+      session = await factory.getOrProvision(projectId);
+    } catch (retryErr) {
+      return { ok: false, error: `sandbox reprovision failed: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}` };
+    }
+    try {
+      return await applyOnSession(session);
+    } catch (retryApplyErr) {
+      return {
+        ok: false,
+        previewUrl: session.previewUrl,
+        sandboxId: session.record.sandboxId,
+        error: `diff apply failed after reprovision: ${retryApplyErr instanceof Error ? retryApplyErr.message : String(retryApplyErr)}`
+      };
+    }
   }
 }
