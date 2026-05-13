@@ -84,21 +84,23 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
     <main className="flex h-full flex-col">
       <header
         data-testid="canvas-header"
-        className="flex items-center justify-end gap-3 border-b border-slate-200 bg-white px-4 py-1.5"
+        className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-1"
       >
-        <RedeployButton projectId={projectId} />
-        <DemoModeToggle projectId={projectId} initialEnabled={demoModeOn} />
+        {modeToolbarOn && canvasV1On && (
+          <div className="flex-1 min-w-0">
+            <ModeToolbarHost projectId={projectId} />
+          </div>
+        )}
+        <div className="flex items-center gap-3 ml-auto">
+          <RedeployButton projectId={projectId} />
+          <DemoModeToggle projectId={projectId} initialEnabled={demoModeOn} />
+        </div>
       </header>
       <BuildProgressBanner />
       <div className="flex flex-1 min-h-0">
       <section className="flex-1 flex flex-col">
         {canvasV1On ? (
           <>
-            {modeToolbarOn && (
-              <div className="border-b border-slate-200 bg-slate-50 px-4 py-2">
-                <ModeToolbarHost projectId={projectId} />
-              </div>
-            )}
             <CanvasShellWired
               projectId={projectId}
               persona="ama"

@@ -82,7 +82,7 @@ export function CanvasPreviewClient({
         onReload={() => setReloadKey((k) => k + 1)}
         onShare={() => setShareOpen(true)}
       />
-      <div className="flex-1 min-h-0 overflow-auto flex items-start justify-center bg-slate-50 p-4">
+      <div className="flex-1 min-h-0 overflow-auto flex items-start justify-center bg-slate-50 p-1">
         {previewError ? (
           <div
             role="alert"
@@ -96,7 +96,7 @@ export function CanvasPreviewClient({
             </span>
           </div>
         ) : (
-          <div className="flex flex-row items-start gap-4 max-w-full w-full">
+          <div className="flex flex-row items-stretch gap-2 max-w-full w-full h-full">
             <div
               data-testid="canvas-preview-frame"
               className="relative rounded-md border border-slate-200 bg-white shadow-sm overflow-auto flex flex-col transition-all duration-200"

@@ -23,7 +23,7 @@ export function CanvasPreviewToolbar({ viewport, onViewportChange, previewUrl, o
   return (
     <div
       data-testid="canvas-preview-toolbar"
-      className="flex items-center justify-between border-b border-slate-200 px-4 h-10 text-xs font-mono"
+      className="flex items-center justify-between border-b border-slate-200 px-2 h-6 text-xs font-mono"
     >
       <div role="radiogroup" aria-label="Preview viewport" className="inline-flex rounded-md border border-slate-200 overflow-hidden">
         {OPTIONS.map((opt) => (
@@ -34,7 +34,7 @@ export function CanvasPreviewToolbar({ viewport, onViewportChange, previewUrl, o
             aria-checked={viewport === opt.id}
             aria-label={opt.label}
             onClick={() => onViewportChange(opt.id)}
-            className={`px-3 h-8 ${viewport === opt.id ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}`}
+            className={`px-2 h-6 ${viewport === opt.id ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}`}
           >
             {opt.label}
           </button>
@@ -46,7 +46,7 @@ export function CanvasPreviewToolbar({ viewport, onViewportChange, previewUrl, o
           data-testid="preview-toolbar-reload"
           onClick={onReload}
           aria-label="Reload preview"
-          className="rounded border border-slate-200 px-3 h-8 hover:bg-slate-50"
+          className="rounded border border-slate-200 px-2 h-6 hover:bg-slate-50"
         >
           ↻ Reload
         </button>
@@ -56,7 +56,7 @@ export function CanvasPreviewToolbar({ viewport, onViewportChange, previewUrl, o
             data-testid="preview-toolbar-share"
             onClick={onShare}
             aria-label="Share preview"
-            className="rounded border border-slate-200 px-3 h-8 hover:bg-slate-50"
+            className="rounded border border-slate-200 px-2 h-6 hover:bg-slate-50"
           >
             ↗ Share
           </button>
@@ -68,7 +68,7 @@ export function CanvasPreviewToolbar({ viewport, onViewportChange, previewUrl, o
           rel="noopener noreferrer"
           aria-label="Open preview in new tab"
           aria-disabled={!previewUrl}
-          className={`rounded border border-slate-200 px-3 h-8 inline-flex items-center hover:bg-slate-50 ${!previewUrl ? "pointer-events-none opacity-50" : ""}`}
+          className={`rounded border border-slate-200 px-2 h-6 inline-flex items-center hover:bg-slate-50 ${!previewUrl ? "pointer-events-none opacity-50" : ""}`}
         >
           ⤢ Open
         </a>
