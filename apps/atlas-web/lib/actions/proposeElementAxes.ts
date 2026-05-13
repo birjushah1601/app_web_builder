@@ -62,7 +62,26 @@ Examples: button → primary color (tokenKey: palette.primary), border-radius (c
     })
   });
   const json = (await resp.json()) as { choices: Array<{ message: { content: string } }> };
-  const parsed = JSON.parse(json.choices[0]!.message.content) as unknown;
+  const raw = json.choices[0]!.message.content;
+  // Some LLMs honor `response_format: json_object` strictly, others wrap the
+  // payload in a ```json ... ``` markdown fence. Strip the fence if present
+  // so JSON.parse doesn't choke on the backticks.
+  const stripped = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripped);
+  } catch {
+    // Last-ditch: find the first `[` or `{` and the last `]` or `}` and try that slice.
+    const start = stripped.search(/[\[{]/);
+    const lastBracket = stripped.lastIndexOf("]");
+    const lastBrace = stripped.lastIndexOf("}");
+    const end = Math.max(lastBracket, lastBrace);
+    if (start >= 0 && end > start) {
+      parsed = JSON.parse(stripped.slice(start, end + 1));
+    } else {
+      throw new Error(`proposeElementAxes: could not parse LLM response: ${raw.slice(0, 200)}`);
+    }
+  }
   if (Array.isArray(parsed)) return parsed as ElementAxis[];
   const maybeWrapped = parsed as { axes?: ElementAxis[] };
   return maybeWrapped.axes ?? [];
