@@ -81,6 +81,26 @@ export function renderDeveloperUserTurn(userTurn: string, architectArtifact: unk
         lines.push(`- ${s.slot ?? "section"}: \`<img src="${s.url}" alt="${s.alt ?? ""}" />\``);
       }
     }
+    const sectionsProvided = (manifest.sections?.length ?? 0) > 0;
+    if (!sectionsProvided) {
+      // Only the hero is generated. Tell the developer NOT to fabricate
+      // URLs for the other image-heavy sections (chef portraits, gallery
+      // tiles, property cards, etc.) — those URLs 404 inside the sandbox.
+      // Use a CSS gradient backed by the palette tokens or a solid
+      // surface block as a placeholder until real photography is
+      // provided. Same hero may be reused if visually appropriate, but
+      // duplicating it across 6 cards looks broken.
+      lines.push(
+        "",
+        "**Image strategy (only hero is generated, no other image URLs are available):**",
+        "- Use the hero URL above ONLY for the actual hero section.",
+        "- For any OTHER image slot (chef portraits, gallery tiles, property cards, food photos, agent avatars, etc.): **DO NOT invent image URLs** — those will 404 inside the sandbox. Instead, use one of:",
+        "  - A CSS gradient using the palette's primary + accent colors (e.g. `bg-gradient-to-br from-[#0D9488] to-[#F97316]`)",
+        "  - A solid color block with an icon (lucide-react icons available — `<ChefHat />`, `<UtensilsCrossed />`, `<Home />`, etc.)",
+        "  - A muted background with text-centered content (no `<img>` at all)",
+        "- Do NOT reuse the hero image for multiple cards — repeating the same photo 4× looks broken."
+      );
+    }
     if (lines.length > 1) sections.push("", lines.join("\n"));
   }
 

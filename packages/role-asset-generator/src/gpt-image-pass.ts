@@ -23,7 +23,14 @@ export interface GptImagePassDeps {
  */
 export async function gptImagePass(input: AssetGenInput, deps: GptImagePassDeps): Promise<AssetManifest> {
   const f = deps.fetchImpl ?? fetch;
-  const slots = buildSlotPrompts(input);
+  // Section-image count is env-gated to keep iteration cost low. Default 0
+  // (hero only) so each ritual costs ~$0.04. Operators who want richer pages
+  // can set ATLAS_HERO_SECTION_IMAGES_COUNT=3 to get detail/environment/process
+  // slots filled in (~$0.16/ritual). Clamped to [0, 3] — adding more slots
+  // requires also extending buildSlotPrompts.
+  const requested = Number.parseInt(process.env.ATLAS_HERO_SECTION_IMAGES_COUNT ?? "0", 10);
+  const sectionCount = Number.isFinite(requested) ? Math.max(0, Math.min(3, requested)) : 0;
+  const slots = buildSlotPrompts(input).slice(0, 1 + sectionCount);
 
   // Parallel generation. Each slot's failure is per-slot — we Promise.allSettled
   // so a single section flake doesn't blow up the whole manifest. Hero is the
