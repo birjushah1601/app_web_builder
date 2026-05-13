@@ -1,5 +1,6 @@
 import parseDiffLib from "parse-diff";
 import type { FileOp, FileApplyResult, SandboxFileSystemLike, ApplyDiffResult } from "./apply-diff-types";
+import { annotateAtlasIds } from "@atlas/edit-patch-engine";
 
 const DEFAULT_ROOT = "/code";
 
@@ -152,13 +153,16 @@ export async function applyFileOp(
     return { path: op.path, status: "failed", reason: `path escape blocked: ${op.path}` };
   }
 
+  const isJsx = op.path.endsWith(".tsx") || op.path.endsWith(".jsx");
+
   if (op.kind === "create") {
     if (op.newContent === undefined) {
       return { path: op.path, status: "failed", reason: "no newContent on create op" };
     }
     try {
-      await fs.write(safePath, op.newContent);
-      return { path: op.path, status: "written", bytesWritten: byteLen(op.newContent) };
+      const contentToWrite = isJsx ? annotateAtlasIds(safePath, op.newContent) : op.newContent;
+      await fs.write(safePath, contentToWrite);
+      return { path: op.path, status: "written", bytesWritten: byteLen(contentToWrite) };
     } catch (err) {
       return { path: op.path, status: "failed", reason: (err as Error).message };
     }
@@ -179,8 +183,9 @@ export async function applyFileOp(
       return { path: op.path, status: "skipped", reason: reconstructed.reason };
     }
     try {
-      await fs.write(safePath, reconstructed.content);
-      return { path: op.path, status: "written", bytesWritten: byteLen(reconstructed.content) };
+      const contentToWrite = isJsx ? annotateAtlasIds(safePath, reconstructed.content) : reconstructed.content;
+      await fs.write(safePath, contentToWrite);
+      return { path: op.path, status: "written", bytesWritten: byteLen(contentToWrite) };
     } catch (err) {
       return { path: op.path, status: "failed", reason: (err as Error).message };
     }
