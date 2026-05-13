@@ -18,9 +18,14 @@ export interface DesignerCanvasProps {
   persona: PersonaTier;
   onSelect?: (directionId: string) => void;
   onRefine?: (directionId: string) => void;
+  /** Optimistic-submission feedback: when the user has clicked "Use this"
+   *  on a direction, CanvasShellWired sets this to that direction id so we
+   *  render a non-blocking "Generating your site…" overlay until the
+   *  canvas auto-switches to preview mode on sandbox.apply.completed. */
+  submittedDirectionId?: string;
 }
 
-export function DesignerCanvas({ proposal, persona, onSelect, onRefine }: DesignerCanvasProps) {
+export function DesignerCanvas({ proposal, persona, onSelect, onRefine, submittedDirectionId }: DesignerCanvasProps) {
   if (!proposal) {
     return (
       <div
@@ -49,7 +54,7 @@ export function DesignerCanvas({ proposal, persona, onSelect, onRefine }: Design
   }));
 
   return (
-    <div data-testid="designer-canvas" className="h-full w-full overflow-auto bg-slate-50 p-6">
+    <div data-testid="designer-canvas" className="relative h-full w-full overflow-auto bg-slate-50 p-6">
       <OptionsCard
         recommended={recommended}
         alternates={alternates}
@@ -58,6 +63,27 @@ export function DesignerCanvas({ proposal, persona, onSelect, onRefine }: Design
         onSelect={handleSelect}
         onRefine={handleRefine}
       />
+      {submittedDirectionId !== undefined && (
+        <div
+          data-testid="designer-canvas-generating-overlay"
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/85 backdrop-blur-sm"
+        >
+          <div className="flex flex-col items-center gap-3 rounded-lg bg-white px-6 py-5 shadow-lg ring-1 ring-slate-200">
+            <div
+              aria-hidden
+              className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"
+            />
+            <div className="text-center">
+              <div className="text-sm font-semibold text-slate-900">Generating your site…</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Sourcing assets → writing code → applying to preview. Usually 30–90s.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

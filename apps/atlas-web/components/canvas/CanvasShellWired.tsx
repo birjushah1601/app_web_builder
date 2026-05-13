@@ -66,6 +66,22 @@ export function CanvasShellWired({
   const manifest = manifestOverride ?? liveManifest;
   const selectAction = onSelectDirection ?? selectDesignDirection;
 
+  // Track optimistic submission so DesignerCanvas can render a "Generating
+  // your site…" overlay the instant the user clicks. Without this the page
+  // sits silent on the cards for 60-90s (architect → researcher → designer →
+  // asset-gen → developer → sandbox apply) while the user wonders if the
+  // click registered. Cleared automatically when CanvasShell auto-switches
+  // away from the designing mode on sandbox.apply.completed, but we also
+  // reset on ritualId change so a fresh ritual starts clean.
+  const [submittedDirection, setSubmittedDirection] = React.useState<string | null>(null);
+  const lastRitualRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (proposalState.ritualId !== lastRitualRef.current) {
+      setSubmittedDirection(null);
+      lastRitualRef.current = proposalState.ritualId;
+    }
+  }, [proposalState.ritualId]);
+
   const handleSelect = React.useCallback(
     (directionId: string) => {
       if (proposalState.ritualId === null) return;
@@ -78,10 +94,14 @@ export function CanvasShellWired({
         ...proposalState.proposal.alternates
       ];
       const chosen = all.find((d) => d.id === directionId);
+      setSubmittedDirection(directionId);
       void selectAction({
         ritualId: proposalState.ritualId,
         directionId,
         ...(chosen ? { tokens: chosen.tokens } : {})
+      }).catch(() => {
+        // Clear overlay on action error so the cards become clickable again.
+        setSubmittedDirection(null);
       });
     },
     [proposalState, selectAction]
@@ -113,9 +133,10 @@ export function CanvasShellWired({
       persona,
       onSelect: handleSelect,
       onRefine: handleRefine,
+      ...(submittedDirection !== null ? { submittedDirectionId: submittedDirection } : {}),
       ...previewProps
     };
-  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, handleSelect, handleRefine]);
+  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, handleSelect, handleRefine, submittedDirection]);
 
   return (
     <CanvasShell
