@@ -22,6 +22,7 @@ import { useEffect } from "react";
 
 interface AtlasDomNode {
   selector: string; // unique CSS path
+  atlasId: string;
   tag: string;
   text: string; // first 60 chars
   rect: { x: number; y: number; width: number; height: number };
@@ -49,6 +50,7 @@ export function AtlasEditBridge() {
         const r = el.getBoundingClientRect();
         return {
           selector: pathFor(el),
+          atlasId: el.getAttribute("data-atlas-id") ?? "",
           tag: el.tagName.toLowerCase(),
           text: (el.textContent ?? "").trim().slice(0, 60),
           rect: {
@@ -72,17 +74,68 @@ export function AtlasEditBridge() {
     const onScroll = () => post();
     window.addEventListener("scroll", onScroll, { passive: true });
 
+    function findByAtlasId(id: string): Element | null {
+      return document.querySelector(`[data-atlas-id="${id}"]`);
+    }
+
     function onMessage(ev: MessageEvent) {
-      const data = ev.data as
-        | { type?: string; selector?: string; className?: string }
-        | null
-        | undefined;
-      if (!data || data.type !== "atlas-apply-class") return;
-      if (typeof data.selector !== "string" || typeof data.className !== "string") return;
-      const el = document.querySelector(data.selector);
-      if (!el) return;
-      el.className = data.className;
-      post();
+      if (typeof ev.data !== "object" || ev.data === null) return;
+      const data = ev.data as { type?: string; atlasId?: string; [k: string]: unknown };
+
+      switch (data.type) {
+        case "atlas-apply-class": {
+          // Legacy: selector-based. Kept for backwards compat.
+          const sel = data.selector as string | undefined;
+          if (!sel) return;
+          const el = document.querySelector(sel);
+          if (!el) return;
+          el.className = data.className as string;
+          post();
+          break;
+        }
+        case "atlas-apply-text": {
+          const el = data.atlasId ? findByAtlasId(data.atlasId) : null;
+          if (!el) return;
+          el.textContent = data.newText as string;
+          post();
+          break;
+        }
+        case "atlas-replace-img": {
+          const el = data.atlasId ? findByAtlasId(data.atlasId) : null;
+          if (!el || !(el instanceof HTMLImageElement)) return;
+          el.src = data.newUrl as string;
+          if (typeof data.newAlt === "string") el.alt = data.newAlt;
+          post();
+          break;
+        }
+        case "atlas-make-editable": {
+          const el = data.atlasId ? findByAtlasId(data.atlasId) : null;
+          if (!el || !(el instanceof HTMLElement)) return;
+          el.contentEditable = "true";
+          el.focus();
+          const onBlur = () => {
+            el.contentEditable = "false";
+            el.removeEventListener("blur", onBlur);
+            window.parent.postMessage(
+              {
+                type: "atlas-text-committed",
+                atlasId: data.atlasId,
+                newText: (el.textContent ?? "").trim()
+              },
+              "*"
+            );
+          };
+          el.addEventListener("blur", onBlur);
+          break;
+        }
+        case "atlas-revert-text": {
+          const el = data.atlasId ? findByAtlasId(data.atlasId) : null;
+          if (!el) return;
+          el.textContent = data.oldText as string;
+          post();
+          break;
+        }
+      }
     }
     window.addEventListener("message", onMessage);
     return () => {
