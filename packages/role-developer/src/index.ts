@@ -11,3 +11,5 @@ export {
   DEFAULT_TEMPLATE_NAME
 } from "./sandbox-context-registry.js";
 export { getSandboxContextPromptFor } from "./assemble-prompt.js";
+export { renderFocusedRefineUserTurn, FOCUSED_REFINE_SYSTEM_PROMPT } from "./render-focused-refine.js";
+export type { FocusedRefineInput } from "./render-focused-refine.js";
