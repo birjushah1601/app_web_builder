@@ -5,6 +5,7 @@ import { SecurityReportPanel, type SecurityReport } from "@/components/SecurityR
 import { AccessibilityReportPanel, type AccessibilityReport } from "@/components/AccessibilityReportPanel";
 import { RefinementInputBar } from "@/components/RefinementInputBar";
 import { ReferenceDropZone, type ReferenceImage } from "@/components/prompt/ReferenceDropZone";
+import { SelectionChip } from "@/components/canvas/SelectionChip";
 
 export interface RoleEvent {
   eventType: string;
@@ -90,6 +91,11 @@ export interface ChatPanelProps {
    * thread without another DB round-trip.
    */
   initialLatestRitualId?: string;
+  /** Plan canvas-in-place-editing Task 21 — when set, renders a SelectionChip
+   *  above the textarea and routes submit through editElementAction. */
+  selectionChip?: { label: string; atlasId: string; filePath: string };
+  onClearSelection?: () => void;
+  editElementAction?: (input: { projectId: string; filePath: string; atlasId: string; instruction: string }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 interface HistoryEntry {
@@ -104,7 +110,10 @@ export function ChatPanel({
   multiTurnFlagEnabled = false,
   refineAction,
   initialLatestRitualId,
-  referenceInputEnabled = false
+  referenceInputEnabled = false,
+  selectionChip,
+  onClearSelection,
+  editElementAction
 }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
@@ -132,6 +141,30 @@ export function ChatPanel({
     setPending(true);
     setError(null);
     setHistory((h) => [...h, { role: "user", text }]);
+    const capturedText = text;
+    // Plan canvas-in-place-editing Task 21: when a selection chip is active,
+    // route through editElementAction instead of the full ritual pipeline.
+    if (selectionChip && editElementAction) {
+      try {
+        const result = await editElementAction({
+          projectId,
+          filePath: selectionChip.filePath,
+          atlasId: selectionChip.atlasId,
+          instruction: capturedText
+        });
+        if (result.ok) {
+          setText("");
+        } else {
+          setError(result.error ?? "Edit failed. Please try again.");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg || "Something went wrong. Please try again.");
+      } finally {
+        setPending(false);
+      }
+      return;
+    }
     try {
       let result: StartRitualResult;
       if (shouldRefine() && refineAction && latestRitualId) {
@@ -200,6 +233,14 @@ export function ChatPanel({
         {error && (
           <div role="alert" className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
             {error}
+          </div>
+        )}
+        {selectionChip !== undefined && (
+          <div className="mb-1">
+            <SelectionChip
+              label={selectionChip.label}
+              onRemove={onClearSelection ?? (() => {})}
+            />
           </div>
         )}
         {referenceInputEnabled && (
