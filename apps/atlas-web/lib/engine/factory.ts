@@ -385,7 +385,23 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
           // SandboxSessionLike expects `Promise<void>`. The return value is
           // unused by applyDiff — narrow via cast rather than wrap each call.
           const fs = createSandboxFsAdapter(sdk as never);
-          return await applyDiff(fs, diff);
+          const result = await applyDiff(fs, diff);
+          // Plan SPU follow-up — copy AI-generated hero images from
+          // .next/cache/atlas-assets/ into the sandbox's public folder so the
+          // developer's verbatim `<img src="/atlas-assets/<sha>.jpg" />`
+          // references actually resolve to the bytes inside the sandbox.
+          // Best-effort; failures here don't fail the apply (you'd just see
+          // broken images in the iframe).
+          try {
+            const { syncAtlasAssetsToSandbox } = await import("@/lib/sandbox/sync-atlas-assets");
+            const sync = await syncAtlasAssetsToSandbox(sdk as never);
+            if (sync.copied > 0 || sync.failed > 0) {
+              console.log(`[atlas-assets-sync] copied=${sync.copied} failed=${sync.failed}`);
+            }
+          } catch (err) {
+            console.warn(`[atlas-assets-sync] skipped:`, err instanceof Error ? err.message : String(err));
+          }
+          return result;
         };
 
         const isStaleSandboxError = (err: unknown): boolean => {

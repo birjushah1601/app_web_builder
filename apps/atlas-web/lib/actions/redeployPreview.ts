@@ -88,7 +88,19 @@ export async function redeployPreview(projectId: string): Promise<RedeployPrevie
     const fileSummary = Array.isArray(applyResult.files)
       ? applyResult.files.map((f) => `${f.path ?? "?"}=${f.status ?? "?"}`).slice(0, 12).join(",")
       : "no-file-list";
-    console.log(`${tag} apply ok=${applyResult.ok} written=${applyResult.written} parsed=${applyResult.parsed} failed=${applyResult.failed} skipped=${applyResult.skipped}${applyResult.parseError ? ` parseError=${applyResult.parseError}` : ""} previewUrl=${session.previewUrl} sandboxId=${session.record.sandboxId.slice(0, 12)} files=[${fileSummary}]`);
+    // Push hero images into the sandbox's public folder so the developer's
+    // `/atlas-assets/<sha>.jpg` references resolve. Mirrors the engine
+    // factory's apply path; redeploy needs its own call because the
+    // factory's path doesn't run on a redeploy.
+    let assetSync = "skipped";
+    try {
+      const { syncAtlasAssetsToSandbox } = await import("@/lib/sandbox/sync-atlas-assets");
+      const sync = await syncAtlasAssetsToSandbox(sdk as never);
+      assetSync = `copied=${sync.copied}/failed=${sync.failed}`;
+    } catch (err) {
+      assetSync = `error=${err instanceof Error ? err.message : String(err)}`;
+    }
+    console.log(`${tag} apply ok=${applyResult.ok} written=${applyResult.written} parsed=${applyResult.parsed} failed=${applyResult.failed} skipped=${applyResult.skipped}${applyResult.parseError ? ` parseError=${applyResult.parseError}` : ""} previewUrl=${session.previewUrl} sandboxId=${session.record.sandboxId.slice(0, 12)} files=[${fileSummary}] assets=${assetSync}`);
     return {
       ok: applyResult.ok,
       previewUrl: session.previewUrl,
