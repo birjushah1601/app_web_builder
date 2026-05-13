@@ -56,9 +56,9 @@ export function CanvasShell({
   // the auto-switch — without this the canvas would stay on "designing"
   // forever after a ritual completes, leaving the user staring at the
   // DesignerCanvas overlay even after the iframe is ready.
-  const { activeMode, setActiveMode } = useCanvasState({ manifest: filtered });
-  const activeId = activeMode;
-  const setActiveId = setActiveMode;
+  const canvasState = useCanvasState({ manifest: filtered });
+  const activeId = canvasState.activeMode;
+  const setActiveId = canvasState.setActiveMode;
 
   if (!manifest || !filtered || filtered.modes.length === 0) {
     return <EmptyCanvas />;
