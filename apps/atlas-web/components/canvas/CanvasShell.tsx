@@ -22,6 +22,7 @@ import type { PersonaTier } from "@atlas/ritual-engine";
 import EmptyCanvas from "./EmptyCanvas";
 import { ModeToggle } from "./ModeToggle";
 import { canvasModeRegistry } from "./canvas-mode-registry";
+import { useCanvasState } from "@/lib/canvas/use-canvas-state";
 
 export interface CanvasShellProps {
   manifest: CanvasManifest | undefined;
@@ -49,21 +50,15 @@ export function CanvasShell({
     [manifest, persona]
   );
 
-  const defaultId = React.useMemo(() => {
-    if (!filtered || filtered.modes.length === 0) return "";
-    return filtered.modes.find((m) => m.default)?.id ?? filtered.modes[0]!.id;
-  }, [filtered]);
-
-  const [activeId, setActiveId] = React.useState(defaultId);
-
-  // Keep activeId valid as the manifest / persona narrows or expands the
-  // mode list (e.g. persona toggles from diego → ama).
-  React.useEffect(() => {
-    if (!filtered) return;
-    if (!filtered.modes.some((m) => m.id === activeId)) {
-      setActiveId(defaultId);
-    }
-  }, [filtered, defaultId, activeId]);
+  // useCanvasState owns the mode + auto-switch (designing ←→ preview)
+  // driven by SSE events: canvas.options.requested → designing,
+  // sandbox.apply.completed → preview. Local useState here would defeat
+  // the auto-switch — without this the canvas would stay on "designing"
+  // forever after a ritual completes, leaving the user staring at the
+  // DesignerCanvas overlay even after the iframe is ready.
+  const { activeMode, setActiveMode } = useCanvasState({ manifest: filtered });
+  const activeId = activeMode;
+  const setActiveId = setActiveMode;
 
   if (!manifest || !filtered || filtered.modes.length === 0) {
     return <EmptyCanvas />;
