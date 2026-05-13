@@ -30,6 +30,7 @@ describe("<IframeOverlay>", () => {
             nodes: [
               {
                 selector: "h1:nth-child(1)",
+                atlasId: "test-id-1",
                 tag: "h1",
                 text: "Hello",
                 rect: { x: 10, y: 20, width: 100, height: 30 },
@@ -37,6 +38,7 @@ describe("<IframeOverlay>", () => {
               },
               {
                 selector: "p:nth-child(2)",
+                atlasId: "test-id-2",
                 tag: "p",
                 text: "World",
                 rect: { x: 10, y: 60, width: 200, height: 24 },
@@ -82,6 +84,7 @@ describe("<IframeOverlay>", () => {
             nodes: [
               {
                 selector: "button:nth-child(1)",
+                atlasId: "test-id-1",
                 tag: "button",
                 text: "Click me",
                 rect: { x: 0, y: 0, width: 80, height: 32 },

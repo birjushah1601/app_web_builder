@@ -14,6 +14,7 @@ import * as React from "react";
 
 export interface DomNode {
   selector: string;
+  atlasId: string;
   tag: string;
   text: string;
   rect: { x: number; y: number; width: number; height: number };
