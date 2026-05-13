@@ -56,6 +56,14 @@ export function useCanvasState({ manifest }: UseCanvasStateInput): UseCanvasStat
 
   useEffect(() => {
     if (events.length === 0) return;
+    // Wait until the manifest has resolved before attempting any auto-switch.
+    // Previously we processed events even when manifest was undefined, the
+    // targetExists check rejected the switch, AND we advanced lastSeenIdRef
+    // past those events — so by the time the manifest arrived there were no
+    // unprocessed events left to act on and the canvas stayed on "designing"
+    // forever (user-reported as "Generating your site doesn't end").
+    if (!manifest) return;
+
     // Walk only newly-arrived events since the last time we ran. For the
     // disabled / mocked stream we re-derive on every render which is cheap
     // (the events array is stable when the broker is disabled).
@@ -76,7 +84,7 @@ export function useCanvasState({ manifest }: UseCanvasStateInput): UseCanvasStat
     if (nextActive && !overrideRef.current) {
       // Only auto-switch when the manifest actually has the target mode —
       // otherwise we'd render an empty <CanvasShell>.
-      const targetExists = manifest?.modes.some((m) => m.id === nextActive);
+      const targetExists = manifest.modes.some((m) => m.id === nextActive);
       if (targetExists) setActiveModeState(nextActive);
     }
   }, [events, manifest]);
