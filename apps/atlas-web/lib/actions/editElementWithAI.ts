@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth/clerk-compat";
 import { getSandboxFactory } from "@/lib/sandbox/factory";
 import { applyDiff } from "@/lib/sandbox/apply-diff";
 import { createSandboxFsAdapter } from "@/lib/sandbox/sandbox-fs-adapter";
+import { tryConsume, type BudgetState } from "@/lib/canvas/edit-ai-budget";
 
 export interface EditElementWithAIInput {
   projectId: string;
@@ -16,6 +17,7 @@ export interface EditElementWithAIInput {
 export interface EditElementWithAIOutput {
   ok: boolean;
   error?: string;
+  budget?: Pick<BudgetState, "used" | "cap" | "remaining" | "warning">;
 }
 
 /** Server Action: focused in-place element edit via a single LLM call.
@@ -35,6 +37,15 @@ export async function editElementWithAI(
 ): Promise<EditElementWithAIOutput> {
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "unauthorized" };
+
+  const budget = tryConsume(input.projectId);
+  if (budget.exhausted) {
+    return {
+      ok: false,
+      error: `Daily AI edit cap reached (${budget.used}/${budget.cap}). Resets at UTC midnight, or raise ATLAS_EDIT_AI_DAILY_CAP.`,
+      budget
+    };
+  }
 
   try {
     // 1. Connect to sandbox and read the target source file.
@@ -105,7 +116,7 @@ export async function editElementWithAI(
       };
     }
 
-    return { ok: true };
+    return { ok: true, budget };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
