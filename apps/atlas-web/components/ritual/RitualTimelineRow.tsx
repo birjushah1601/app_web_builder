@@ -11,7 +11,7 @@
  * No business logic here — every state transition lives in timelineReducer.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RowState } from "@/lib/ritual/timelineReducer";
 
 const STATUS_GLYPH: Record<RowState["status"], string> = {
@@ -38,6 +38,25 @@ export interface RitualTimelineRowProps {
 
 export function RitualTimelineRow({ row, title }: RitualTimelineRowProps) {
   const [open, setOpen] = useState(false);
+
+  // Live tick while the row is active so the user sees an actual ascending
+  // duration ("12s…", "13s…") instead of staring at a frozen row with no
+  // signal that anything's happening. Final durationMs lands on
+  // role.completed; until then we render (now - startedAt). The interval
+  // is only mounted when status is "active" to avoid a useless re-render
+  // loop on every row.
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    if (row.status !== "active") return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [row.status]);
+
+  const liveDurationMs =
+    row.status === "active" && row.startedAt !== undefined
+      ? now - row.startedAt
+      : row.durationMs;
+
   return (
     <div data-testid={`ritual-row-${row.phase}`} className="border-b border-slate-100 last:border-b-0">
       <div className="flex items-center gap-2 px-2 py-1 text-xs">
@@ -45,9 +64,10 @@ export function RitualTimelineRow({ row, title }: RitualTimelineRowProps) {
           {STATUS_GLYPH[row.status]}
         </span>
         <span className="flex-1 text-slate-800">{title}</span>
-        {row.durationMs !== undefined && (
-          <span data-testid="ritual-row-duration" className="text-slate-500">
-            {(row.durationMs / 1000).toFixed(1)}s
+        {liveDurationMs !== undefined && (
+          <span data-testid="ritual-row-duration" className={row.status === "active" ? "text-indigo-600 tabular-nums" : "text-slate-500 tabular-nums"}>
+            {(liveDurationMs / 1000).toFixed(liveDurationMs < 10000 ? 1 : 0)}s
+            {row.status === "active" ? "…" : ""}
           </span>
         )}
         <button
