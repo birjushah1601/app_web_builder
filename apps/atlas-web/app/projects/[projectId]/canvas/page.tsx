@@ -1,4 +1,4 @@
-import { ChatPanel } from "@/components/ChatPanel";
+import { ChatPanelWithSelectionChip } from "@/components/canvas/ChatPanelWithSelectionChip";
 import { DemoModeToggle } from "@/components/DemoModeToggle";
 import { startRitual } from "@/lib/actions/startRitual";
 import { refineRitual } from "@/lib/actions/refineRitual";
@@ -124,7 +124,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
         )}
       </section>
       {liveEventsOn ? null : (
-        <ChatPanel
+        <ChatPanelWithSelectionChip
           projectId={projectId}
           action={startRitual}
           multiTurnFlagEnabled={multiTurnOn}

@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { startRitual } from "@/lib/actions/startRitual";
 import { refineRitual } from "@/lib/actions/refineRitual";
-import { ChatPanel } from "@/components/ChatPanel";
+import { ChatPanelWithSelectionChip } from "@/components/canvas/ChatPanelWithSelectionChip";
 import { RAIL_SHELL_CONFIG } from "./rail-config";
 import { RitualTimelineSlot } from "./ritual-timeline-slot";
 
@@ -58,7 +58,7 @@ export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLate
         <RitualTimelineSlot projectId={projectId} editablePlanEnabled={editablePlanEnabled} />
       </section>
       <div className="flex flex-1 min-h-0 flex-col">
-        <ChatPanel
+        <ChatPanelWithSelectionChip
           projectId={projectId}
           action={startRitual}
           multiTurnFlagEnabled={multiTurnFlagEnabled}

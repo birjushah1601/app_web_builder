@@ -10,6 +10,8 @@ import { IframeOverlay } from "@/components/canvas/IframeOverlay";
 import { ElementInspector } from "@/components/canvas/ElementInspector";
 import { FloatingToolbar } from "@/components/canvas/FloatingToolbar";
 import { ImageReplacePopover } from "@/components/canvas/ImageReplacePopover";
+import { ElementContextMenu } from "@/components/canvas/ElementContextMenu";
+import type { DomMutationOp } from "@atlas/edit-patch-engine";
 import { bridgeMakeEditable, bridgeReplaceImg, bridgeRevertText } from "@/lib/canvas/atlas-edit-bridge-client";
 import { useEditPatchQueue } from "@/lib/canvas/use-edit-patch-queue";
 import { applyPatch as applyPatchAction } from "@/lib/actions/applyPatch";
@@ -79,6 +81,7 @@ export function CanvasPreviewClient({
   const TARGET_FILE = "/code/src/app/page.tsx";
 
   const [imagePopoverOpen, setImagePopoverOpen] = React.useState(false);
+  const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number } | null>(null);
 
   const queue = useEditPatchQueue({
     apply: async (req) => {
@@ -102,6 +105,32 @@ export function CanvasPreviewClient({
 
   const handleReplaceImage = React.useCallback((_node: DomNode) => {
     setImagePopoverOpen(true);
+  }, []);
+
+  const handleContextMenu = React.useCallback((e: React.MouseEvent) => {
+    if (!selected || !inlineEditEnabled) return;
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, [selected, inlineEditEnabled]);
+
+  const handleContextAction = React.useCallback(async (op: DomMutationOp) => {
+    setContextMenu(null);
+    if (!selected?.atlasId) return;
+    await queue.submitPatch({
+      filePath: TARGET_FILE,
+      patch: { kind: "dom-mutation", atlasId: selected.atlasId, op }
+    });
+  }, [selected, queue]);
+
+  const handleAskAi = React.useCallback((node: DomNode) => {
+    if (!node.atlasId) return;
+    const labelText = (node.text ?? "").slice(0, 24);
+    const label = `<${node.tag}>${labelText}${labelText.length === 24 ? "…" : ""}</${node.tag}>`;
+    window.dispatchEvent(
+      new CustomEvent("atlas:set-chat-selection", {
+        detail: { label, atlasId: node.atlasId, filePath: TARGET_FILE }
+      })
+    );
   }, []);
 
   // Listen for atlas-text-committed messages from the bridge → submit text-replace patch.
@@ -170,6 +199,7 @@ export function CanvasPreviewClient({
             <div
               data-testid="canvas-preview-frame"
               className="relative rounded-md border border-slate-200 bg-white shadow-sm overflow-auto flex flex-col transition-all duration-200"
+              onContextMenu={handleContextMenu}
               style={{
                 // Desktop viewport: fill the available pane so a 4000px-tall
                 // landing page can scroll internally instead of being clipped
@@ -194,8 +224,16 @@ export function CanvasPreviewClient({
                   node={selected}
                   onEditText={handleEditText}
                   onOpenStyle={() => {/* Phase 1 stub — wire to ElementInspector popover later */}}
-                  onAskAi={() => {/* Phase 2 wires the chat chip */}}
+                  onAskAi={handleAskAi}
                   onReplaceImage={handleReplaceImage}
+                />
+              )}
+              {inlineEditEnabled && contextMenu !== null && (
+                <ElementContextMenu
+                  x={contextMenu.x}
+                  y={contextMenu.y}
+                  onAction={handleContextAction}
+                  onClose={() => setContextMenu(null)}
                 />
               )}
               {inlineEditEnabled && imagePopoverOpen && selected && (
