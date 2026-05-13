@@ -1,4 +1,3 @@
-import { CanvasClient } from "@/components/CanvasClient";
 import { ChatPanel } from "@/components/ChatPanel";
 import { DemoModeToggle } from "@/components/DemoModeToggle";
 import { startRitual } from "@/lib/actions/startRitual";
@@ -19,9 +18,6 @@ import "@/components/canvas/register-renderers";
 
 export default async function CanvasPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-
-  // E.2 ships an empty-graph fallback. A future task wires SpecGraphRepo.read(projectId).
-  const graph = { nodes: {}, edges: [] };
 
   // E.4: Lazy-provision sandbox and get preview URL for the HMR iframe.
   let previewUrl: string | undefined;
@@ -121,7 +117,6 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
             elementSlidersEnabled={elementSlidersOn}
           />
         )}
-        <CanvasClient graph={graph} projectId={projectId} />
       </section>
       {liveEventsOn ? null : (
         <ChatPanel
