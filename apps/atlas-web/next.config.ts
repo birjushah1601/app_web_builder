@@ -31,6 +31,7 @@ const nextConfig: NextConfig = {
     "@atlas/payments-hardening",
     "@atlas/postgres-branching",
     "@atlas/deploy-orchestrator",
+    "@atlas/edit-patch-engine",
     "@atlas/role-asset-generator"
   ],
   // Plan SPU — cached AI hero images live under `.next/cache/atlas-assets/`
