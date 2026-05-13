@@ -85,7 +85,10 @@ export async function redeployPreview(projectId: string): Promise<RedeployPrevie
     });
     const fs = createSandboxFsAdapter(sdk as never);
     const applyResult = await applyDiff(fs, diff);
-    console.log(`${tag} apply ok=${applyResult.ok} written=${applyResult.written} parsed=${applyResult.parsed} failed=${applyResult.failed} skipped=${applyResult.skipped}${applyResult.parseError ? ` parseError=${applyResult.parseError}` : ""}`);
+    const fileSummary = Array.isArray(applyResult.files)
+      ? applyResult.files.map((f) => `${f.path ?? "?"}=${f.status ?? "?"}`).slice(0, 12).join(",")
+      : "no-file-list";
+    console.log(`${tag} apply ok=${applyResult.ok} written=${applyResult.written} parsed=${applyResult.parsed} failed=${applyResult.failed} skipped=${applyResult.skipped}${applyResult.parseError ? ` parseError=${applyResult.parseError}` : ""} previewUrl=${session.previewUrl} sandboxId=${session.record.sandboxId.slice(0, 12)} files=[${fileSummary}]`);
     return {
       ok: applyResult.ok,
       previewUrl: session.previewUrl,

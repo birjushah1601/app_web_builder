@@ -24,9 +24,23 @@ export function RedeployButton({ projectId }: { projectId: string }) {
       const out = await redeployPreview(projectId);
       if (out.ok) {
         setStatus("ok");
-        setMessage(`Redeployed ${out.filesWritten ?? "?"} files. Reloading…`);
-        // Brief delay so the user sees the confirmation before the reload.
-        setTimeout(() => window.location.reload(), 600);
+        // A freshly-reprovisioned sandbox needs ~10-15s to spin up Next.js
+        // dev + HMR-compile the just-written files. Reloading immediately
+        // races that boot and shows the base template. Wait 8s — long
+        // enough that the iframe lands on the rendered page, short enough
+        // that the wait doesn't feel broken.
+        const waitSec = 8;
+        setMessage(`Redeployed ${out.filesWritten ?? "?"} files. Waiting ${waitSec}s for sandbox to boot…`);
+        let remaining = waitSec;
+        const tick = setInterval(() => {
+          remaining -= 1;
+          if (remaining > 0) {
+            setMessage(`Redeployed ${out.filesWritten ?? "?"} files. Reloading in ${remaining}s…`);
+          } else {
+            clearInterval(tick);
+            window.location.reload();
+          }
+        }, 1000);
       } else {
         setStatus("error");
         setMessage(out.error ?? "redeploy failed");
