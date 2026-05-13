@@ -71,6 +71,9 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
   // inspector. Same dual gate as click-to-edit (flag + visual-edits mode);
   // resolved on the server so CanvasPreviewClient stays env-free.
   const elementSlidersOn = isFeatureEnabled("element-sliders");
+  // Plan canvas-in-place-editing Task 17 — inline text/image editing overlay.
+  // Resolved server-side so CanvasPreviewClient stays env-free.
+  const inlineEditOn = isFeatureEnabled("inline-edit-v1");
   // Plan Q.UI — pass the per-request demo-mode state (env OR cookie) to
   // the toggle so its checkbox renders in the correct initial position
   // on first paint.
@@ -105,6 +108,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
               {...(previewError !== undefined ? { previewError } : {})}
               clickToEditEnabled={clickToEditOn}
               elementSlidersEnabled={elementSlidersOn}
+              inlineEditEnabled={inlineEditOn}
             />
           </>
         ) : (
@@ -115,6 +119,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
             previewError={previewError}
             clickToEditEnabled={clickToEditOn}
             elementSlidersEnabled={elementSlidersOn}
+            inlineEditEnabled={inlineEditOn}
           />
         )}
       </section>

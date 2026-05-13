@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useRef, useState } from "react";
 import { HmrIframe } from "./HmrIframe";
 import { VIEWPORTS } from "./ViewportToggle";
@@ -7,6 +8,11 @@ import { ShareableUrlModal } from "./ShareableUrlModal";
 import { CanvasPreviewToolbar, type ViewportId } from "./CanvasPreviewToolbar";
 import { IframeOverlay } from "@/components/canvas/IframeOverlay";
 import { ElementInspector } from "@/components/canvas/ElementInspector";
+import { FloatingToolbar } from "@/components/canvas/FloatingToolbar";
+import { ImageReplacePopover } from "@/components/canvas/ImageReplacePopover";
+import { bridgeMakeEditable, bridgeReplaceImg, bridgeRevertText } from "@/lib/canvas/atlas-edit-bridge-client";
+import { useEditPatchQueue } from "@/lib/canvas/use-edit-patch-queue";
+import { applyPatch as applyPatchAction } from "@/lib/actions/applyPatch";
 import { useCanvasMode } from "@/lib/canvas/use-canvas-state";
 import type { DomNode } from "@/lib/canvas/use-element-selection";
 
@@ -37,6 +43,12 @@ interface CanvasPreviewClientProps {
    * lifting, the inspector would never see the clicked element.
    */
   elementSlidersEnabled?: boolean;
+  /**
+   * Plan canvas-in-place-editing Task 17 — when true, mount <FloatingToolbar />
+   * anchored to the selected element and wire text/image patch flows.
+   * Resolved server-side so this client component stays env-free.
+   */
+  inlineEditEnabled?: boolean;
 }
 
 export function CanvasPreviewClient({
@@ -45,7 +57,8 @@ export function CanvasPreviewClient({
   previewUrl,
   previewError,
   clickToEditEnabled,
-  elementSlidersEnabled
+  elementSlidersEnabled,
+  inlineEditEnabled
 }: CanvasPreviewClientProps) {
   const [viewport, setViewport] = useState<ViewportId>("desktop");
   const [shareOpen, setShareOpen] = useState(false);
@@ -60,6 +73,60 @@ export function CanvasPreviewClient({
   // hook instance owns its own state), so without lifting here, the inspector
   // would never observe the overlay's clicked element.
   const [selected, setSelected] = useState<DomNode | null>(null);
+
+  // Phase 1 simplification: every patch targets page.tsx. Phase 2 will derive
+  // the target file from the selected element's source location.
+  const TARGET_FILE = "/code/src/app/page.tsx";
+
+  const [imagePopoverOpen, setImagePopoverOpen] = React.useState(false);
+
+  const queue = useEditPatchQueue({
+    apply: async (req) => {
+      const result = await applyPatchAction({
+        projectId,
+        filePath: req.filePath,
+        patch: req.patch
+      });
+      return {
+        ok: result.ok,
+        ...(result.inverse !== undefined ? { inverse: result.inverse } : {}),
+        ...(result.error !== undefined ? { error: result.error } : {})
+      };
+    }
+  });
+
+  const handleEditText = React.useCallback((node: DomNode) => {
+    if (!overlayIframeRef.current || !node.atlasId) return;
+    bridgeMakeEditable(overlayIframeRef.current, { atlasId: node.atlasId });
+  }, []);
+
+  const handleReplaceImage = React.useCallback((_node: DomNode) => {
+    setImagePopoverOpen(true);
+  }, []);
+
+  // Listen for atlas-text-committed messages from the bridge → submit text-replace patch.
+  React.useEffect(() => {
+    function onMessage(ev: MessageEvent) {
+      const data = ev.data as { type?: string; atlasId?: string; newText?: string };
+      if (data?.type !== "atlas-text-committed" || !data.atlasId) return;
+      const oldText = selected?.text ?? "";
+      const newText = data.newText ?? "";
+      if (oldText === newText) return;
+      const atlasId = data.atlasId;
+      void queue
+        .submitPatch({
+          filePath: TARGET_FILE,
+          patch: { kind: "text-replace", atlasId, oldText, newText }
+        })
+        .then((result) => {
+          if (!result.ok && overlayIframeRef.current) {
+            bridgeRevertText(overlayIframeRef.current, { atlasId, oldText });
+          }
+        });
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [selected, queue]);
 
   // Click-to-edit overlay is gated on BOTH the feature flag (server-resolved
   // and threaded down as a prop) AND the workspace mode being "visual-edits".
@@ -120,6 +187,43 @@ export function CanvasPreviewClient({
                 <IframeOverlay
                   iframeRef={overlayIframeRef}
                   onSelect={setSelected}
+                />
+              )}
+              {inlineEditEnabled && selected && (
+                <FloatingToolbar
+                  node={selected}
+                  onEditText={handleEditText}
+                  onOpenStyle={() => {/* Phase 1 stub — wire to ElementInspector popover later */}}
+                  onAskAi={() => {/* Phase 2 wires the chat chip */}}
+                  onReplaceImage={handleReplaceImage}
+                />
+              )}
+              {inlineEditEnabled && imagePopoverOpen && selected && (
+                <ImageReplacePopover
+                  onClose={() => setImagePopoverOpen(false)}
+                  onSubmit={async ({ url, alt }) => {
+                    setImagePopoverOpen(false);
+                    if (!selected.atlasId) return;
+                    const atlasId = selected.atlasId;
+                    const oldUrl = "";
+                    if (overlayIframeRef.current) {
+                      bridgeReplaceImg(overlayIframeRef.current, {
+                        atlasId,
+                        newUrl: url,
+                        ...(alt !== undefined ? { newAlt: alt } : {})
+                      });
+                    }
+                    await queue.submitPatch({
+                      filePath: TARGET_FILE,
+                      patch: {
+                        kind: "asset-swap",
+                        atlasId,
+                        oldUrl,
+                        newUrl: url,
+                        ...(alt !== undefined ? { newAlt: alt } : {})
+                      }
+                    });
+                  }}
                 />
               )}
             </div>

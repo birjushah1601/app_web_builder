@@ -41,6 +41,10 @@ export interface CanvasShellWiredProps {
    *  inside PreviewCanvas. Threaded through unchanged; the inspector
    *  itself adds the mode === "visual-edits" check. */
   elementSlidersEnabled?: boolean;
+  /** Plan canvas-in-place-editing Task 17 — gates FloatingToolbar + text/image
+   *  patch flows inside PreviewCanvas. Resolved server-side; threaded through
+   *  unchanged so the client component stays env-free. */
+  inlineEditEnabled?: boolean;
   /** Test seam — defaults to the Server Action import. Tests can pass a
    *  vitest mock fn here so they don't need to mock the action module. */
   onSelectDirection?: (input: { ritualId: string; directionId: string; tokens?: unknown }) => Promise<void>;
@@ -57,6 +61,7 @@ export function CanvasShellWired({
   previewError,
   clickToEditEnabled,
   elementSlidersEnabled,
+  inlineEditEnabled,
   onSelectDirection,
   manifestOverride
 }: CanvasShellWiredProps) {
@@ -123,7 +128,8 @@ export function CanvasShellWired({
       ...(previewUrl !== undefined ? { previewUrl } : {}),
       ...(previewError !== undefined ? { previewError } : {}),
       ...(clickToEditEnabled !== undefined ? { clickToEditEnabled } : {}),
-      ...(elementSlidersEnabled !== undefined ? { elementSlidersEnabled } : {})
+      ...(elementSlidersEnabled !== undefined ? { elementSlidersEnabled } : {}),
+      ...(inlineEditEnabled !== undefined ? { inlineEditEnabled } : {})
     };
     if (proposalState.ritualId === null) {
       return { persona, ...previewProps };
@@ -136,7 +142,7 @@ export function CanvasShellWired({
       ...(submittedDirection !== null ? { submittedDirectionId: submittedDirection } : {}),
       ...previewProps
     };
-  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, handleSelect, handleRefine, submittedDirection]);
+  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, inlineEditEnabled, handleSelect, handleRefine, submittedDirection]);
 
   return (
     <CanvasShell
