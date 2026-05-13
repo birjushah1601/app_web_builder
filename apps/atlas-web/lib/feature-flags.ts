@@ -31,6 +31,8 @@ export type FeatureFlag =
   | "reference-input"
   | "editable-plan"
   | "element-sliders"
+  // Plan IPE — canvas in-place editing (2026-05-13).
+  | "inline-edit-v1"
   // Plan SPU — pipeline upgrade. Designer three-pass, reference imagery as
   // Designer input, AssetGenerator dispatch + its two image-source fallbacks.
   | "designer-critique"
@@ -106,6 +108,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // "element-sliders" → ElementInspector with Haiku-proposed axes that
   //                     patch design-tokens.json or scoped Tailwind classes.
   "element-sliders": "ATLAS_FF_ELEMENT_SLIDERS",
+  // Plan IPE (2026-05-13-canvas-in-place-editing) — master flag for the
+  //   floating toolbar + AST patch engine. Flag-OFF = today's canvas unchanged.
+  "inline-edit-v1": "ATLAS_FF_INLINE_EDIT_V1",
   // Plan SPU (2026-05-12-stunning-pipeline-upgrade) — five independently
   // flag-gated pipeline upgrades. Each defaults OFF.
   // "designer-critique" → 3-pass Designer (draft → critique → revise) for
@@ -221,6 +226,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "reference-input": isFeatureEnabled("reference-input", source),
     "editable-plan": isFeatureEnabled("editable-plan", source),
     "element-sliders": isFeatureEnabled("element-sliders", source),
+    "inline-edit-v1": isFeatureEnabled("inline-edit-v1", source),
     "designer-critique": isFeatureEnabled("designer-critique", source),
     "reference-images": isFeatureEnabled("reference-images", source),
     "asset-gen": isFeatureEnabled("asset-gen", source),
