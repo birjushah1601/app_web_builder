@@ -26,14 +26,14 @@ describe("applyPatch dispatcher", () => {
     expect(r.newContent).toContain('className="a"');
   });
 
-  it("returns unsupported for dom-mutation in Phase 1", () => {
-    const src = `export default () => <h1 data-atlas-id="h">x</h1>;`;
+  it("routes dom-mutation to applyDomMutation", () => {
+    const src = `export default () => <div><h1 data-atlas-id="h">x</h1></div>;`;
     const r = applyPatch(src, {
       kind: "dom-mutation",
       atlasId: "h",
       op: { kind: "delete" }
     });
-    expect(r.ok).toBe(false);
-    expect(r.error).toBe("unsupported");
+    expect(r.ok).toBe(true);
+    expect(r.newContent).not.toContain('data-atlas-id="h"');
   });
 });
