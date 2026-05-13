@@ -87,11 +87,20 @@ export function CodeLayout({ projectId, repoSlug, files }: CodeLayoutProps) {
           />
         )}
         {!loadingFile && !openedFile && (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-zinc-600">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-zinc-300">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-500">
               <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
             </svg>
-            <p className="text-sm">Select a file to edit</p>
+            <div className="max-w-sm text-center">
+              <p className="text-base font-medium text-zinc-100">
+                {files.length === 0 ? "No files mirrored yet" : "Select a file from the left"}
+              </p>
+              <p className="mt-1 text-xs text-zinc-400">
+                {files.length === 0
+                  ? "Code is currently sourced from the spec-graph-sync mirror, which isn't populated by ritual flows. The live generated site is visible in the Canvas view."
+                  : "Click any file in the tree to open it in the Monaco editor."}
+              </p>
+            </div>
           </div>
         )}
       </main>
