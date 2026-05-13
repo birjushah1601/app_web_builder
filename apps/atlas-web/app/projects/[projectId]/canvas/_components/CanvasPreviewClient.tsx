@@ -82,7 +82,7 @@ export function CanvasPreviewClient({
         onReload={() => setReloadKey((k) => k + 1)}
         onShare={() => setShareOpen(true)}
       />
-      <div className="flex-1 overflow-auto flex items-start justify-center bg-slate-50 p-4">
+      <div className="flex-1 min-h-0 overflow-auto flex items-start justify-center bg-slate-50 p-4">
         {previewError ? (
           <div
             role="alert"
@@ -96,15 +96,20 @@ export function CanvasPreviewClient({
             </span>
           </div>
         ) : (
-          <div className="flex flex-row items-start gap-4 max-w-full">
+          <div className="flex flex-row items-start gap-4 max-w-full w-full">
             <div
               data-testid="canvas-preview-frame"
-              className="relative rounded-md border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col transition-all duration-200"
+              className="relative rounded-md border border-slate-200 bg-white shadow-sm overflow-auto flex flex-col transition-all duration-200"
               style={{
-                width: VIEWPORTS[viewport].width,
+                // Desktop viewport: fill the available pane so a 4000px-tall
+                // landing page can scroll internally instead of being clipped
+                // by the 900px nominal "desktop" height. Tablet + mobile keep
+                // the device-frame width but stretch to pane height for the
+                // same reason.
+                width: viewport === "desktop" ? "100%" : VIEWPORTS[viewport].width,
                 maxWidth: "100%",
-                height: VIEWPORTS[viewport].height,
-                maxHeight: "100%"
+                height: "100%",
+                minHeight: 0
               }}
             >
               <HmrIframe key={reloadKey} src={previewUrl} title="Live preview" projectId={projectId} />

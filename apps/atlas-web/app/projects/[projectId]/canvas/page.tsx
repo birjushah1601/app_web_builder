@@ -11,6 +11,7 @@ import { CanvasPreviewClient } from "./_components/CanvasPreviewClient";
 import { CanvasShellWired } from "@/components/canvas/CanvasShellWired";
 import { ModeToolbarHost } from "@/components/canvas/ModeToolbarHost";
 import { RedeployButton } from "@/components/canvas/RedeployButton";
+import { BuildProgressBanner } from "@/components/canvas/BuildProgressBanner";
 // Side-effect import — populates the canvasModeRegistry singleton at module
 // load time (atlas-web only mounts CanvasShell when the canvas-v1 flag is on,
 // but the registration runs unconditionally so the registry is always ready).
@@ -88,6 +89,7 @@ export default async function CanvasPage({ params }: { params: Promise<{ project
         <RedeployButton projectId={projectId} />
         <DemoModeToggle projectId={projectId} initialEnabled={demoModeOn} />
       </header>
+      <BuildProgressBanner />
       <div className="flex flex-1 min-h-0">
       <section className="flex-1 flex flex-col">
         {canvasV1On ? (
