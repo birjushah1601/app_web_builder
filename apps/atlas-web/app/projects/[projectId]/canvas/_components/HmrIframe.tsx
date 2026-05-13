@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useReloadOnApplied, RELOAD_PARAM } from "@/lib/canvas/useReloadOnApplied";
 import { EmptyPreviewBackdrop } from "./EmptyPreviewBackdrop";
 
@@ -32,15 +32,13 @@ export function HmrIframe({ src, title, projectId, onLoad, className }: HmrIfram
     return `${src}${sep}${RELOAD_PARAM}=${encodeURIComponent(cacheBuster)}`;
   }, [src, cacheBuster]);
 
-  useEffect(() => {
-    if (!iframeRef.current || !effectiveSrc) return;
-    // Dynamically import iframe-resizer to avoid SSR issues
-    import("iframe-resizer").then(({ iframeResize }) => {
-      if (iframeRef.current) {
-        iframeResize({ log: false, checkOrigin: false }, iframeRef.current);
-      }
-    });
-  }, [effectiveSrc]);
+  // Note: iframe-resizer was previously used here to grow the iframe to its
+  // content's natural height. That assumes the page inside the sandbox loads
+  // iframe-resizer's child script, which our atlas-next-ts template doesn't.
+  // The net effect was an iframe that mis-sized (collapsed or oversized
+  // depending on flex parents) and broke scrolling. The native iframe handles
+  // internal scroll for long pages out of the box when it has a fixed height
+  // from its parent — which is exactly the setup CanvasPreviewClient gives it.
 
   if (!src) {
     return <EmptyPreviewBackdrop status="provisioning sandbox · ~5s" />;
