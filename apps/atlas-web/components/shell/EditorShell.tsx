@@ -36,7 +36,7 @@ export function EditorShell({ projectId, left, right }: Props) {
         data-testid="editor-shell-collapse-left"
         aria-label={layout.leftCollapsed ? "Expand chat panel" : "Collapse chat panel"}
         onClick={() => setLayout({ ...layout, leftCollapsed: !layout.leftCollapsed })}
-        className="flex w-6 items-center justify-center border-r border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-900"
+        className="flex w-3 items-center justify-center border-r border-slate-200 bg-slate-50 text-[10px] text-slate-400 hover:text-slate-900"
       >
         {layout.leftCollapsed ? "›" : "‹"}
       </button>
@@ -71,7 +71,7 @@ export function EditorShell({ projectId, left, right }: Props) {
         data-testid="editor-shell-collapse-right"
         aria-label={layout.rightCollapsed ? "Expand preview panel" : "Collapse preview panel"}
         onClick={() => setLayout({ ...layout, rightCollapsed: !layout.rightCollapsed })}
-        className="flex w-6 items-center justify-center border-l border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-900"
+        className="flex w-3 items-center justify-center border-l border-slate-200 bg-slate-50 text-[10px] text-slate-400 hover:text-slate-900"
       >
         {layout.rightCollapsed ? "‹" : "›"}
       </button>
