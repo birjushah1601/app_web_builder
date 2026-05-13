@@ -151,14 +151,21 @@ Out of scope for the first ship. Mention only so the architecture leaves room: e
 
 The hardest problem in this design: **stable bi-directional identity** between a DOM element and the JSX node that produced it.
 
-**Solution:** a Babel/SWC plugin in the sandbox template that, at build time, annotates every JSX opening element with a stable `data-atlas-id` attribute. The ID is a hash of `(filePath, jsxNodeRange)` so it survives line-number shuffles but changes when the JSX is structurally edited.
+**Solution: a two-track approach**, choosing the simplest path that works for our build chain (Next.js 15 + SWC).
 
-- `atlas-edit-bridge` reads `data-atlas-id` off each walked DOM node and includes it in the posted tree.
+Next.js 15 compiles JSX with SWC by default. Writing a custom SWC plugin requires a Rust toolchain and ships a `.wasm` blob — too heavy for this feature. Babel is available but opting into it disables SWC's fast refresh and bumps cold-build times noticeably. So we use a **build-step post-processor** instead:
+
+1. **Atlas-side: post-write annotator.** When the engine's `applyDiff` writes JSX files to the sandbox, a wrapping pass (`@atlas/edit-patch-engine`'s `annotateAtlasIds`) parses each modified `.tsx` file with `@babel/parser`, visits every `JSXOpeningElement` that lacks `data-atlas-id`, and inserts the attribute. The hash is `sha1(filePath + ":" + jsxNodeStart).slice(0,12)` — stable across whitespace edits, distinct across structural edits.
+2. **Sandbox-side: no plugin needed.** Because the annotations are baked into the source files BEFORE they land in the sandbox, the sandbox just compiles JSX normally. No SWC plugin, no Babel opt-in, no template change beyond ensuring the developer doesn't strip `data-*` attributes (Next.js doesn't).
+
+This means:
+- `atlas-edit-bridge` reads `data-atlas-id` off each walked DOM node — straightforward.
 - `IframeOverlay` surfaces it as the selection key.
 - All patches reference elements by `atlasId`, not CSS selector — the selector is fragile (changes when sibling classes change); the ID is stable until the node itself is destructively edited.
-- Source writer locates the JSX node by traversing the AST and matching the same `(filePath, jsxNodeRange)` hash.
+- Source writer locates the JSX node by `data-atlas-id` value via AST traversal.
+- **No sandbox template republish required** for the identity scheme itself — the annotator runs at `applyDiff` time in atlas-web.
 
-The plugin is small (~50 lines) and lives at `packages/sandbox-e2b/templates/atlas-next-ts/scripts/atlas-jsx-id-plugin.ts`. It's added to the template's `next.config.mjs` swc-plugins list.
+Trade-off: a brand-new project with no prior ritual has un-annotated JSX (the base template). First user click on an unannotated element gracefully falls back to "select by CSS selector + dispatch focused-refine"; the developer's diff annotates as it goes, so subsequent edits work on the fast AST path.
 
 ### Optimistic vs source-of-truth ordering
 
@@ -196,7 +203,7 @@ When the user types a chat instruction with a selection chip:
 5. Engine applies the diff via the same `applyDiff` path used after a full ritual.
 6. HMR reloads the iframe.
 
-**Critical:** no full ritual chain runs. No architect, researcher, designer. Just the developer role with a tight prompt and a tight scope. Typical wall-time: ~10–30s, ~$0.005 per edit.
+**Critical:** no full ritual chain runs. No architect, researcher, designer. Just the developer role with a tight prompt and a tight scope. Typical wall-time: ~10–30s. Cost depends on which model the developer slot is pointed at — with Sonnet 4.5 (current default), expect roughly **$0.02–$0.05 per chat edit** for a typical 1–3K input + 200–500 output tokens. Set `ATLAS_LLM_DEVELOPER_MODEL=anthropic/claude-haiku-4.5` to cut that to ~$0.002–$0.005 per edit for users who prefer cheaper-but-less-polished outputs.
 
 ## Components to build
 
@@ -213,11 +220,11 @@ When the user types a chat instruction with a selection chip:
 - Add `atlas-make-editable` / `atlas-blur-editable` to toggle `contenteditable` on demand from the parent (so the parent's toolbar drives it).
 - On user-completed inline edit (`blur` after editable mode), post `atlas-text-committed` back to parent with the new value.
 
-### Sandbox template — Babel/SWC plugin
-- New plugin at `packages/sandbox-e2b/templates/atlas-next-ts/scripts/atlas-jsx-id-plugin.ts`.
-- Visits `JSXOpeningElement`; if the element doesn't already have `data-atlas-id`, computes `hash(filePath + nodeStart + nodeEnd)` and inserts it.
-- Wired into the template's build chain.
-- Template republish required after this lands.
+### `@atlas/edit-patch-engine` — `annotateAtlasIds` helper
+- Lives in the same new package as the patch engine.
+- Parses a JSX file with `@babel/parser`, visits every `JSXOpeningElement` lacking `data-atlas-id`, inserts a stable hash attribute.
+- Invoked at `applyDiff` time in `apps/atlas-web/lib/sandbox/apply-diff.ts` for every `.tsx` file the diff touches — annotations land in the sandbox alongside the developer's code.
+- No sandbox template change required.
 
 ### atlas-web client
 - **`FloatingToolbar`** (new) — small component that absolute-positions itself near the selected element, contains per-element-type action buttons.
@@ -264,12 +271,12 @@ type EditPatch =
 
 ## Feature flags
 
-- `ATLAS_FF_INLINE_EDIT_V1` — master flag for the whole feature. Defaults OFF. Gates the floating toolbar, contenteditable wiring, selection chip on ChatPanel, edit-patch-engine.
-- The flag flips on when the `data-atlas-id` plugin has been republished into the sandbox template and the patch engine is built.
+- `ATLAS_FF_INLINE_EDIT_V1` — master flag for the whole feature. Defaults OFF. Gates the floating toolbar, contenteditable wiring, selection chip on ChatPanel, edit-patch-engine wiring in `applyDiff`.
+- No sandbox template republish required — `annotateAtlasIds` runs in atlas-web's `applyDiff` path, not in the sandbox build.
 
 ## Risks + mitigations
 
-1. **AST locate failures** — if `data-atlas-id` doesn't match (e.g. user edited the source manually), fall through to focused-refine. Always have an LLM escape hatch.
+1. **AST locate failures** — if `data-atlas-id` is missing (un-annotated element) or doesn't match (user edited the source manually), the patch engine returns `{ ok: false, fallback: "ai-rewrite" }` and the client transparently re-submits as an `ai-rewrite` patch. The user sees the iframe update on the optimistic path; the source-write upgrades from free-and-instant to ~$0.02-$0.05 and ~20s. A small "saving via AI…" indicator distinguishes the slow path so the user understands the delay.
 2. **HMR thrash** — a fast user rapid-fire-editing 5 things in 3 seconds would trigger 5 HMR cycles. Mitigation: debounce source writes by 300ms; coalesce contiguous patches against the same atlasId into a single write.
 3. **Optimistic-revert flicker** — if source write fails after the optimistic apply, the revert blink is visible. Mitigation: a 1-second "applying…" indicator on the element so the user knows it's not yet committed; revert only shows if the indicator was still visible.
 4. **Babel/SWC plugin breaks template build** — keep the plugin pure-pass (no breaking changes to JSX semantics); ship behind a sandbox-template feature flag that defaults on after the next template rebuild.
@@ -288,9 +295,10 @@ type EditPatch =
 ## Phased rollout
 
 ### Phase 1 (week 1) — foundation + text + style
-- `data-atlas-id` plugin + sandbox template republish.
-- `@atlas/edit-patch-engine` package with `text-replace` + `style-class-patch` + `asset-swap` patches.
+- `@atlas/edit-patch-engine` package: `annotateAtlasIds` + `text-replace` + `style-class-patch` + `asset-swap` patches.
+- Wire `annotateAtlasIds` into `applyDiff` so future developer outputs are tagged.
 - `FloatingToolbar`, inline contenteditable, image replace popover.
+- ElementInspector style flow already exists — Haiku-axis proposal stays as today; only the patch APPLICATION path is unified (writes through the new patch engine for consistency).
 - Flag-gated via `ATLAS_FF_INLINE_EDIT_V1`.
 
 ### Phase 2 (week 2) — chat + structural
