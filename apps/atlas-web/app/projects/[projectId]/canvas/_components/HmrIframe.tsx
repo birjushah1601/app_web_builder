@@ -44,27 +44,33 @@ export function HmrIframe({ src, title, projectId, onLoad, className }: HmrIfram
     return <EmptyPreviewBackdrop status="provisioning sandbox · ~5s" />;
   }
 
+  // Manual reload is intentionally only exposed when an HMR-reload error
+  // toast is showing (i.e. something actually went wrong). The redundant
+  // always-on "Reload preview" button was duplicate UI — CanvasPreviewToolbar
+  // already exposes a Reload button at the same level. Reference manualReload
+  // here so the lint doesn't flag the import as unused and so we keep an
+  // affordance to expose it later if the toast UX needs a retry hook.
+  void manualReload;
+
   return (
     <div className="relative flex flex-col h-full">
       {toast !== null && (
         <div
           role="alert"
           data-testid="preview-reload-toast"
-          className="m-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          className="m-2 flex items-center gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
         >
-          {toast}
+          <span className="flex-1">{toast}</span>
+          <button
+            type="button"
+            data-testid="preview-reload-button"
+            onClick={manualReload}
+            className="rounded border border-red-300 px-2 py-0.5 text-xs hover:bg-red-100"
+          >
+            Reload
+          </button>
         </div>
       )}
-      <div className="flex justify-end px-2 py-1">
-        <button
-          type="button"
-          data-testid="preview-reload-button"
-          onClick={manualReload}
-          className="rounded px-3 py-1 text-sm font-medium border text-muted-foreground hover:bg-muted"
-        >
-          Reload preview
-        </button>
-      </div>
       <iframe
         ref={iframeRef}
         src={effectiveSrc}

@@ -118,24 +118,42 @@ export interface UseCanvasModeResult {
   setMode: (m: CanvasMode) => void;
 }
 
+// Custom window event broadcast — every useCanvasMode consumer in the
+// page listens for this and re-reads localStorage on fire. Without it,
+// ModeToolbarHost's setMode call only updates its own useState; sibling
+// consumers like CanvasPreviewClient (which gate the inspector + overlay
+// on mode === "visual-edits") keep their stale local copy, so the
+// inspector panel can stay visible after the user clicks "Agent". Window
+// `storage` event only fires across tabs — same-window writes need a
+// manual broadcast.
+const CANVAS_MODE_EVENT = "atlas:canvas-mode-changed";
+
 export function useCanvasMode(projectId: string): UseCanvasModeResult {
   const [mode, setModeState] = useState<CanvasMode>(DEFAULT_CANVAS_MODE);
 
-  // Hydrate from localStorage on mount. We do NOT include `projectId` in
-  // the dep array of the initial-state lazy initializer because that runs
-  // server-side too — useEffect-after-mount is the only SSR-safe path.
+  // Hydrate from localStorage on mount AND any time another consumer
+  // (sibling component, ModeToolbarHost) writes a new value.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem(canvasModeStorageKey(projectId));
-      if (raw && VALID_MODES.has(raw as CanvasMode)) {
-        setModeState(raw as CanvasMode);
+    const sync = () => {
+      try {
+        const raw = window.localStorage.getItem(canvasModeStorageKey(projectId));
+        if (raw && VALID_MODES.has(raw as CanvasMode)) {
+          setModeState(raw as CanvasMode);
+        }
+      } catch {
+        // localStorage can throw (private mode, quota, disabled). Silently
+        // fall back to the default — the toolbar still works, it just won't
+        // persist this session.
       }
-    } catch {
-      // localStorage can throw (private mode, quota, disabled). Silently
-      // fall back to the default — the toolbar still works, it just won't
-      // persist this session.
-    }
+    };
+    sync();
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ projectId: string }>).detail;
+      if (detail?.projectId === projectId) sync();
+    };
+    window.addEventListener(CANVAS_MODE_EVENT, handler);
+    return () => window.removeEventListener(CANVAS_MODE_EVENT, handler);
   }, [projectId]);
 
   const setMode = useCallback(
@@ -144,6 +162,9 @@ export function useCanvasMode(projectId: string): UseCanvasModeResult {
       if (typeof window === "undefined") return;
       try {
         window.localStorage.setItem(canvasModeStorageKey(projectId), next);
+        window.dispatchEvent(
+          new CustomEvent(CANVAS_MODE_EVENT, { detail: { projectId } })
+        );
       } catch {
         // Same swallow as above.
       }

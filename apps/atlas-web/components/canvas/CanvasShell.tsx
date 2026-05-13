@@ -74,15 +74,28 @@ export function CanvasShell({
     | React.ComponentType<Record<string, unknown>>
     | undefined;
 
+  // The designing/preview ModeToggle row was visually redundant with the
+  // Agent/Plan/Visual-Edits toolbar above (two mode-toggle rows = chatty).
+  // Modes auto-switch via use-canvas-state's event subscription
+  // (canvas.options.requested → designing, sandbox.apply.completed → preview),
+  // so the manual switcher is rarely useful. Keep ModeToggle imported but
+  // gated behind a `?canvas-modes=show` query string for power-users who
+  // want to manually flip back without a page refresh.
+  const showModeToggle =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("canvas-modes") === "show";
+
   return (
     <div data-testid="canvas-shell" className="flex h-full w-full flex-col">
-      <div className="flex justify-end border-b border-slate-200 bg-white px-4 py-2">
-        <ModeToggle
-          modes={filtered.modes.map((m) => ({ id: m.id, label: m.id }))}
-          active={activeMode.id}
-          onChange={setActiveId}
-        />
-      </div>
+      {showModeToggle && (
+        <div className="flex justify-end border-b border-slate-200 bg-white px-4 py-2">
+          <ModeToggle
+            modes={filtered.modes.map((m) => ({ id: m.id, label: m.id }))}
+            active={activeMode.id}
+            onChange={setActiveId}
+          />
+        </div>
+      )}
       <div className="flex-1 overflow-auto">
         {Renderer ? <Renderer {...(rendererProps ?? {})} /> : children}
       </div>
