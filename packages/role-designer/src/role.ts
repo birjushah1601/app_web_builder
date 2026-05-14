@@ -9,6 +9,7 @@ import {
   CRITIQUE_SYSTEM_PROMPT,
   CRITIQUE_TOOL_SCHEMA,
   CritiqueSchema,
+  renderCritiqueUserTurn,
   type Critique
 } from "./critique-prompt.js";
 import {
@@ -18,6 +19,7 @@ import {
 
 export interface DesignerRoleOptions {
   llm: LLMProvider;
+  critiqueModel?: string;  // Sonnet for distinctness scoring; falls back to draftModel or haiku
 }
 
 type DesignerEvents = RoleOutput["events"];
@@ -25,9 +27,11 @@ type DesignerEvents = RoleOutput["events"];
 export class DesignerRole implements Role {
   readonly id = "designer";
   private readonly llm: LLMProvider;
+  private readonly critiqueModel: string | undefined;
 
   constructor(opts: DesignerRoleOptions) {
     this.llm = opts.llm;
+    this.critiqueModel = opts.critiqueModel;
   }
 
   async run(inv: RoleInvocation): Promise<RoleOutput> {
@@ -151,7 +155,9 @@ export class DesignerRole implements Role {
       },
       {
         role: "user",
-        content: `Draft to critique:\n${JSON.stringify(draft, null, 2)}\n\nResearcher brief (if any):\n${JSON.stringify(brief, null, 2)}`
+        content: brief
+          ? renderCritiqueUserTurn(brief, draft)
+          : `Draft to critique:\n${JSON.stringify(draft, null, 2)}\n\nResearcher brief (if any):\n${JSON.stringify(brief, null, 2)}`
       }
     ];
 
@@ -163,7 +169,7 @@ export class DesignerRole implements Role {
           o: Record<string, unknown>
         ) => Promise<{ toolName: string; input: unknown }>;
       }).completeWithToolUse(messages, {
-        model: process.env.ATLAS_LLM_DESIGNER_CRITIQUE_MODEL ?? "anthropic/claude-haiku-4.5",
+        model: this.critiqueModel ?? process.env.ATLAS_LLM_CRITIQUE_MODEL ?? "anthropic/claude-haiku-4.5",
         maxTokens: 1024,
         tools: [
           {

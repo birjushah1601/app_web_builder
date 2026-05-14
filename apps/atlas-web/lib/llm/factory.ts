@@ -80,7 +80,10 @@ export const getDesignerRole = cache(async (): Promise<TDesignerRole | null> => 
   if (!llm) return null;
 
   const { DesignerRole } = await import("@atlas/role-designer");
-  return new DesignerRole({ llm });
+  return new DesignerRole({
+    llm,
+    critiqueModel: process.env.ATLAS_LLM_CRITIQUE_MODEL ?? "anthropic/claude-sonnet-4.5"
+  });
 });
 
 /**
