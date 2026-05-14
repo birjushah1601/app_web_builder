@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useReloadOnApplied, RELOAD_PARAM } from "@/lib/canvas/useReloadOnApplied";
+import { useEventStream } from "@/lib/events/EventSourceProvider";
 import { EmptyPreviewBackdrop } from "./EmptyPreviewBackdrop";
 
 interface HmrIframeProps {
@@ -19,6 +20,29 @@ interface HmrIframeProps {
 export function HmrIframe({ src, title, projectId, onLoad, className }: HmrIframeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { cacheBuster, toast, manualReload } = useReloadOnApplied(projectId);
+  const lastLoadAtRef = useRef<number>(0);
+  const { events } = useEventStream();
+
+  // Detect the "engine reprovisioned the sandbox mid-ritual but our iframe
+  // src still points at the dead URL" case. The factory's tryApply logs
+  // `[atlas-web] sandbox stale ...` server-side and recovers via the second
+  // attempt, but the client-side <iframe src=...> doesn't know the target
+  // changed — it sits on a non-responding URL forever. Heuristic: when
+  // `sandbox.apply.completed` lands, give the iframe up to 6s to fire its
+  // onload event. If it doesn't, the URL is presumed dead — hard-reload the
+  // page so the Server Component re-renders with the fresh previewUrl.
+  useEffect(() => {
+    if (events.length === 0) return;
+    const last = events[events.length - 1];
+    if (!last || last.type !== "sandbox.apply.completed") return;
+    const eventTs = last.ts;
+    const timer = setTimeout(() => {
+      if (lastLoadAtRef.current < eventTs) {
+        if (typeof window !== "undefined") window.location.reload();
+      }
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [events]);
 
   // Compute the effective src — append `?atlas-reload=<value>` (or `&...`
   // when the URL already has a query string) once cacheBuster is non-empty.
@@ -75,7 +99,10 @@ export function HmrIframe({ src, title, projectId, onLoad, className }: HmrIfram
         ref={iframeRef}
         src={effectiveSrc}
         title={title}
-        onLoad={onLoad}
+        onLoad={() => {
+          lastLoadAtRef.current = Date.now();
+          onLoad?.();
+        }}
         className={className ?? "w-full h-full border-0 rounded-lg flex-1"}
         allow="clipboard-read; clipboard-write"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
