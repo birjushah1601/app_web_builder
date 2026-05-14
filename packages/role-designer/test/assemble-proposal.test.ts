@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { assembleProposal, DESIGNER_PROPOSAL_MODEL } from "../src/assemble-proposal.js";
+import { assembleProposal, DESIGNER_PROPOSAL_MODEL, DesignDirectionSchema } from "../src/assemble-proposal.js";
 import { DesignProposalSchema } from "../src/types.js";
 import type { InspirationBrief } from "@atlas/role-researcher";
 import { DesignerFailedError } from "../src/errors.js";
@@ -24,6 +24,7 @@ const direction = (id: string, refs: string[] = []) => ({
   shortDescription: `${id} short`,
   technicalDescription: `${id} technical`,
   citedReferences: refs,
+  layoutDirective: "Hero with food. Menu by category. NO testimonials.",
   tokens
 });
 
@@ -139,5 +140,49 @@ describe("assembleProposal", () => {
         architectArtifact: { scope: "frontend-landing", graphSlice: { bytes: "{}", hash: "h" } }
       })
     ).rejects.toThrow(DesignerFailedError);
+  });
+});
+
+describe("DesignDirectionSchema layoutDirective", () => {
+  it("rejects a direction missing layoutDirective", () => {
+    const sample = {
+      id: "x",
+      name: "x",
+      shortDescription: "x",
+      technicalDescription: "x",
+      citedReferences: [],
+      tokens: {
+        palette: { primary: "#000", accent: "#fff", surface: "#fff", text: "#000", muted: "#888" },
+        typeScale: { sansFamily: "Inter", serifFamily: "Georgia", monoFamily: "Mono", baseSizePx: 16, scale: "major-third" },
+        density: "comfortable",
+        componentSet: "shadcn",
+        imageryStrategy: "photo",
+        copyVoice: "friendly"
+      }
+      // layoutDirective intentionally omitted
+    };
+    const result = DesignDirectionSchema.safeParse(sample);
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a direction with a non-empty layoutDirective string", () => {
+    const sample = {
+      id: "x",
+      name: "x",
+      shortDescription: "x",
+      technicalDescription: "x",
+      citedReferences: [],
+      tokens: {
+        palette: { primary: "#000", accent: "#fff", surface: "#fff", text: "#000", muted: "#888" },
+        typeScale: { sansFamily: "Inter", serifFamily: "Georgia", monoFamily: "Mono", baseSizePx: 16, scale: "major-third" },
+        density: "comfortable",
+        componentSet: "shadcn",
+        imageryStrategy: "photo",
+        copyVoice: "friendly"
+      },
+      layoutDirective: "Hero + features + testimonials"
+    };
+    const result = DesignDirectionSchema.safeParse(sample);
+    expect(result.success).toBe(true);
   });
 });

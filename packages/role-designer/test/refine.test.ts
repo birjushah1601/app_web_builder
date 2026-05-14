@@ -9,6 +9,7 @@ const baseDirection: DesignDirection = {
   shortDescription: "x",
   technicalDescription: "y",
   citedReferences: ["Bombay Canteen"],
+  layoutDirective: "Hero with food. Menu by category. NO testimonials.",
   tokens: {
     palette: { primary: "#0a0a0a", accent: "#fbbf24", surface: "#fef3c7", text: "#1f2937", muted: "#6b7280" },
     typeScale: { sansFamily: "Inter", serifFamily: "IBM Plex Serif", monoFamily: "JetBrains Mono", baseSizePx: 16, scale: "minor-third" },

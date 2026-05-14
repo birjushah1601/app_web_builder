@@ -16,6 +16,7 @@ const direction = (id: string, refs: string[] = []) => ({
   shortDescription: "x",
   technicalDescription: "y",
   citedReferences: refs,
+  layoutDirective: "Hero with food. Menu by category. NO testimonials.",
   tokens
 });
 

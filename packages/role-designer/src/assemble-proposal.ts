@@ -1,6 +1,7 @@
 import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import type { InspirationBrief, DesignIntent } from "@atlas/role-researcher";
-import { DesignProposalSchema, type DesignProposal } from "./types.js";
+import { DesignProposalSchema, DesignDirectionSchema, type DesignProposal } from "./types.js";
+export { DesignDirectionSchema };
 import { DesignerFailedError } from "./errors.js";
 
 export const DESIGNER_PROPOSAL_MODEL = "claude-sonnet-4";
@@ -72,9 +73,10 @@ const DIRECTION_SCHEMA = {
     shortDescription: { type: "string" },
     technicalDescription: { type: "string" },
     citedReferences: { type: "array", items: { type: "string" } },
-    tokens: TOKENS_SCHEMA
+    tokens: TOKENS_SCHEMA,
+    layoutDirective: { type: "string", minLength: 20 }
   },
-  required: ["id", "name", "shortDescription", "technicalDescription", "citedReferences", "tokens"]
+  required: ["id", "name", "shortDescription", "technicalDescription", "citedReferences", "tokens", "layoutDirective"]
 } as const;
 
 export const PROPOSAL_TOOL_SCHEMA = {
