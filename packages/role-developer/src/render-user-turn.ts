@@ -23,6 +23,12 @@ interface SelectedTokens {
   copyVoice?: string;
 }
 
+function extractSelectedLayoutDirective(artifact: unknown): string | undefined {
+  if (!artifact || typeof artifact !== "object") return undefined;
+  const v = (artifact as { selectedLayoutDirective?: unknown }).selectedLayoutDirective;
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
 function extractSelectedTokens(artifact: unknown): SelectedTokens | undefined {
   if (!artifact || typeof artifact !== "object") return undefined;
   const tokens = (artifact as { selectedTokens?: SelectedTokens }).selectedTokens;
@@ -63,6 +69,7 @@ function renderTokensSection(tokens: SelectedTokens): string {
 export function renderDeveloperUserTurn(userTurn: string, architectArtifact: unknown): string {
   const sections: string[] = [`User intent: ${userTurn}`];
   const tokens = extractSelectedTokens(architectArtifact);
+  const layoutDirective = extractSelectedLayoutDirective(architectArtifact);
   if (tokens) sections.push("", renderTokensSection(tokens));
 
   // Plan SPU — when the engine's AssetGenerator ran, the architect artifact
@@ -104,14 +111,48 @@ export function renderDeveloperUserTurn(userTurn: string, architectArtifact: unk
     if (lines.length > 1) sections.push("", lines.join("\n"));
   }
 
+  sections.push("", "## Build target");
+  if (layoutDirective) {
+    sections.push(
+      "",
+      "Use this page skeleton (specified by the Designer for this category):",
+      "",
+      "    " + layoutDirective,
+      "",
+      "Honor the named sections AND any explicit exclusions (e.g., 'NO testimonials' means no testimonials block). The Designer chose what fits the category — do not add 'standard' sections just because they appear on most landing pages."
+    );
+  } else {
+    sections.push(
+      "",
+      "Produce a complete landing page (not a stub). Default scaffold for new-app / new-feature requests:",
+      "- Hero section with headline, subheading, primary CTA",
+      "- 2-4 supporting sections (features grid, about, gallery, testimonials, or pricing — pick what fits the intent)",
+      "- Footer with at least site name + a couple links"
+    );
+  }
+
+  const componentSet = (tokens?.componentSet as string | undefined) ?? "shadcn";
+  if (componentSet === "radix-bare") {
+    sections.push(
+      "",
+      "## Component primitives — radix-bare",
+      "",
+      "The Designer chose `componentSet: radix-bare` for this marketing/content page. This means:",
+      "- Do NOT reach for shadcn's `Button`, `Card`, `Tabs`, `Dialog`, etc. primitives — they'd impose slate+blue defaults that fight the chosen palette.",
+      "- DO use raw Tailwind utility classes, lucide-react icons, and framer-motion animations directly.",
+      "- Build cards/buttons/sections from `<div>` + the design tokens. Tokens are in `src/design-tokens.json`.",
+      "- The atlas-next-ts template still ships shadcn imports — leave them in place but don't import from them in NEW components."
+    );
+  } else if (componentSet === "custom") {
+    sections.push(
+      "",
+      "## Component primitives — custom",
+      "",
+      "The Designer chose `componentSet: custom` — build hand-crafted components from raw Tailwind + the design tokens. Don't use shadcn's primitives. This is a distinctive-brand surface."
+    );
+  }
+
   sections.push(
-    "",
-    "## Build target",
-    "",
-    "Produce a complete landing page (not a stub). Default scaffold for new-app / new-feature requests:",
-    "- Hero section with headline, subheading, primary CTA",
-    "- 2-4 supporting sections (features grid, about, gallery, testimonials, or pricing — pick what fits the intent)",
-    "- Footer with at least site name + a couple links",
     "",
     "Match the chosen design tokens. Use semantic HTML (header / main / section / footer). Tailwind utilities only — no inline color overrides.",
     "",
