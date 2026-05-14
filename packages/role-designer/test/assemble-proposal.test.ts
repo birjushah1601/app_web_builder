@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { assembleProposal, DESIGNER_PROPOSAL_MODEL, DesignDirectionSchema } from "../src/assemble-proposal.js";
+import { assembleProposal, DESIGNER_PROPOSAL_MODEL, DesignDirectionSchema, renderDraftUserTurn, MARKETING_CATEGORIES, DRAFT_SYSTEM_PROMPT } from "../src/assemble-proposal.js";
 import { DesignProposalSchema } from "../src/types.js";
 import type { InspirationBrief } from "@atlas/role-researcher";
 import { DesignerFailedError } from "../src/errors.js";
@@ -184,5 +184,66 @@ describe("DesignDirectionSchema layoutDirective", () => {
     };
     const result = DesignDirectionSchema.safeParse(sample);
     expect(result.success).toBe(true);
+  });
+});
+
+describe("renderDraftUserTurn palette anchors", () => {
+  it("prepends a palette anchor block citing the top reference", () => {
+    const brief = {
+      category: "restaurant-landing",
+      audienceCues: ["foodies"],
+      references: [
+        {
+          name: "Bombay Canteen",
+          url: "x",
+          why: "x",
+          sourceTier: "web" as const,
+          palettePreview: ["#fef3c7", "#0a0a0a", "#fbbf24"]
+        }
+      ],
+      patternsThatWin: ["chef portrait"],
+      patternsThatLose: ["fake testimonials"]
+    };
+    const out = renderDraftUserTurn(brief, "build a restaurant site");
+    expect(out).toContain("Palette anchor");
+    expect(out).toContain("Bombay Canteen");
+    expect(out).toContain("#fef3c7");
+    expect(out).toContain("#0a0a0a");
+    expect(out).toContain("#fbbf24");
+  });
+
+  it("renders a no-anchor fallback when the top reference lacks palettePreview", () => {
+    const brief = {
+      category: "x",
+      audienceCues: [],
+      references: [{ name: "Generic", url: "x", why: "x", sourceTier: "web" as const }],
+      patternsThatWin: [],
+      patternsThatLose: []
+    };
+    const out = renderDraftUserTurn(brief, "x");
+    expect(out).toContain("no palette preview available");
+  });
+});
+
+describe("componentSet category rule", () => {
+  it("MARKETING_CATEGORIES includes the expected 11 categories", () => {
+    expect(MARKETING_CATEGORIES.has("restaurant-landing")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("saas-marketing")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("portfolio-personal")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("e-commerce-product")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("agency-creative")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("real-estate-listing")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("fitness-wellness-landing")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("blog-publishing")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("travel-booking")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("education-marketing")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("ngo-marketing")).toBe(true);
+    expect(MARKETING_CATEGORIES.has("saas-app")).toBe(false);
+    expect(MARKETING_CATEGORIES.has("dashboard")).toBe(false);
+  });
+
+  it("DRAFT_SYSTEM_PROMPT explains the radix-bare-for-marketing rule", () => {
+    expect(DRAFT_SYSTEM_PROMPT).toMatch(/radix-bare/);
+    expect(DRAFT_SYSTEM_PROMPT).toMatch(/marketing.*content|content.*marketing/i);
   });
 });
