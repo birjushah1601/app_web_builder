@@ -345,6 +345,7 @@ export class RitualEngine {
     // Designer → emit canvas.options.requested → await pause → emit
     // canvas.option.selected → fold selectedTokens into developer's priorArtifact.
     let selectedTokens: unknown | undefined;
+    let selectedLayoutDirective: string | undefined;
     // Plan SPU — captured inside the canvas-flow block when AssetGenerator runs
     // after the canvas pause; folded into the developer's priorArtifact below.
     let assetManifest: unknown | undefined;
@@ -442,6 +443,14 @@ export class RitualEngine {
           });
           selectedTokens = resolution.tokens;
           record.selectedTokens = selectedTokens;
+          const chosenDirection =
+            proposal.recommended.id === resolution.directionId
+              ? proposal.recommended
+              : (proposal.alternates as Array<{ id: string; tokens: unknown }>).find((d) => d.id === resolution.directionId) ?? proposal.recommended;
+          selectedLayoutDirective =
+            typeof (chosenDirection as unknown as { layoutDirective?: unknown }).layoutDirective === "string"
+              ? (chosenDirection as unknown as { layoutDirective: string }).layoutDirective
+              : undefined;
           await this.emit({
             type: "canvas.option.selected",
             ritualId,
@@ -502,6 +511,7 @@ export class RitualEngine {
         ? {
             ...(artifact as object),
             selectedTokens,
+            ...(selectedLayoutDirective !== undefined ? { selectedLayoutDirective } : {}),
             ...(assetManifest !== undefined ? { assetManifest } : {})
           }
         : artifact;
