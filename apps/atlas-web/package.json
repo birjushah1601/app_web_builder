@@ -23,6 +23,7 @@
     "@atlas/conductor": "workspace:*",
     "@atlas/deploy-orchestrator": "workspace:*",
     "@atlas/edit-patch-engine": "workspace:*",
+    "@atlas/gate-build": "workspace:*",
     "@atlas/gate-visual-quality": "workspace:*",
     "@atlas/llm-provider": "workspace:*",
     "@atlas/ritual-engine": "workspace:*",

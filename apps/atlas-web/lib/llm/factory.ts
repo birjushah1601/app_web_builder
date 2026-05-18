@@ -6,6 +6,7 @@ import type {
   VisualQualityRole as TVisualQualityRole,
   SandboxExec as TSandboxExec
 } from "@atlas/gate-visual-quality";
+import type { BuildGateRole as TBuildGateRole, SandboxExec as TBuildSandboxExec } from "@atlas/gate-build";
 
 /**
  * Lazily construct an LLMProvider from environment configuration.
@@ -148,5 +149,23 @@ export const getVisualQualityRole = cache(
       previewUrl: params.previewUrl,
       ...(model ? { model } : {})
     });
+  }
+);
+
+/**
+ * Plan L0: construct the BuildGateRole when the feature flag is on.
+ *
+ * Caller supplies the live SandboxExec + template name. Returns null when
+ * ATLAS_FF_BUILD_GATE !== "true" so getRitualEngine() can skip wiring it.
+ * Mirrors getVisualQualityRole's shape.
+ */
+export const getBuildGateRole = cache(
+  async (params: {
+    exec: TBuildSandboxExec;
+    template: string;
+  }): Promise<TBuildGateRole | null> => {
+    if (process.env.ATLAS_FF_BUILD_GATE !== "true") return null;
+    const { BuildGateRole } = await import("@atlas/gate-build");
+    return new BuildGateRole({ template: params.template, exec: params.exec });
   }
 );

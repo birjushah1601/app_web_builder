@@ -28,6 +28,9 @@ importers:
       '@atlas/edit-patch-engine':
         specifier: workspace:*
         version: link:../../packages/edit-patch-engine
+      '@atlas/gate-build':
+        specifier: workspace:*
+        version: link:../../packages/gate-build
       '@atlas/gate-visual-quality':
         specifier: workspace:*
         version: link:../../packages/gate-visual-quality
