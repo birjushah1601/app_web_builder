@@ -1,0 +1,104 @@
+name: skill-library-release
+
+# Release cadence (Unit C OQ4):
+# - Weekly patch release: tag skill-library-vX.Y.Z every Monday
+# - Monthly minor release: tag skill-library-vX.(Y+1).0 on the first of each month
+#
+# The workflow mirrors packages/skill-library/skills + LICENSE + README.md to
+# the public repo github.com/atlas-labs/atlas-skills when the push secret is
+# present. Without the secret (PR fork runs, uninitialized public repo), it
+# falls back to building a tarball artifact + printing a manual push reminder.
+
+on:
+  push:
+    tags:
+      - "skill-library-v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  PUBLIC_REPO: atlas-labs/atlas-skills
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate source tree
+        run: |
+          set -euo pipefail
+          test -d packages/skill-library/skills
+          test -f packages/skill-library/LICENSE
+          test -f packages/skill-library/README.md
+          SKILL_COUNT=$(find packages/skill-library/skills -name '*.md' | wc -l)
+          if [ "$SKILL_COUNT" -lt 10 ]; then
+            echo "::error::Suspiciously few skills ($SKILL_COUNT). Aborting."
+            exit 1
+          fi
+          echo "skill_count=$SKILL_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Build tarball
+        run: |
+          set -euo pipefail
+          cd packages/skill-library
+          tar -czf "../../skill-library-${GITHUB_REF_NAME}.tar.gz" skills/ LICENSE README.md
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-library-tarball
+          path: skill-library-*.tar.gz
+          retention-days: 30
+
+      - name: Determine public-push feasibility
+        id: feasibility
+        env:
+          PUSH_TOKEN: ${{ secrets.ATLAS_SKILLS_PUBLIC_PUSH }}
+        run: |
+          if [ -n "$PUSH_TOKEN" ]; then
+            echo "can_push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mirror to public repo
+        if: steps.feasibility.outputs.can_push == 'true'
+        env:
+          PUSH_TOKEN: ${{ secrets.ATLAS_SKILLS_PUBLIC_PUSH }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # Clone the public repo as a worktree alongside the monorepo checkout.
+          git clone --depth=1 "https://x:${PUSH_TOKEN}@github.com/${PUBLIC_REPO}.git" public
+
+          # Sync content (skills/ + LICENSE + README.md). rsync --delete keeps
+          # the public repo bit-for-bit identical to the monorepo source —
+          # removed skills actually disappear upstream.
+          rsync -a --delete packages/skill-library/skills/ public/skills/
+          cp packages/skill-library/LICENSE public/LICENSE
+          cp packages/skill-library/README.md public/README.md
+
+          cd public
+          git config user.name "atlas-release-bot"
+          git config user.email "release-bot@atlas.app"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::No changes since previous release — skipping commit + tag."
+            exit 0
+          fi
+          git commit -m "mirror: ${TAG}"
+          git tag "${TAG}"
+          git push origin HEAD:main
+          git push origin "${TAG}"
+
+      - name: Remind (no push secret configured)
+        if: steps.feasibility.outputs.can_push == 'false'
+        run: |
+          echo "::notice::ATLAS_SKILLS_PUBLIC_PUSH secret not set. Tarball built but public mirror was skipped. To enable:"
+          echo "1. Create a deploy key on github.com/${PUBLIC_REPO} (or a fine-grained PAT)."
+          echo "2. Store the token as repo secret ATLAS_SKILLS_PUBLIC_PUSH."
+          echo "3. Re-run this workflow via workflow_dispatch."

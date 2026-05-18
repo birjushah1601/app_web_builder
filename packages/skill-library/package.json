@@ -1,0 +1,19 @@
+{
+  "name": "@atlas/skill-library",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Atlas starter skill library — 40 OSS skills (Apache 2.0)",
+  "license": "Apache-2.0",
+  "scripts": {
+    "validate": "node scripts/validate-frontmatter.mjs",
+    "test": "node --test test/validate-frontmatter.test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@atlas/skill-runtime": "workspace:*",
+    "@types/node": "22.9.0",
+    "typescript": "5.6.3",
+    "vitest": "2.1.8"
+  }
+}

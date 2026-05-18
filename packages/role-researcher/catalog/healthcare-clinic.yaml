@@ -1,0 +1,38 @@
+category: healthcare-clinic
+synonyms: [clinic-website, medical-practice, healthcare-landing]
+references:
+  - name: One Medical
+    url: https://www.onemedical.com
+    why: Book-now CTA above the fold, clinic-locator hero, friendly photography (real patients + doctors), services list near top
+    palette: ["#103e3a", "#ffffff", "#f3f1ed", "#e07a5f"]
+    typography:
+      primary: GT America
+      secondary: Tiempos
+    density: spacious
+    notes: Reframes healthcare as service design — feels like a wellness brand, not a hospital.
+  - name: Forward
+    url: https://goforward.com
+    why: Tech-forward positioning (membership + app), credentialed doctors with photos, transparent membership pricing
+    palette: ["#000000", "#ffffff", "#dde6dc"]
+    typography:
+      primary: Söhne
+    density: spacious
+  - name: Practo
+    url: https://www.practo.com
+    why: Doctor-search hero (specialty + location), doctor cards with credentials + reviews, clinic photos
+    palette: ["#10847e", "#ffffff", "#1f1f1f"]
+    typography:
+      primary: Inter
+    density: comfortable
+patternsThatWin:
+  - book-appointment CTA above the fold
+  - doctor cards with photo, credentials (MD, board certifications), specialties
+  - services list near the top (what conditions / procedures)
+  - real patient photography with consent (warm, not stocky)
+  - insurance accepted clearly listed
+patternsThatLose:
+  - generic stock photos of stethoscopes
+  - 'doctor list as a text wall without photos or credentials'
+  - 'service list buried 5 clicks deep'
+  - no insurance information (forces a phone call)
+  - 'medical-jargon copy that does not match how patients describe their symptoms'

@@ -1,0 +1,26 @@
+category: marketing-event
+synonyms: [conference-site, event-landing, summit-page]
+references:
+  - name: Config (Figma)
+    url: https://config.figma.com
+    why: Bold typography, agenda-as-grid, speakers as the chrome
+    palette: ["#0d0d0d", "#a259ff", "#ff7262"]
+    typography:
+      primary: Whyte Inktrap
+    density: comfortable
+  - name: AWS re:Invent
+    url: https://reinvent.awsevents.com
+    why: Functional information design; agenda + tracks + register, no fluff
+    palette: ["#232f3e", "#ff9900", "#ffffff"]
+    typography:
+      primary: Amazon Ember
+    density: comfortable
+patternsThatWin:
+  - date + city above the fold
+  - keynote speakers with photos
+  - register CTA persistent in nav
+  - day-by-day agenda
+patternsThatLose:
+  - countdown timer with nothing else
+  - '"speaker reveal" tease without dates'
+  - 14 sponsor logos above register CTA

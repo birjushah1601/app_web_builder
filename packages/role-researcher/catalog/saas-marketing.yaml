@@ -1,0 +1,36 @@
+category: saas-marketing
+synonyms: [saas-landing, software-landing, product-marketing-page]
+references:
+  - name: Linear
+    url: https://linear.app
+    why: Editorial type pairing, monochrome palette, dense product-feature grid; never marketing-cliche
+    palette: ["#0a0a0a", "#5e6ad2", "#f4f5f8"]
+    typography:
+      primary: Inter
+    density: comfortable
+  - name: Vercel
+    url: https://vercel.com
+    why: Geometric whitespace, Geist typography, reserved animation, deeply technical without being exclusionary
+    palette: ["#000000", "#ffffff", "#0070f3"]
+    typography:
+      primary: Geist
+      secondary: Geist Mono
+    density: spacious
+  - name: Stripe
+    url: https://stripe.com
+    why: Restrained palette + intentional gradients; copy is short, declarative, builder-first
+    palette: ["#0a2540", "#635bff", "#fafbfc"]
+    typography:
+      primary: SF Pro
+    density: comfortable
+patternsThatWin:
+  - one-line value prop above the fold
+  - product screenshot or animation immediately under it
+  - logo bar of customers (sparse, not 30 logos)
+  - single primary CTA
+  - changelog/docs in nav (signals active product)
+patternsThatLose:
+  - '"Talk to Sales" gating before the user understands what the product does'
+  - generic stock-illustration heroes
+  - testimonial walls without context
+  - five competing CTAs above the fold

@@ -1,0 +1,18 @@
+# This is a config for E2B sandbox template.
+# You can use template ID (75mxlaomm6h7fasald1h) or template name (atlas-next-ts-v2) to create a sandbox:
+
+# Python SDK
+# from e2b import Sandbox, AsyncSandbox
+# sandbox = Sandbox.create("atlas-next-ts-v2") # Sync sandbox
+# sandbox = await AsyncSandbox.create("atlas-next-ts-v2") # Async sandbox
+
+# JS SDK
+# import { Sandbox } from 'e2b'
+# const sandbox = await Sandbox.create('atlas-next-ts-v2')
+
+memory_mb = 2_048
+ready_cmd = "curl -fsS http://localhost:3000 > /dev/null"
+start_cmd = "cd /code && pnpm dev --hostname 0.0.0.0 --port 3000"
+dockerfile = "Dockerfile"
+template_name = "atlas-next-ts-v2"
+template_id = "75mxlaomm6h7fasald1h"

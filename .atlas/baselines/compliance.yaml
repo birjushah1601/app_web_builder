@@ -1,0 +1,12 @@
+kind: compliance
+version: 1
+assertions:
+  - id: every-declared-assertion-tested
+    description: Each string in ComplianceClass.baselineAssertions has at least one matching Test
+    rationale: |
+      I13 requires source=baseline coverage for non-baseline ComplianceClasses.
+      A declared assertion without a corresponding Test means compliance is only
+      "documented", not "enforced".
+    checklistItem: "For each item in ComplianceClass.baselineAssertions → emit a Test that exercises the assertion and covers the ComplianceClass node"
+    mustEmitTest: true
+    owner: compliance-team

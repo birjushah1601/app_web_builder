@@ -1,0 +1,37 @@
+category: dashboard-analytics
+synonyms: [analytics-dashboard, metrics-dashboard, product-analytics]
+references:
+  - name: PostHog
+    url: https://posthog.com
+    why: Funnel + retention as primary widgets, time-range selector pinned at top, dense card grid
+    palette: ["#1d4aff", "#f9bd2b", "#000000", "#eeefe9"]
+    typography:
+      primary: Inter
+    density: compact
+    notes: Self-hostable + open-source; reflects the dashboards real product teams actually look at.
+  - name: Plausible
+    url: https://plausible.io
+    why: Single-page dashboard, no drill-down maze, privacy-first by design — every metric on one screen
+    palette: ["#5850ec", "#ffffff", "#0d2b3e", "#a3a3a3"]
+    typography:
+      primary: Inter
+    density: comfortable
+  - name: Mixpanel
+    url: https://mixpanel.com
+    why: Cohort + funnel + retention triad in a saved-board flow; query builder visible
+    palette: ["#7856ff", "#ffffff", "#170731"]
+    typography:
+      primary: Roobert
+    density: comfortable
+patternsThatWin:
+  - time-range selector pinned at the top (Last 7d / 30d / 90d / Custom)
+  - card grid where each card is one metric or one chart
+  - funnel + retention as default primary widgets
+  - export-to-CSV / share link on every card
+  - drill-down on chart click rather than hover
+patternsThatLose:
+  - 12-chart dashboards with no hierarchy
+  - 'pie charts where bar charts would do'
+  - hover-only tooltips that vanish on touch devices
+  - 'vanity metrics that do not drive action (raw signups w/o cohort context)'
+  - charts without unit labels or axis titles

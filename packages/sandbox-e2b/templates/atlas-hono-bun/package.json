@@ -1,0 +1,27 @@
+{
+  "name": "atlas-hono-bun-sandbox",
+  "version": "0.1.0",
+  "description": "Bun + Hono + Drizzle E2B sandbox template for Atlas",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --hot run src/index.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "drizzle:generate": "bunx drizzle-kit generate",
+    "drizzle:migrate": "bunx drizzle-kit migrate"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "@hono/zod-validator": "^0.4.0",
+    "zod": "^3.23.0",
+    "drizzle-orm": "^0.36.0",
+    "postgres": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "drizzle-kit": "^0.28.0",
+    "typescript": "^5.6.0"
+  }
+}

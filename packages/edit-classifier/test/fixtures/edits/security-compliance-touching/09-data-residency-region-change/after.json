@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectId": "11111111-1111-4111-8111-111111111111",
+  "name": "demo",
+  "complianceClasses": [
+    "baseline"
+  ],
+  "databaseProvider": {
+    "tier": "atlas-run",
+    "provider": "neon",
+    "region": "us-east-1",
+    "connectionStringRef": "env:DB"
+  },
+  "templateDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "createdAt": "2026-04-20T00:00:00.000Z",
+  "updatedAt": "2026-04-20T00:00:00.000Z",
+  "nodes": {
+    "page:home": {
+      "kind": "page",
+      "id": "page:home",
+      "path": "/",
+      "title": "Home",
+      "renderMode": "ssr",
+      "routeRef": "GET /"
+    },
+    "compliance:gdpr": {
+      "kind": "compliance",
+      "id": "compliance:gdpr",
+      "dataResidency": "us-east-1"
+    }
+  },
+  "edges": []
+}

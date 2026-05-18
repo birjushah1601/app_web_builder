@@ -1,0 +1,26 @@
+kind: authboundary
+version: 1
+assertions:
+  - id: unauthed-returns-401
+    description: Unauthed access to a protected route returns 401 and the correct redirect
+    rationale: |
+      Hard security floor. LLM-generated code must not relax this: unauthenticated
+      requests to gated routes must fail closed.
+    checklistItem: "GET the protected route without any session → response status 401, redirect header to configured sign-in path"
+    mustEmitTest: true
+    owner: security-team
+  - id: wrong-role-403
+    description: Authenticated user lacking the required role returns 403
+    rationale: |
+      Authorization is not the same as authentication. A valid session without the
+      required role must be rejected.
+    checklistItem: "Authed session with role NOT in AuthBoundary.roles → response status 403"
+    mustEmitTest: true
+    owner: security-team
+  - id: session-expired-401
+    description: Session past its expiry returns 401 and prompts re-auth
+    rationale: |
+      Session expiry is a safety boundary. Re-auth flow must be exercised explicitly.
+    checklistItem: "Provide a session whose exp is in the past → 401 + re-auth flow initiated"
+    mustEmitTest: true
+    owner: security-team

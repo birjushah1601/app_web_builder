@@ -1,0 +1,111 @@
+# --- Brainstorming companion sessions (mockups + state) ---
+.superpowers/
+
+# --- Node / TypeScript / JavaScript ---
+node_modules/
+.pnpm-store/
+.pnp/
+.yarn/
+*.tsbuildinfo
+dist/
+build/
+out/
+.next/
+.turbo/
+.nx/
+.svelte-kit/
+.nuxt/
+.astro/
+coverage/
+.vitest-cache/
+.cache/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.tox/
+.coverage
+htmlcov/
+
+# --- Go ---
+vendor/
+*.test
+*.out
+
+# --- Environment & secrets (NEVER commit) ---
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+secrets/
+
+# --- Atlas runtime artifacts (per spec §4.1) ---
+.atlas/derived/
+.atlas/cache/
+.atlas/telemetry/*.jsonl
+# note: .atlas/spec.graph.json, .atlas/events.jsonl, .atlas/schema/, .atlas/prompts/,
+# and .atlas/plan.md ARE committed — they are the user's ownership boundary
+
+# --- Logs ---
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+*.swp
+*.swo
+*~
+
+# --- IDE ---
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.vs/
+*.sublime-project
+*.sublime-workspace
+
+# --- Claude Code local session state (permission decisions, tool allowlists) ---
+.claude/settings.local.json
+# Conductor/agent scratch worktrees (transient checkouts; never source-of-truth).
+# Tracked accidentally in main pre-2026-05-18; excluded going forward.
+.claude/worktrees/
+
+# --- Lockfile handling (keep the primary; ignore dupes) ---
+# pnpm-lock.yaml is the canonical lockfile for Atlas
+yarn.lock
+package-lock.json
+!pnpm-lock.yaml
+
+# --- Temporary ---
+tmp/
+temp/
+*.tmp
+
+# --- Git worktrees ---
+.worktrees/

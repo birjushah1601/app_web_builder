@@ -1,0 +1,56 @@
+/*
+ * CSS-variable injection strategy (decided 2026-05):
+ *
+ *   - Tailwind utility classes (bg-primary, text-foreground, etc.) come from
+ *     tailwind.config.ts, which reads src/design-tokens.json at build time.
+ *     This is the preferred path — the developer LLM emits utility classes
+ *     ~95% of the time.
+ *
+ *   - Arbitrary CSS-variable consumption (style={{ color: 'var(--color-primary)' }})
+ *     comes from <DesignTokensStyle /> in layout.tsx, which renders a <style>
+ *     tag with :root vars sourced from the same JSON. Picked over a build-time
+ *     PostCSS plugin because Next's HMR cleanly re-runs the layout when the
+ *     JSON changes (no dev-server restart required).
+ *
+ *   The atlas-* HSL vars below remain for shadcn primitives that hard-code
+ *   hsl(var(--atlas-*)) in their default styles. They're orthogonal to the
+ *   design-tokens.json contract.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Default theme — overridden by per-project DesignTokens injection (Plan S.4). */
+    --atlas-background: 0 0% 100%;
+    --atlas-foreground: 222.2 84% 4.9%;
+    --atlas-card: 0 0% 100%;
+    --atlas-card-foreground: 222.2 84% 4.9%;
+    --atlas-popover: 0 0% 100%;
+    --atlas-popover-foreground: 222.2 84% 4.9%;
+    --atlas-primary: 222.2 47.4% 11.2%;
+    --atlas-primary-foreground: 210 40% 98%;
+    --atlas-secondary: 210 40% 96.1%;
+    --atlas-secondary-foreground: 222.2 47.4% 11.2%;
+    --atlas-muted: 210 40% 96.1%;
+    --atlas-muted-foreground: 215.4 16.3% 46.9%;
+    --atlas-accent: 210 40% 96.1%;
+    --atlas-accent-foreground: 222.2 47.4% 11.2%;
+    --atlas-destructive: 0 84.2% 60.2%;
+    --atlas-destructive-foreground: 210 40% 98%;
+    --atlas-border: 214.3 31.8% 91.4%;
+    --atlas-input: 214.3 31.8% 91.4%;
+    --atlas-ring: 222.2 84% 4.9%;
+    --atlas-radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
