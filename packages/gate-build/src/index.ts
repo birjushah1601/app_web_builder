@@ -18,4 +18,4 @@ export { BUILD_COMMANDS, type BuildCommand, type ParserId, type KnownTemplate } 
 
 export { parseTscOutput, parsePyrightJson } from "./parse.js";
 
-export { BuildGateRole, type BuildGateRoleOptions } from "./role.js";
+export { BuildCheck, BuildGateRole, type BuildCheckOptions, type BuildGateRoleOptions } from "./role.js";
