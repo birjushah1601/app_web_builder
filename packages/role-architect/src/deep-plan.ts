@@ -78,9 +78,10 @@ export function buildArchitectUserTurn(input: {
 
   if (isPriorRitualContext(input.priorRitual)) {
     sections.push(renderPriorRitualSection(input.priorRitual));
-    // Plan L: when the prior ritual carries failed gate reports, render a
-    // dedicated "## Gate findings" section so the model sees the issues
-    // verbatim, not buried inside a JSON-dump artifact.
+    // Plan L0: compiler errors are authoritative — render BEFORE the
+    // LLM-interpretive "## Gate findings" so the model prioritizes them.
+    const buildErrors = renderBuildErrorsSection(input.priorRitual);
+    if (buildErrors) sections.push(buildErrors);
     const gateFindings = renderGateFindingsSection(input.priorRitual);
     if (gateFindings) sections.push(gateFindings);
   }
@@ -127,6 +128,42 @@ interface GateIssue {
 interface GateReport {
   passed?: boolean;
   issues?: GateIssue[];
+}
+
+interface BuildErrorRecord {
+  file?: string;
+  line?: number;
+  col?: number;
+  severity?: string;
+  message?: string;
+  snippet?: string;
+}
+interface BuildReportShape {
+  passed?: boolean;
+  errorKind?: string;
+  template?: string;
+  command?: string;
+  errors?: BuildErrorRecord[];
+}
+
+function renderBuildErrorsSection(prior: PriorRitualContext): string | null {
+  const report = prior.parentBuildReport as BuildReportShape | undefined;
+  const failed = report && report.passed === false && Array.isArray(report.errors) && report.errors.length > 0;
+  if (!failed) return null;
+
+  const lines: string[] = [
+    "## Build errors (compiler is authoritative — fix exactly these)",
+    "",
+    `Command: \`${report!.command ?? "(unknown)"}\` (template: ${report!.template ?? "(unknown)"})`,
+    "",
+    "Each entry below is a real compiler/type-checker error from the parent ritual's diff. Fix the listed locations precisely; do not change unrelated code."
+  ];
+  for (const e of report!.errors!) {
+    const loc = `${e.file ?? "?"}:${e.line ?? 0}:${e.col ?? 0}`;
+    lines.push("", `- ${loc}`, `  ${e.message ?? "(no message)"}`);
+    if (e.snippet) lines.push(`  Offending: \`${e.snippet}\``);
+  }
+  return lines.join("\n");
 }
 
 function renderGateFindingsSection(prior: PriorRitualContext): string | null {
