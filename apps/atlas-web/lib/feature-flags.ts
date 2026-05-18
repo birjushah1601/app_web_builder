@@ -39,7 +39,9 @@ export type FeatureFlag =
   | "reference-images"
   | "asset-gen"
   | "hero-unsplash"
-  | "hero-ai-image";
+  | "hero-ai-image"
+  // Plan L0 — Build gate. Compiler/linter pre-check before other LLM gates.
+  | "build-gate";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -125,7 +127,10 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // "hero-unsplash" → Unsplash fallback for hero. Requires UNSPLASH_ACCESS_KEY.
   "hero-unsplash": "ATLAS_FF_HERO_UNSPLASH",
   // "hero-ai-image" → gpt-image-1 hero. Requires OPENAI_API_KEY.
-  "hero-ai-image": "ATLAS_FF_HERO_AI_IMAGE"
+  "hero-ai-image": "ATLAS_FF_HERO_AI_IMAGE",
+  // Plan L0 — Build gate. Compiler/linter pre-check runs FIRST in
+  // postDeveloperChain so uncompilable code short-circuits LLM gate work.
+  "build-gate": "ATLAS_FF_BUILD_GATE"
 };
 
 export interface FeatureFlagSource {
@@ -231,6 +236,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "reference-images": isFeatureEnabled("reference-images", source),
     "asset-gen": isFeatureEnabled("asset-gen", source),
     "hero-unsplash": isFeatureEnabled("hero-unsplash", source),
-    "hero-ai-image": isFeatureEnabled("hero-ai-image", source)
+    "hero-ai-image": isFeatureEnabled("hero-ai-image", source),
+    "build-gate": isFeatureEnabled("build-gate", source)
   };
 }

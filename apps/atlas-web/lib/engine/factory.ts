@@ -215,6 +215,54 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       roles.set("accessibility", new AccessibilityRole({ llm, skills: skillRegistry, model: a11yModel }));
     }
 
+    // Plan L0: Build gate. Constructed only when ATLAS_FF_BUILD_GATE=true.
+    // MUST be prepended (not appended) to postDeveloperChain — running the
+    // compiler first short-circuits LLM gate work on uncompilable code.
+    //
+    // Two contract differences from gate-visual-quality (mirrored above):
+    //   - SandboxExec.runCommand takes {cmd, timeoutMs}, returns
+    //     {exitCode, stdout, stderr, timedOut}.
+    //   - template is captured at engine-factory construction (best-effort).
+    //     If the sandbox's actual template changes mid-conversation the role
+    //     will return errorKind:"unsupported_stack" at dispatch — acceptable
+    //     for v1; the auto-fix loop surfaces the issue.
+    if (isFeatureEnabled("build-gate")) {
+      const { BuildGateRole } = await import("@atlas/gate-build");
+
+      const buildExec: import("@atlas/gate-build").SandboxExec = {
+        runCommand: async ({ cmd, timeoutMs }) => {
+          const session = await getSandboxFactory().getOrProvision(projectId);
+          const { Sandbox } = await import("@e2b/sdk");
+          const sdk = await Sandbox.connect(session.record.sandboxId, { apiKey: process.env.E2B_API_KEY ?? "" });
+          try {
+            // E2B SDK's commands.run accepts an options object; we pass timeoutMs.
+            // (Type-shape varies across SDK versions; assert through unknown to
+            // match the existing VisualQuality adapter's idiom in this file.)
+            const result = await (sdk as unknown as {
+              commands: {
+                run: (cmd: string, opts?: { timeoutMs?: number; background?: false }) => Promise<{ stdout: string; stderr: string; exitCode: number }>
+              }
+            }).commands.run(cmd, { timeoutMs });
+            return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode, timedOut: false };
+          } catch (err) {
+            // E2B SDK raises a TimeoutError when the command exceeds timeoutMs.
+            // Surface it as a structured timeout rather than rethrowing so the
+            // BuildGateRole emits errorKind:"timeout" with a clean report.
+            if ((err as { name?: string })?.name === "TimeoutError") {
+              return { exitCode: 124, stdout: "", stderr: `Command exceeded ${timeoutMs}ms`, timedOut: true };
+            }
+            throw err;
+          }
+        }
+      };
+
+      // Best-effort template capture. .catch(() => null) mirrors VQ's pattern.
+      const buildGateSession = await getSandboxFactory().getOrProvision(projectId).catch(() => null);
+      const template = buildGateSession?.record?.templateId ?? "atlas-next-ts-v2";
+
+      roles.set("build-gate", new BuildGateRole({ template, exec: buildExec }));
+    }
+
     // Plan S.5: Visual-Quality merge gate. Constructed only when the flag
     // is on; appended to postDeveloperChain after Security + A11y. The role
     // needs `exec` (E2B process API) and `previewUrl` — both resolved
@@ -269,6 +317,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   // (taste-driven; runs last so it sees the final-state preview after any
   // upstream gate fixes). Empty chain = no post-developer dispatch.
   const postDeveloperChain: string[] = [];
+  if (isFeatureEnabled("build-gate"))          postDeveloperChain.push("build-gate");
   if (isFeatureEnabled("security-role"))       postDeveloperChain.push("security");
   if (isFeatureEnabled("a11y-role"))           postDeveloperChain.push("accessibility");
   if (isFeatureEnabled("visual-quality-gate")) postDeveloperChain.push("visual-quality");
