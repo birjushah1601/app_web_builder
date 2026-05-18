@@ -1,6 +1,0 @@
-apiVersion: v2
-name: atlas-cluster
-description: Cluster prerequisites for Atlas Run (Argo CD + Knative + cert-manager + Cloudflare ClusterIssuer)
-type: application
-version: 0.1.0
-appVersion: "0.1.0"

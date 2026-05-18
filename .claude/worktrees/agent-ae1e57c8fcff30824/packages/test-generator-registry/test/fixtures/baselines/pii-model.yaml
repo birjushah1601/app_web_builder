@@ -1,9 +1,0 @@
-kind: pii-model
-version: 1
-assertions:
-  - id: pii-not-in-logs
-    description: PII fields never appear in application logs
-    rationale: Privacy compliance floor
-    checklistItem: "Serialize model to log → redacted fields absent"
-    mustEmitTest: true
-    owner: security-team
