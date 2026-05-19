@@ -30,7 +30,7 @@ describe("BuildCheck", () => {
     expect(report.passed).toBe(true);
     expect(report.errorKind).toBe("none");
     expect(report.errors).toEqual([]);
-    expect(report.command).toBe("pnpm exec tsc --noEmit");
+    expect(report.command).toBe("cd /code && pnpm exec tsc --noEmit");
     expect(report.template).toBe("atlas-next-ts-v2");
   });
 

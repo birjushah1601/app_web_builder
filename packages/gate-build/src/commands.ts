@@ -38,14 +38,20 @@ export interface BuildCommand {
  * TypeScript fail compilation the moment a name is added to KnownTemplate
  * without a matching entry, and vice versa. The completeness test in
  * test/commands.test.ts is the spec-canonical enforcement of invariant §1.4.
+ *
+ * All commands are prefixed with `cd /code &&` because E2B sandbox templates
+ * mount the user project at /code (see apps/atlas-web/lib/sandbox/factory.ts);
+ * tooling like pnpm/bun/python won't find the project's package.json or
+ * tsconfig from the default cwd otherwise, surfacing as a tooling error
+ * (e.g. ERR_PNPM_RECURSIVE_EXEC_NO_PACKAGE) instead of the real compile result.
  */
 export const BUILD_COMMANDS: Record<KnownTemplate, BuildCommand> = {
-  "atlas-next-ts":      { exec: "pnpm exec tsc --noEmit",           parser: "tsc",     timeoutMs: 60000 },
-  "atlas-next-ts-v2":   { exec: "pnpm exec tsc --noEmit",           parser: "tsc",     timeoutMs: 60000 },
-  "atlas-fastapi":      { exec: "python -m pyright --outputjson .", parser: "pyright", timeoutMs: 60000 },
-  "atlas-dlt-python":   { exec: "python -m pyright --outputjson .", parser: "pyright", timeoutMs: 60000 },
-  "atlas-graphql-yoga": { exec: "bun run tsc --noEmit",             parser: "tsc",     timeoutMs: 60000 },
-  "atlas-bun-cli":      { exec: "bun run tsc --noEmit",             parser: "tsc",     timeoutMs: 60000 },
-  "atlas-expo-rn":      { exec: "pnpm exec tsc --noEmit",           parser: "tsc",     timeoutMs: 60000 },
-  "atlas-hono-bun":     { exec: "bun run tsc --noEmit",             parser: "tsc",     timeoutMs: 60000 }
+  "atlas-next-ts":      { exec: "cd /code && pnpm exec tsc --noEmit",           parser: "tsc",     timeoutMs: 60000 },
+  "atlas-next-ts-v2":   { exec: "cd /code && pnpm exec tsc --noEmit",           parser: "tsc",     timeoutMs: 60000 },
+  "atlas-fastapi":      { exec: "cd /code && python -m pyright --outputjson .", parser: "pyright", timeoutMs: 60000 },
+  "atlas-dlt-python":   { exec: "cd /code && python -m pyright --outputjson .", parser: "pyright", timeoutMs: 60000 },
+  "atlas-graphql-yoga": { exec: "cd /code && bun run tsc --noEmit",             parser: "tsc",     timeoutMs: 60000 },
+  "atlas-bun-cli":      { exec: "cd /code && bun run tsc --noEmit",             parser: "tsc",     timeoutMs: 60000 },
+  "atlas-expo-rn":      { exec: "cd /code && pnpm exec tsc --noEmit",           parser: "tsc",     timeoutMs: 60000 },
+  "atlas-hono-bun":     { exec: "cd /code && bun run tsc --noEmit",             parser: "tsc",     timeoutMs: 60000 }
 };
