@@ -245,12 +245,28 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
             }).commands.run(cmd, { timeoutMs });
             return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode, timedOut: false };
           } catch (err) {
-            // E2B SDK raises a TimeoutError when the command exceeds timeoutMs.
-            // Surface it as a structured timeout rather than rethrowing so the
-            // BuildGateRole emits errorKind:"timeout" with a clean report.
-            if ((err as { name?: string })?.name === "TimeoutError") {
+            // E2B v2.5 throws CommandExitError (extends SandboxError) when a
+            // command exits non-zero — including the legitimate case of
+            // tsc/pyright finding compile errors. The error carries the real
+            // exitCode/stdout/stderr; surface them as a normal result so
+            // BuildGateRole parses them as errorKind:"compile" or "type"
+            // rather than misrouting as "sandbox_unreachable".
+            const name = (err as { name?: string })?.name;
+            if (name === "CommandExitError") {
+              const e = err as { exitCode?: number; stdout?: string; stderr?: string };
+              return {
+                exitCode: typeof e.exitCode === "number" ? e.exitCode : 1,
+                stdout: e.stdout ?? "",
+                stderr: e.stderr ?? "",
+                timedOut: false
+              };
+            }
+            // TimeoutError → structured timeout (errorKind:"timeout").
+            if (name === "TimeoutError") {
               return { exitCode: 124, stdout: "", stderr: `Command exceeded ${timeoutMs}ms`, timedOut: true };
             }
+            // True infra failure (network, sandbox gone, auth, etc.) → let
+            // BuildGateRole emit errorKind:"sandbox_unreachable".
             throw err;
           }
         }
