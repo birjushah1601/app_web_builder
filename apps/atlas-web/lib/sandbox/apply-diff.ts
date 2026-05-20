@@ -86,15 +86,23 @@ export function parseDiff(diff: string): { ops: FileOp[]; error?: string } {
  * Touches ONLY new-file-from-/dev/null hunks (the `-0,0` shape) so we
  * don't fight context-line counting on real modifies.
  *
- * The chunk ends at the next line starting with `@@`, `diff --git`,
- * `Index:`, or `--- `, OR end of input. `+++ b/<path>` lines (which also
- * start with `+`) are inside the file header above the `@@` line so they
- * never appear inside the chunk we're counting.
+ * The chunk ends at the next line starting with ANY recognised file-
+ * header marker — `@@`, `diff --git`, `index abc..def`, `Index:`,
+ * `--- `, `+++ `, `new file mode`, `deleted file mode` — OR end of
+ * input. We have to terminate on `+++ ` (and the bare mode/index
+ * markers) too: when the LLM omits the standard `diff --git` /
+ * `--- /dev/null` separators between files, the next file's `+++ b/path`
+ * is the only line that signals the boundary, and since it starts with
+ * `+` the count walk would otherwise include it as a `+` content line.
  */
 export function repairCreateHunkCounts(diff: string): string {
   const lines = diff.split("\n");
   const HEADER_RE = /^@@\s+-0,0\s+\+1,(\d+)\s+@@/;
-  const CHUNK_END_RE = /^(@@|diff --git |Index: |--- )/;
+  // Boundary invariant: the walk MUST stop at the first line of the next
+  // file's section in any diff dialect — otherwise the synthesized N
+  // covers the next file's body and parse-diff bleeds it into the
+  // current chunk's `add` changes (D14).
+  const CHUNK_END_RE = /^(@@|diff --git |index [\da-zA-Z]+\.\.|Index: |--- |\+\+\+ |new file mode |deleted file mode )/;
 
   for (let i = 0; i < lines.length; i++) {
     const m = HEADER_RE.exec(lines[i]!);
