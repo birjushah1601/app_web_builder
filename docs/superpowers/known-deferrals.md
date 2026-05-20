@@ -153,6 +153,76 @@ Feature flag default OFF — existing Clerk integration is untouched. Sovereign 
 
 ---
 
+## D14. Diff-parser writes next file's header into previous file's content
+
+**What:** `apps/atlas-web/lib/sandbox/apply-diff.ts` (likely in `repairCreateHunkCounts` or via the `parse-diff` library's chunk attribution) sometimes writes the literal `diff --git a/<next-file> b/<next-file>` header into the PREVIOUS file's content when the developer emits a multi-file unified diff. Symptom: sandbox compile fails with `Expected ';', '}' or <eof>` and the line where the broken file ends with `}\ndiff --git a/...`. Captured 2026-05-20 on project `364a0b20-4e86-47ab-ad6d-c0d57ec6f237` (Saffron Table) — layout.tsx got globals.css's diff header appended verbatim. `parsed=4 failed=0 skipped=0` reported success even though the content was malformed.
+
+**Why deferred:** Discovered late in a long session; needs (a) a captured real broken diff string from a future ritual to write a regression test, then (b) targeted fix in `collectAddedLines` / `repairCreateHunkCounts` to recognize and stop at the next file's `diff --git` boundary even when the LLM emits malformed chunk-line counts.
+
+**Risk if left:** Every multi-file generation has a non-trivial chance of shipping a broken syntactic preview. The Plan L0 build gate (D15) catches the *symptom* but not the *root cause*; with build-gate ON, the auto-fix loop will eat the latency budget retrying because the developer can't "fix" code it didn't write incorrectly.
+
+**Trigger to revisit:** Next session. This is the highest-priority bug from 2026-05-20.
+
+**Owner-of-revisit:** Whoever picks up post-merge stabilization of the Plan L0 work.
+
+---
+
+## D15. ATLAS_FF_BUILD_GATE is OFF in .env.local pending dogfood
+
+**What:** Plan L0 (Build Gate) merged 2026-05-20 (`b56a871`) but the flag is set to `false` in `apps/atlas-web/.env.local`. The gate code is wired, tested, and live in main; it just doesn't engage on local rituals until the flag is flipped. Default-in-code stays OFF (consistent with all Atlas flags).
+
+**Why deferred:** During the 2026-05-20 smoke, the gate's adapter shipped with a `cd /code` fix (`c74b0e9`) AFTER the dev-server cache had been warm; rather than restart the dev server one more time to verify end-to-end with the fix, the session ended with the flag flipped OFF to restore the working baseline for the demo.
+
+**Risk if left:** The build gate's main value (catching uncompilable code AS the model emits it) doesn't materialize until the flag is on. Closely coupled with D14 — fixing the diff-parser bug AND enabling the gate together would prevent the entire class of broken-preview failures.
+
+**Trigger to revisit:** Next session. Enable concurrently with D14 fix to get one clean end-to-end verification.
+
+**Owner-of-revisit:** Same as D14.
+
+---
+
+## D16. Designer schema rejects empty serifFamily — ~30% of rituals retry
+
+**What:** `packages/role-designer/src/types.ts` defines `serifFamily: z.string().min(1)` in `DesignProposal.tokens.typeScale`. The model frequently emits an empty string for `serifFamily` (it correctly identifies that the chosen design has no serif font). Zod rejects → `role.failed` → Plan L auto-fix retries the entire designer 3-pass. Observed ~3 retries across 2026-05-19/20 smoke (Aureline, PulseFit, Saffron Table). Each retry adds 60-90s to the chain.
+
+**Why deferred:** Out of build-gate scope; identified during the smoke as a pre-existing schema-strictness issue with the designer role. Quick fix is to change `.min(1)` → `.optional()` on `serifFamily` (and arguably also `monoFamily` since some designs are sans-only).
+
+**Risk if left:** Every ritual has a ~30% chance of paying ~60-90s of designer-retry latency. Compounds with D15 (build-gate OFF means no auto-fix recovery on build-gate failures either) to make ritual latency unpredictable.
+
+**Trigger to revisit:** Next session. ~5-line change.
+
+**Owner-of-revisit:** Designer role maintainer.
+
+---
+
+## D17. Canvas hooks miss SSE events on reconnect — UI hydration is fragile
+
+**What:** `useCanvasManifest` / `useDesignerProposal` (`apps/atlas-web/lib/canvas/`) read events from `useEventStream()` which subscribes to the EventBroker via EventSource. On page navigation, server restart, or HMR the EventSource reconnects with Last-Event-ID; if the broker's 200-event ring buffer has rolled past the relevant events, OR if the connection takes seconds to establish AND the events fired during that gap, the hooks return `null` for manifest/proposal even though the events were broadcast. Symptom: canvas shows EmptyCanvas / "Ritual not started" or no design-option cards, even though the conductor log confirms events emitted.
+
+**Why deferred:** Investigated during 2026-05-20 smoke; the root fix (have the canvas page's server component fetch the latest snapshot from `SpecEventRepo` and pass `initialEvents` to `<EventSourceProvider>`) is a substantive change crossing the server/client boundary. Workaround for now: 2026-05-20 commit `9580d89` makes the manifest-mode ModeToggle ALWAYS visible (drops the `?canvas-modes=show` gate) so the user has manual recovery when auto-switch fails.
+
+**Risk if left:** Every UX regression report ("I don't see the X") will start with "did the EventSource reconnect" diagnostic. UI feels flaky.
+
+**Trigger to revisit:** When the canvas UX is the next-priority workstream. Probably after D14/D15/D16.
+
+**Owner-of-revisit:** Whoever owns Plan S.4 / canvas-runtime maintenance.
+
+---
+
+## D18. Performance hotspots — designer 3-pass + developer + sandbox provisioning
+
+**What:** End-to-end ritual latency on 2026-05-20 measured at Postgres: ~9 minutes total engine work per ritual (excluding user-click time). Three dominant phases: designer 3-pass (~150-220s, doubles to 300-400s on schema retry per D16), asset-gen + developer + sandbox provisioning (~230-300s — sandbox cold-start is the worst offender at 60-300s), and architect deep-plan + researcher brief (~30-50s). Detailed recommendations captured in the 2026-05-20 session transcript. Top single-action wins: pre-warm sandbox on project creation (saves 60-300s first-ritual-per-project), swap designer-revise from Sonnet 4.5 to Haiku 4.5 (saves 15-20s per ritual), move repo from `/mnt/f/` to native Linux filesystem (5-30× faster Turbopack compiles per route).
+
+**Why deferred:** Perf workstream is separate from stabilization. Should land AFTER D14/D15/D16 fix the correctness bugs that currently mask perf signal.
+
+**Risk if left:** User-perceived latency stays high; demoing to a customer requires lots of "this normally takes ~9 minutes" framing.
+
+**Trigger to revisit:** Once the correctness bugs (D14-D17) are closed.
+
+**Owner-of-revisit:** Performance workstream.
+
+---
+
 ## How to use this file
 
 - **When picking up a deferral:** delete its section once the work merges. Don't leave "completed" entries; this file is current state, not history.
