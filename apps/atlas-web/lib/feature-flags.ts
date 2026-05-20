@@ -41,7 +41,11 @@ export type FeatureFlag =
   | "hero-unsplash"
   | "hero-ai-image"
   // Plan L0 — Build gate. Compiler/linter pre-check before other LLM gates.
-  | "build-gate";
+  | "build-gate"
+  // D18a — Pre-warm the project's E2B sandbox at project-creation time so
+  // it's already running (or warming) by the time the developer role lands
+  // a diff. Cuts the cold-start (~230-300s) out of the critical path.
+  | "sandbox-prewarm";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -130,7 +134,14 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "hero-ai-image": "ATLAS_FF_HERO_AI_IMAGE",
   // Plan L0 — Build gate. Compiler/linter pre-check runs FIRST in
   // postDeveloperChain so uncompilable code short-circuits LLM gate work.
-  "build-gate": "ATLAS_FF_BUILD_GATE"
+  "build-gate": "ATLAS_FF_BUILD_GATE",
+  // D18a — Sandbox pre-warm. When on, submitPromptedProject fires a
+  // fire-and-forget getSandboxFactory().getOrProvision(projectId) right
+  // after the project row is created. The SandboxFactory's projectId →
+  // session cache (and its in-flight Map) means the later developer-time
+  // getOrProvision() either hits the warm session or awaits the in-flight
+  // promise — no change to the developer-role contract.
+  "sandbox-prewarm": "ATLAS_FF_SANDBOX_PREWARM"
 };
 
 export interface FeatureFlagSource {
@@ -237,6 +248,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "asset-gen": isFeatureEnabled("asset-gen", source),
     "hero-unsplash": isFeatureEnabled("hero-unsplash", source),
     "hero-ai-image": isFeatureEnabled("hero-ai-image", source),
-    "build-gate": isFeatureEnabled("build-gate", source)
+    "build-gate": isFeatureEnabled("build-gate", source),
+    "sandbox-prewarm": isFeatureEnabled("sandbox-prewarm", source)
   };
 }

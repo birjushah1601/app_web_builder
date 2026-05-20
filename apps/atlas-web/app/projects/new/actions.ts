@@ -7,6 +7,8 @@ import type { ArtifactKind } from "@atlas/canvas-runtime";
 import { auth } from "@/lib/auth/clerk-compat";
 import { startRitual } from "@/lib/actions/startRitual";
 import { deriveName } from "@/lib/projects/derive-name";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { getSandboxFactory } from "@/lib/sandbox/factory";
 
 const VALID_KINDS: ReadonlySet<string> = new Set([
   "frontend-app",
@@ -29,6 +31,26 @@ export async function submitPromptedProject(formData: FormData): Promise<void> {
   const name = deriveName(prompt);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const project = await new ProjectsRepo(pool).create({ userId, name });
+
+  // D18a — Pre-warm the E2B sandbox at project creation time so the cold
+  // start (~230-300s on Next templates) is overlapped with the architect +
+  // designer + asset-gen passes instead of sitting on the critical path
+  // right before the developer role tries to apply its diff. Fire-and-forget
+  // — `getSandboxFactory().getOrProvision` caches by projectId and coalesces
+  // in-flight calls, so the later developer-time call either reads the
+  // warm session from cache or awaits this same promise. Zero contract
+  // change for the developer-role / sandboxApplier path. Failure-safe:
+  // logged + swallowed so a flaky E2B never blocks project creation.
+  if (isFeatureEnabled("sandbox-prewarm")) {
+    void getSandboxFactory()
+      .getOrProvision(project.projectId)
+      .catch((err) => {
+        console.warn(
+          "[submitPromptedProject] sandbox pre-warm failed (non-fatal; developer-role will provision lazily):",
+          err instanceof Error ? err.message : String(err)
+        );
+      });
+  }
 
   // Plan SPU + UXO Task 6 — collect reference URLs the ReferenceDropZone
   // posted as `reference[]` hidden inputs. URLs are content-addressed and
