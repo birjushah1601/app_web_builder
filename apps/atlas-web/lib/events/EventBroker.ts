@@ -85,7 +85,18 @@ export type RitualEventType =
   // developer's priorArtifact so generated code can reference real image URLs.
   | "asset.gen.started"
   | "asset.gen.completed"
-  | "asset.gen.failed";
+  | "asset.gen.failed"
+  // Architect triage gate. Emitted when pass1 detects ambiguity and asks
+  // the user a clarifying question. The role pauses and dispatch returns;
+  // without this event the canvas keeps showing the architect-pending
+  // spinner because no role.completed/failed terminator arrives.
+  | "architect.triage.needs_input"
+  // Plan L0 — Build gate. Fired by BuildGateRole; surfaces as its own row
+  // on the rail timeline alongside security/a11y/visual-quality.
+  | "build-gate.started"
+  | "build-gate.passed"
+  | "build-gate.failed"
+  | "build-gate.completed";
 
 /** A published event. The broker assigns `id` on publish; it is opaque to
  *  clients (they echo it back via Last-Event-ID for resume). Format today

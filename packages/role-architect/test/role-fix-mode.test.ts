@@ -96,6 +96,116 @@ describe("ArchitectRole fix-mode bypass (PriorRitualContext + failing gate)", ()
     expect(artifact.bugReport.phase1_reproduce).toContain("src/app/page.tsx:45");
   });
 
+  // Plan L0 — fix-mode must also recognize parentBuildReport (build-gate
+  // failures) as a fix-trigger, and the synthesized bugReport must reflect
+  // compile-error framing rather than gate-issue framing.
+  const failingBuildPrior: PriorRitualContext = {
+    kind: "priorRitual",
+    parentRitualId: "r-parent-build",
+    parentBuildReport: {
+      passed: false,
+      errorKind: "compile",
+      template: "atlas-next-ts-v2",
+      command: "cd /code && pnpm exec tsc --noEmit",
+      exitCode: 1,
+      durationMs: 1500,
+      errors: [
+        { file: "src/app/page.tsx", line: 288, col: 99, severity: "error", message: "Expected '</', got 'm'" },
+        { file: "src/lib/foo.ts", line: 12, col: 5, severity: "error", message: "Cannot find name 'bar'" }
+      ]
+    }
+  };
+
+  it("triggers fix-mode bypass when parentBuildReport has passed=false", async () => {
+    const sdkSpy = vi.fn();
+    const spyProvider = new AnthropicProvider({
+      sdk: { messages: { create: sdkSpy, stream: vi.fn() } } as never,
+      metrics: createProviderMetrics(new Registry())
+    });
+    const role = new ArchitectRole({ llm: spyProvider, skills });
+
+    const out = await role.run({
+      ritualId: "r-child-build",
+      intent: "architect",
+      graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) },
+      userTurn: "fix the build",
+      priorArtifact: failingBuildPrior
+    });
+
+    // No LLM call — fix-mode bypass engaged on build-gate failure
+    expect(sdkSpy).not.toHaveBeenCalled();
+    const types = out.events.map((e) => e.eventType);
+    expect(types).toEqual([
+      "architect.pass1.started",
+      "architect.pass1.completed",
+      "architect.pass2.started",
+      "architect.pass2.completed"
+    ]);
+  });
+
+  it("synthesizes a bug-fix artifact with compile-error framing + file:line:col entries from parentBuildReport.errors", async () => {
+    const role = new ArchitectRole({ llm: provider, skills });
+    const out = await role.run({
+      ritualId: "r-child-build-2",
+      intent: "architect",
+      graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) },
+      userTurn: "fix the build",
+      priorArtifact: failingBuildPrior
+    });
+
+    const completed = out.events.find((e) => e.eventType === "architect.pass2.completed")!;
+    const artifact = completed.payload.artifact as {
+      scope: string;
+      bugReport: {
+        phase1_reproduce: string;
+        phase2_isolate: string;
+        phase3_hypothesize: string;
+        phase4_verify: string;
+        rootCause: string;
+      };
+    };
+    expect(artifact.scope).toBe("bug-fix");
+    // rootCause references compile failure, not "gate findings"
+    expect(artifact.bugReport.rootCause).toMatch(/L0 build gate/);
+    expect(artifact.bugReport.rootCause).toMatch(/2 errors/);
+    expect(artifact.bugReport.rootCause).toContain("cd /code && pnpm exec tsc --noEmit");
+    // phase1_reproduce enumerates the build errors with file:line:col
+    expect(artifact.bugReport.phase1_reproduce).toMatch(/compiler is authoritative/);
+    expect(artifact.bugReport.phase1_reproduce).toContain("src/app/page.tsx:288");
+    expect(artifact.bugReport.phase1_reproduce).toContain("src/lib/foo.ts:12");
+    expect(artifact.bugReport.phase1_reproduce).toContain("Expected '</'");
+    // phase4_verify references the actual build command, not "failed gates"
+    expect(artifact.bugReport.phase4_verify).toContain("L0 build gate");
+  });
+
+  it("when both parentBuildReport and parentSecurityReport fail, build errors are enumerated FIRST", async () => {
+    const role = new ArchitectRole({ llm: provider, skills });
+    const out = await role.run({
+      ritualId: "r-child-mixed",
+      intent: "architect",
+      graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) },
+      userTurn: "fix everything",
+      priorArtifact: {
+        ...failingBuildPrior,
+        parentSecurityReport: {
+          passed: false,
+          issues: [{ severity: "critical", code: "SEC-RLS-1", message: "Missing RLS policy", file: "supabase/migrations/001.sql", line: 5 }],
+          skillsRun: ["audit-rls"]
+        }
+      }
+    });
+
+    const completed = out.events.find((e) => e.eventType === "architect.pass2.completed")!;
+    const artifact = completed.payload.artifact as {
+      bugReport: { phase1_reproduce: string };
+    };
+    const buildIdx = artifact.bugReport.phase1_reproduce.indexOf("src/app/page.tsx");
+    const secIdx = artifact.bugReport.phase1_reproduce.indexOf("SEC-RLS-1");
+    expect(buildIdx).toBeGreaterThanOrEqual(0);
+    expect(secIdx).toBeGreaterThanOrEqual(0);
+    expect(buildIdx).toBeLessThan(secIdx);
+  });
+
   it("does NOT bypass when the prior ritual's gates passed (refinement, not fix)", async () => {
     const sdkSpy = vi.fn().mockResolvedValueOnce({
       content: [{

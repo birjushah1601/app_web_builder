@@ -34,7 +34,11 @@ describe("EventBroker types (Plan E.0 contract)", () => {
       | "designer.draft.completed"
       | "designer.critique.started" | "designer.critique.completed"
       | "designer.revise.started" | "designer.revise.completed"
-      | "asset.gen.started" | "asset.gen.completed" | "asset.gen.failed";
+      | "asset.gen.started" | "asset.gen.completed" | "asset.gen.failed"
+      // Architect triage clarifying-question pause.
+      | "architect.triage.needs_input"
+      // Plan L0: build-gate lifecycle.
+      | "build-gate.started" | "build-gate.passed" | "build-gate.failed" | "build-gate.completed";
     expectTypeOf<RitualEventType>().toEqualTypeOf<Expected>();
   });
 

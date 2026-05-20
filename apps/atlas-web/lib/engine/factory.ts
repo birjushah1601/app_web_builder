@@ -549,6 +549,31 @@ function mapCheckpointToBrokerEvent(
     case "architect.pass2.completed": return { type: "role.completed", payload: { ...payload, role: "architect" } };
     case "architect.pass1.failed":
     case "architect.pass2.failed":    return { type: "role.failed",    payload: { ...payload, role: "architect" } };
+    // pass1.completed fires for BOTH the success path (pass2 will follow,
+    // so don't emit role.completed yet — pass2's mapping handles it) and
+    // the triage-pause path (passed=false → role pauses with a question,
+    // no pass2 follows). For the pause case we MUST emit role.completed
+    // so the architect rail row's spinner stops; the triage card renders
+    // off the separate architect.triage.needs_input event below.
+    case "architect.pass1.completed":
+      return payload?.passed === false
+        ? { type: "role.completed", payload: { ...payload, role: "architect" } }
+        : null;
+    // Triage pause: the conductor's architect role asks a clarifying
+    // question and stops. The UI consumes this to render the question
+    // card (e.g. "What payment processor?"); without forwarding, the
+    // canvas hangs forever on the architect spinner with no question
+    // visible — observed during T16 smoke 2026-05-19.
+    case "architect.triage.needs_input":
+      return { type: "architect.triage.needs_input", payload };
+
+    // Plan L0 — Build-gate events. Forward all four lifecycle events so
+    // the rail can render a build-gate row alongside security/a11y/VQ
+    // and the ritual.escalation_requested handler can react to .completed.
+    case "build-gate.started":    return { type: "build-gate.started",   payload };
+    case "build-gate.passed":     return { type: "build-gate.passed",    payload };
+    case "build-gate.failed":     return { type: "build-gate.failed",    payload };
+    case "build-gate.completed":  return { type: "build-gate.completed", payload };
 
     // Developer role internal events → translate to role.* with role=developer.
     // developer.dispatch.started fires when the developer role begins; the
