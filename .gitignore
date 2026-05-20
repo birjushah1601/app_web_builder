@@ -92,6 +92,9 @@ $RECYCLE.BIN/
 
 # --- Claude Code local session state (permission decisions, tool allowlists) ---
 .claude/settings.local.json
+# Conductor/agent scratch worktrees (transient checkouts; never source-of-truth).
+# Tracked accidentally in main pre-2026-05-18; excluded going forward.
+.claude/worktrees/
 
 # --- Lockfile handling (keep the primary; ignore dupes) ---
 # pnpm-lock.yaml is the canonical lockfile for Atlas

@@ -2,23 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
-// Stub xterm — browser-only
-vi.mock("xterm", () => ({
-  Terminal: vi.fn().mockImplementation(() => ({
-    open: vi.fn(),
-    write: vi.fn(),
-    dispose: vi.fn(),
-    loadAddon: vi.fn(),
-  })),
-}));
-vi.mock("xterm-addon-fit", () => ({
-  FitAddon: vi.fn().mockImplementation(() => ({ fit: vi.fn() })),
-}));
-
-vi.mock("../../../lib/actions/code/connectTerminal", () => ({
-  connectTerminal: vi.fn().mockResolvedValue({
-    status: "stub",
-    message: "sandbox not connected yet (E.4)",
+vi.mock("../../../lib/actions/code/runTerminalCommand", () => ({
+  runTerminalCommand: vi.fn().mockResolvedValue({
+    stdout: "",
+    stderr: "",
+    exitCode: 0,
   }),
 }));
 
@@ -59,11 +47,11 @@ describe("RightPane tab navigation", () => {
     expect(screen.getByRole("tab", { name: /tests/i })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("shows the stub message in the Terminal tab", async () => {
+  it("renders the terminal input in the Terminal tab", async () => {
     render(<RightPane {...PROPS} repoSlug="acme/app" />);
     fireEvent.click(screen.getByRole("tab", { name: /terminal/i }));
     await waitFor(() =>
-      expect(screen.getByText(/sandbox not connected yet/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/terminal command/i)).toBeInTheDocument()
     );
   });
 

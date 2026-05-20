@@ -1,6 +1,7 @@
 import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { assembleDeveloperPrompt, getSandboxContextPromptFor } from "./assemble-prompt.js";
+import { renderDeveloperUserTurn } from "./render-user-turn.js";
 import { DeveloperOutputSchema, type DeveloperOutput } from "./types.js";
 
 export const DEVELOPER_ANTHROPIC_MODEL = "claude-sonnet-4-6";
@@ -35,7 +36,7 @@ export async function anthropicPass(input: AnthropicPassInput): Promise<Develope
   const messages: LLMMessage[] = [
     { role: "system", content: systemPrompt, cache_control: { type: "ephemeral" } },
     { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },
-    { role: "user", content: `User intent: ${input.userTurn}\n\nArchitect artifact:\n${JSON.stringify(input.architectArtifact, null, 2)}` }
+    { role: "user", content: renderDeveloperUserTurn(input.userTurn, input.architectArtifact) }
   ];
   const result = await (input.llm as unknown as {
     completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;

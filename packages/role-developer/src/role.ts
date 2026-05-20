@@ -1,4 +1,4 @@
-import type { LLMProvider } from "@atlas/llm-provider";
+import type { LLMProvider, LLMMessage } from "@atlas/llm-provider";
 import type { Role, RoleInvocation, RoleOutput } from "@atlas/conductor";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { anthropicPass, DEVELOPER_ANTHROPIC_MODEL } from "./anthropic-pass.js";
@@ -6,6 +6,7 @@ import { googlePass, DEVELOPER_GOOGLE_MODEL } from "./google-pass.js";
 import { reviewerVote, DEVELOPER_REVIEWER_MODEL } from "./reviewer-vote.js";
 import { BothProvidersFailedError } from "./errors.js";
 import type { DeveloperOutput } from "./types.js";
+import { renderFocusedRefineUserTurn, FOCUSED_REFINE_SYSTEM_PROMPT } from "./render-focused-refine.js";
 
 export interface DeveloperRoleOptions {
   anthropic: LLMProvider;
@@ -36,6 +37,14 @@ export class DeveloperRole implements Role {
   constructor(opts: DeveloperRoleOptions) { this.opts = opts; }
 
   async run(inv: RoleInvocation): Promise<RoleOutput> {
+    // focusedRefine branch: single-pass LLM call scoped to one element.
+    // Triggered when priorArtifact.focusedRefine === true. Skips the parallel
+    // Anthropic + Google pass and the reviewer vote entirely.
+    const focusedRefine = (inv.priorArtifact as { focusedRefine?: boolean } | null | undefined)?.focusedRefine;
+    if (focusedRefine === true) {
+      return this.runFocusedRefine(inv);
+    }
+
     const events: RoleOutput["events"] = [];
     events.push({ eventType: "developer.dispatch.started", payload: { ritualId: inv.ritualId } });
 
@@ -116,5 +125,48 @@ export class DeveloperRole implements Role {
 
     events.push({ eventType: "developer.completed", payload: { summary: winner.summary } });
     return { events, diff: { kind: "patch", body: winner.diff } };
+  }
+
+  /** Single-pass focused refine. Uses only the Anthropic provider slot.
+   *  No parallel pass, no reviewer vote — the scope is intentionally narrow
+   *  (one element, one file) so a second opinion adds latency without value. */
+  private async runFocusedRefine(inv: RoleInvocation): Promise<RoleOutput> {
+    const events: RoleOutput["events"] = [];
+    events.push({ eventType: "developer.dispatch.started", payload: { ritualId: inv.ritualId } });
+
+    const fr = inv.priorArtifact as {
+      focusedRefine: true;
+      targetFile: string;
+      targetAtlasId: string;
+      sourceSlice: string;
+    };
+
+    const userTurn = renderFocusedRefineUserTurn({
+      instruction: inv.userTurn,
+      targetFile: fr.targetFile,
+      targetAtlasId: fr.targetAtlasId,
+      sourceSlice: fr.sourceSlice
+    });
+
+    const messages: LLMMessage[] = [
+      {
+        role: "system",
+        content: FOCUSED_REFINE_SYSTEM_PROMPT + "\n\nReturn only a unified diff in a ```diff fenced block. No other prose.",
+        cache_control: { type: "ephemeral" }
+      },
+      { role: "user", content: userTurn }
+    ];
+
+    const model = this.opts.anthropicModel ?? DEVELOPER_ANTHROPIC_MODEL;
+    const completion = await this.opts.anthropic.complete(messages, { model, maxTokens: 8_000 });
+
+    // Extract the diff from the fenced ```diff block in the response.
+    const raw = completion.content;
+    const fenceMatch = /```diff\r?\n([\s\S]*?)```/.exec(raw);
+    const diffBody = fenceMatch ? fenceMatch[1]! : raw;
+
+    const summary = `Focused refine: ${fr.targetAtlasId} in ${fr.targetFile}`;
+    events.push({ eventType: "developer.completed", payload: { summary, focusedRefine: true } });
+    return { events, diff: { kind: "patch", body: diffBody } };
   }
 }

@@ -15,9 +15,11 @@ Used by Atlas's developer role when the architect's `canvasManifest.artifactKind
 - **@types/bun** + **@types/react** + **typescript** 5.6 — strict TS, `jsx: "preserve"`.
 - **react** 18 — peer of ink.
 
-## Preview surface (port 3000 is a status page, not a web UI)
+## Preview surface (port 3001 is a status page, not a web UI)
 
-CLIs don't have a web UI, but the sandbox iframe expects port 3000. The template ships a tiny **Bun.serve status page** on port 3000 (`src/server.ts`) that renders an ascii-art logo + "exercise via E2B Exec API; this preview is just a sandbox-alive indicator" hint. Acts as the "sandbox is alive" indicator inside the canvas.
+CLIs don't have a web UI, but the sandbox iframe still wants a port to render. The template ships a tiny **Bun.serve status page** on port **3001** (`src/server.ts`) that renders an ascii-art logo + "exercise via E2B Exec API; this preview is just a sandbox-alive indicator" hint. Acts as the "sandbox is alive" indicator inside the canvas.
+
+> **Why 3001 (not 3000)?** The `e2bdev/code-interpreter` base image already binds something on :3000, so `Bun.serve` fails fast with `EADDRINUSE` if we try to use 3000. Per-template port mapping lives in `apps/atlas-web/lib/sandbox/template-router.ts`.
 
 The CLI itself is exercised via the **E2B Exec API** by the Developer role:
 
@@ -52,7 +54,7 @@ console.log(result.stdout); // "Hello, world!"
 console.log(result.exitCode); // 0
 ```
 
-The status page on port 3000 is purely sandbox plumbing — it tells the canvas "yes, the sandbox booted" and renders the CLI's banner so the iframe isn't blank. Do not treat it as the user-facing UI.
+The status page on port 3001 is purely sandbox plumbing — it tells the canvas "yes, the sandbox booted" and renders the CLI's banner so the iframe isn't blank. Do not treat it as the user-facing UI.
 
 ## Conventions for the developer
 
@@ -70,7 +72,7 @@ cd packages/sandbox-e2b/templates/atlas-bun-cli
 ./scripts/smoke-test-local.sh
 ```
 
-Builds the image, starts the status page on port 3000, curls `/`, and execs the example `hello --name smoke` subcommand inside the container.
+Builds the image, starts the status page on port 3001, curls `/`, and execs the example `hello --name smoke` subcommand inside the container.
 
 ## Build + push to E2B
 

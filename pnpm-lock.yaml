@@ -25,6 +25,12 @@ importers:
       '@atlas/deploy-orchestrator':
         specifier: workspace:*
         version: link:../../packages/deploy-orchestrator
+      '@atlas/edit-patch-engine':
+        specifier: workspace:*
+        version: link:../../packages/edit-patch-engine
+      '@atlas/gate-build':
+        specifier: workspace:*
+        version: link:../../packages/gate-build
       '@atlas/gate-visual-quality':
         specifier: workspace:*
         version: link:../../packages/gate-visual-quality
@@ -40,6 +46,9 @@ importers:
       '@atlas/role-architect':
         specifier: workspace:*
         version: link:../../packages/role-architect
+      '@atlas/role-asset-generator':
+        specifier: workspace:*
+        version: link:../../packages/role-asset-generator
       '@atlas/role-designer':
         specifier: workspace:*
         version: link:../../packages/role-designer
@@ -371,6 +380,59 @@ importers:
         specifier: 2.1.8
         version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
 
+  packages/edit-patch-engine:
+    dependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.1
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.2
+      '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.0
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.0
+    devDependencies:
+      '@types/babel__generator':
+        specifier: ^7.6.8
+        version: 7.27.0
+      '@types/babel__traverse':
+        specifier: ^7.20.6
+        version: 7.28.0
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
+
+  packages/gate-build:
+    dependencies:
+      '@atlas/conductor':
+        specifier: workspace:*
+        version: link:../conductor
+      '@atlas/sandbox-e2b':
+        specifier: workspace:*
+        version: link:../sandbox-e2b
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
+
   packages/gate-scheduler:
     dependencies:
       '@atlas/edit-classifier':
@@ -649,6 +711,28 @@ importers:
         version: 5.6.3
       vitest:
         specifier: 2.1.8
+        version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
+
+  packages/role-asset-generator:
+    dependencies:
+      '@atlas/conductor':
+        specifier: workspace:*
+        version: link:../conductor
+      '@atlas/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      zod:
+        specifier: ^3.23.0
+        version: 3.23.8
+    devDependencies:
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: ^2.1.8
         version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
 
   packages/role-browser-verification:

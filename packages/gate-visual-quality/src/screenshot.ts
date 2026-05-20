@@ -43,7 +43,7 @@ function puppeteerCommand(input: { url: string; viewport: Viewport; width: numbe
 const puppeteer = require('puppeteer-core');
 (async () => {
   const browser = await puppeteer.launch({
-    executablePath: '/usr/bin/chromium',
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });

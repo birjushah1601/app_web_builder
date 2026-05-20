@@ -1,7 +1,41 @@
 import parseDiffLib from "parse-diff";
 import type { FileOp, FileApplyResult, SandboxFileSystemLike, ApplyDiffResult } from "./apply-diff-types";
+import { annotateAtlasIds } from "@atlas/edit-patch-engine";
 
 const DEFAULT_ROOT = "/code";
+
+/**
+ * Ensure the sandbox's root RootLayout keeps `<AtlasEditBridge />` mounted.
+ *
+ * The Developer LLM regularly rewrites `src/app/layout.tsx` from scratch
+ * and drops the bridge mount that streams the editable DOM tree to the
+ * parent window. Without the bridge, IframeOverlay receives no
+ * `atlas-dom-tree` messages and renders zero hit-zones — click-to-edit
+ * silently breaks for every redeploy.
+ *
+ * Idempotent: leaves content untouched if `AtlasEditBridge` already
+ * appears in the file. Only rewrites the root `app/layout.tsx`; nested
+ * layouts and unrelated .tsx files are passed through verbatim.
+ */
+export function ensureAtlasEditBridge(absPath: string, content: string): string {
+  if (!/\/app\/layout\.tsx$/.test(absPath)) return content;
+  if (/AtlasEditBridge/.test(content)) return content;
+
+  const importLine = `import { AtlasEditBridge } from "../atlas-edit-bridge";`;
+  const importRe = /^(import\s[^\n]+;\s*\n)+/m;
+  let next = content;
+  if (importRe.test(next)) {
+    next = next.replace(importRe, (m) => `${m}${importLine}\n`);
+  } else {
+    next = `${importLine}\n${next}`;
+  }
+
+  const bodyOpenRe = /(<body\b[^>]*>)/;
+  if (bodyOpenRe.test(next)) {
+    next = next.replace(bodyOpenRe, (_m, open: string) => `${open}\n        <AtlasEditBridge />`);
+  }
+  return next;
+}
 
 /** Parses a unified diff into per-file operations. Wraps the parse-diff
  *  npm library with our internal FileOp shape (which sanitizes paths
@@ -152,13 +186,17 @@ export async function applyFileOp(
     return { path: op.path, status: "failed", reason: `path escape blocked: ${op.path}` };
   }
 
+  const isJsx = op.path.endsWith(".tsx") || op.path.endsWith(".jsx");
+
   if (op.kind === "create") {
     if (op.newContent === undefined) {
       return { path: op.path, status: "failed", reason: "no newContent on create op" };
     }
     try {
-      await fs.write(safePath, op.newContent);
-      return { path: op.path, status: "written", bytesWritten: byteLen(op.newContent) };
+      let contentToWrite = isJsx ? annotateAtlasIds(safePath, op.newContent) : op.newContent;
+      if (isJsx) contentToWrite = ensureAtlasEditBridge(safePath, contentToWrite);
+      await fs.write(safePath, contentToWrite);
+      return { path: op.path, status: "written", bytesWritten: byteLen(contentToWrite) };
     } catch (err) {
       return { path: op.path, status: "failed", reason: (err as Error).message };
     }
@@ -179,8 +217,10 @@ export async function applyFileOp(
       return { path: op.path, status: "skipped", reason: reconstructed.reason };
     }
     try {
-      await fs.write(safePath, reconstructed.content);
-      return { path: op.path, status: "written", bytesWritten: byteLen(reconstructed.content) };
+      let contentToWrite = isJsx ? annotateAtlasIds(safePath, reconstructed.content) : reconstructed.content;
+      if (isJsx) contentToWrite = ensureAtlasEditBridge(safePath, contentToWrite);
+      await fs.write(safePath, contentToWrite);
+      return { path: op.path, status: "written", bytesWritten: byteLen(contentToWrite) };
     } catch (err) {
       return { path: op.path, status: "failed", reason: (err as Error).message };
     }

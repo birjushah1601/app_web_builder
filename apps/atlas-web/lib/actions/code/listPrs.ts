@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth/clerk-compat";
-import { createOctokit, parseRepoSlug } from "../../code/octokitClient";
+import { tryCreateOctokit, parseRepoSlug } from "../../code/octokitClient";
 
 export interface Pr {
   number: number;
@@ -22,7 +22,9 @@ export async function listPrs(input: ListPrsInput): Promise<Pr[]> {
   const { userId } = await auth();
   if (!userId) throw new Error("UNAUTHORIZED");
 
-  const octokit = createOctokit();
+  const octokit = tryCreateOctokit();
+  if (!octokit) return []; // GITHUB_TOKEN not set — degrade silently to empty list
+  if (!input.repoSlug) return []; // No repo connected yet
   const { owner, repo } = parseRepoSlug(input.repoSlug);
   const { data } = await octokit.pulls.list({
     owner,

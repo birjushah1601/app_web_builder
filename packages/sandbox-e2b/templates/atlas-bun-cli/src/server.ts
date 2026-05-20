@@ -36,11 +36,12 @@ const STATUS_HTML = `<!doctype html>
 
 /**
  * Start the status-page HTTP server. Returns the Bun.Server handle so callers
- * (tests, the Dockerfile entrypoint) can stop it. Default port 3000 matches
- * the e2b.toml ready_cmd / start_cmd.
+ * (tests, the Dockerfile entrypoint) can stop it. Default port 3001 matches
+ * the e2b.toml ready_cmd / start_cmd. (Port 3000 is taken by the e2bdev
+ * code-interpreter base image, so Bun.serve EADDRINUSEs on 3000.)
  */
 export function startServer(opts: { port?: number } = {}): Server {
-  const port = opts.port ?? 3000;
+  const port = opts.port ?? 3001;
   return Bun.serve({
     port,
     fetch(req) {
@@ -57,6 +58,6 @@ export function startServer(opts: { port?: number } = {}): Server {
 }
 
 if (import.meta.main) {
-  const server = startServer({ port: Number(process.env.PORT ?? 3000) });
+  const server = startServer({ port: Number(process.env.PORT ?? 3001) });
   console.log(`atlas-bun-cli status page → http://localhost:${server.port}/`);
 }

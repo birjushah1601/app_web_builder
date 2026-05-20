@@ -30,9 +30,27 @@ export interface RowState {
   meta?: { winner?: string; filesWritten?: number };
 }
 
+/** Plan #14 — payload pulled off `ritual.escalated` so the chat banner can
+ *  surface what the conductor saw. All fields optional because the broker
+ *  doesn't guarantee them on every emission path (the legacy
+ *  ritual.escalation_requested flow has no roleId, for example). */
+export interface EscalationDetails {
+  failedRoleId?: string;
+  attempts?: number;
+  finalError?: string;
+  /** ritualId carried on the event so the Retry button knows which
+   *  ritual to re-run. The conductor stamps every checkpoint with
+   *  ritualId, so this is reliably present whenever escalated=true. */
+  ritualId?: string;
+}
+
 export interface TimelineState {
   rows: Record<Phase, RowState>;
   escalated: boolean;
+  /** Plan #14 — populated on ritual.escalated so the chat banner can show
+   *  the failed role + attempt count + truncated finalError. Cleared on
+   *  ritual.started. Undefined when escalated=false. */
+  escalation?: EscalationDetails;
   /** Plan P: counter incremented on auto_fix.attempted; rendered as a
    *  "(auto-fix #N)" indicator in <RitualTimeline />. Reset by ritual.started. */
   autoFixAttempts: number;
@@ -62,9 +80,35 @@ export function timelineReducer(state: TimelineState, event: RitualEvent): Timel
     case "ritual.started":
       return initialTimelineState;
 
-    case "ritual.escalated":
+    case "ritual.escalated": {
+      // Plan #14 — capture the conductor's failure context so the chat
+      // banner can surface failedRoleId + attempts + truncated finalError.
+      // Conductor emits payload = { roleId, attempts, finalError } (see
+      // packages/conductor/src/conductor.ts line ~135). We accept either
+      // `roleId` or the explicit `failedRoleId` for forward-compat.
+      const failedRoleId = typeof event.payload.failedRoleId === "string"
+        ? event.payload.failedRoleId
+        : typeof event.payload.roleId === "string"
+          ? event.payload.roleId
+          : undefined;
+      const attempts = typeof event.payload.attempts === "number"
+        ? event.payload.attempts
+        : undefined;
+      const finalError = typeof event.payload.finalError === "string"
+        ? event.payload.finalError
+        : undefined;
+      const escalation: EscalationDetails = {
+        ...(failedRoleId !== undefined ? { failedRoleId } : {}),
+        ...(attempts !== undefined ? { attempts } : {}),
+        ...(finalError !== undefined ? { finalError } : {}),
+        ritualId: event.ritualId
+      };
+      // If we've already seen an escalated event for this ritual, keep the
+      // first set of details — re-escalation events would be a conductor
+      // bug, and overwriting would mask the original failure.
       if (state.escalated) return state;
-      return { ...state, escalated: true };
+      return { ...state, escalated: true, escalation };
+    }
 
     case "ritual.completed": {
       const newRows = { ...state.rows };

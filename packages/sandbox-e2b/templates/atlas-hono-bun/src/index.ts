@@ -31,16 +31,16 @@ app.get("/health", (c) =>
   })
 );
 
-// Bun.serve auto-runs when this file is executed via `bun run src/index.ts`.
-// Hono exports `fetch` on the default export; Bun.serve picks it up.
-const port = Number(Bun.env.PORT ?? 3000);
+// Bun auto-serves `export default { fetch, port }` when this file is executed
+// via `bun run src/index.ts`. Don't ALSO call Bun.serve(...) — that double-binds
+// and EADDRINUSEs on the same port (since Bun.serve and auto-serve both try
+// to bind {port}). Port 3001 default — the e2bdev/code-interpreter base image
+// already binds :3000.
+const port = Number(Bun.env.PORT ?? 3001);
 
-if (import.meta.main) {
-  Bun.serve({
-    port,
-    fetch: app.fetch,
-  });
-  console.log(`atlas-hono-bun listening on http://0.0.0.0:${port}`);
-}
+console.log(`atlas-hono-bun listening on http://0.0.0.0:${port}`);
 
-export default app;
+export default {
+  port,
+  fetch: app.fetch,
+};

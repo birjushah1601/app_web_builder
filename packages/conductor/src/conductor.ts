@@ -50,6 +50,11 @@ export interface DispatchOptions {
   /** Pass-through to RoleInvocation.priorArtifact — the artifact produced
    *  by a previous role in the same ritual. Optional. */
   priorArtifact?: unknown;
+  /** Pass-through to RoleInvocation.currentFiles — a snapshot of files that
+   *  exist in the project's live sandbox today. Architect consumes this so
+   *  its plan builds on the current tree rather than recreating from scratch.
+   *  Optional; conductor doesn't interpret the shape. */
+  currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -69,6 +74,13 @@ export class Conductor {
     this.sleep = opts.sleep ?? defaultSleep;
   }
 
+  /** Plan SPU — true when the role registry has a role registered under `id`.
+   *  Lets callers (RitualEngine) avoid dispatching a role that's missing so
+   *  they can branch cleanly instead of catching an "unknown role" throw. */
+  hasRole(id: string): boolean {
+    return this.roles.has(id);
+  }
+
   async dispatch(ctx: DispatchContext, options: DispatchOptions = {}): Promise<DispatchResult> {
     const policy = options.retry ?? DEFAULT_DISPATCH_RETRY;
     // forceRoleId bypasses the classifier (used when chaining roles in a
@@ -85,18 +97,48 @@ export class Conductor {
     }
 
     const slice = this.sliceBuilder(ctx);
-    const invocation = {
+    const invocation: import("./role.js").RoleInvocation = {
       ritualId: ctx.ritualId as string,
       intent: classification.roleId,
       graphSlice: slice,
       userTurn: ctx.userTurn,
       priorArtifact: options.priorArtifact
     };
+    // exactOptionalPropertyTypes — only set currentFiles when actually provided
+    // so downstream `=== undefined` checks behave consistently.
+    if (options.currentFiles !== undefined) {
+      invocation.currentFiles = options.currentFiles;
+    }
+
+    // Per-attempt LLM timeout. Without this a stuck OpenRouter call (e.g.
+    // Llama 3.3 cold-start, provider hanging) blocks the Server Action
+    // forever and the user sees "stuck on architecture" with zero feedback.
+    // Configurable via ATLAS_ROLE_TIMEOUT_MS; defaults to 180s — long
+    // enough for Sonnet/Llama on a full-context architect prompt, short
+    // enough that a hang surfaces as a role.failed instead of forever.
+    const timeoutMs = Number(process.env.ATLAS_ROLE_TIMEOUT_MS ?? "180000");
 
     let lastError: unknown;
     for (let attempt = 1; attempt <= policy.maxAttempts; attempt++) {
+      // Emit BEFORE the role.run so the dev log shows which role is in
+      // flight while the LLM call is pending. The conductor previously
+      // logged nothing between dispatch.classified and role.run's return,
+      // so a hung LLM looked identical to "nothing is happening".
+      await this.emit({
+        eventType: "role.started",
+        ctx,
+        payload: { roleId: role.id, attempt, timeoutMs }
+      });
       try {
-        const output = await role.run(invocation);
+        const output = await Promise.race<import("./role.js").RoleOutput>([
+          role.run(invocation),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`role ${role.id} timed out after ${timeoutMs}ms`)),
+              timeoutMs
+            )
+          )
+        ]);
         for (const evt of output.events) {
           await this.emit({
             eventType: evt.eventType,

@@ -30,21 +30,32 @@ export function EditorShell({ projectId, left, right }: Props) {
       data-right-collapsed={String(layout.rightCollapsed)}
       className="flex h-full w-full"
     >
-      {/* Left collapse-toggle rail (always visible, 24px) */}
-      <button
-        type="button"
-        data-testid="editor-shell-collapse-left"
-        aria-label={layout.leftCollapsed ? "Expand chat panel" : "Collapse chat panel"}
-        onClick={() => setLayout({ ...layout, leftCollapsed: !layout.leftCollapsed })}
-        className="flex w-6 items-center justify-center border-r border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-900"
-      >
-        {layout.leftCollapsed ? "›" : "‹"}
-      </button>
+      {/* Collapse rails are only shown when their panel IS collapsed —
+       *  otherwise the resize handle in the middle is the only divider, and
+       *  the user reclaims the previously-wasted 12px per side. When a panel
+       *  is collapsed, the rail is the only way back, so we keep it visible
+       *  in that state. */}
+      {layout.leftCollapsed && (
+        <button
+          type="button"
+          data-testid="editor-shell-collapse-left"
+          aria-label="Expand chat panel"
+          onClick={() => setLayout({ ...layout, leftCollapsed: false })}
+          className="flex w-3 items-center justify-center border-r border-slate-200 bg-slate-50 text-[10px] text-slate-400 hover:text-slate-900"
+        >
+          ›
+        </button>
+      )}
 
       {layout.leftCollapsed ? (
         <main className="flex-1 min-w-0 overflow-auto">{right}</main>
       ) : layout.rightCollapsed ? (
-        <aside className="flex-1 min-w-0 overflow-auto">{left}</aside>
+        // When right is collapsed, give the left (chat) the full remaining
+        // width by wrapping it in a flex container that overrides the
+        // RailShell's intrinsic 360px so the chat actually fills the screen.
+        <div className="flex flex-1 min-w-0 overflow-auto [&>aside]:!w-full [&>aside]:!flex-1">
+          {left}
+        </div>
       ) : (
         <PanelGroup direction="horizontal" onLayout={onLayout} className="flex flex-1 min-w-0">
           <Panel defaultSize={layout.leftWidthPct} minSize={15} maxSize={85} className="flex flex-col min-w-0">
@@ -60,16 +71,17 @@ export function EditorShell({ projectId, left, right }: Props) {
         </PanelGroup>
       )}
 
-      {/* Right collapse-toggle rail (always visible, 24px) */}
-      <button
-        type="button"
-        data-testid="editor-shell-collapse-right"
-        aria-label={layout.rightCollapsed ? "Expand preview panel" : "Collapse preview panel"}
-        onClick={() => setLayout({ ...layout, rightCollapsed: !layout.rightCollapsed })}
-        className="flex w-6 items-center justify-center border-l border-slate-200 bg-slate-50 text-slate-500 hover:text-slate-900"
-      >
-        {layout.rightCollapsed ? "‹" : "›"}
-      </button>
+      {layout.rightCollapsed && (
+        <button
+          type="button"
+          data-testid="editor-shell-collapse-right"
+          aria-label="Expand preview panel"
+          onClick={() => setLayout({ ...layout, rightCollapsed: false })}
+          className="flex w-3 items-center justify-center border-l border-slate-200 bg-slate-50 text-[10px] text-slate-400 hover:text-slate-900"
+        >
+          ‹
+        </button>
+      )}
     </div>
   );
 }

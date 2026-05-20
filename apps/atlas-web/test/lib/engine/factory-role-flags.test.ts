@@ -35,6 +35,7 @@ describe("getRitualEngine — security/a11y role flag wiring (Plan I Task 4)", (
   afterEach(() => {
     delete process.env.ATLAS_FF_SECURITY_ROLE;
     delete process.env.ATLAS_FF_A11Y_ROLE;
+    delete process.env.ATLAS_FF_BUILD_GATE;
     delete process.env.ATLAS_LLM_BASE_URL;
   });
 
@@ -72,5 +73,22 @@ describe("getRitualEngine — security/a11y role flag wiring (Plan I Task 4)", (
     expect(securityCtorSpy).toHaveBeenCalledTimes(1);
     expect(a11yCtorSpy).toHaveBeenCalledTimes(1);
     expect((engine as unknown as { postDeveloperChain: string[] }).postDeveloperChain).toEqual(["security", "accessibility"]);
+  });
+
+  it("ATLAS_FF_BUILD_GATE unset: build-gate NOT in postDeveloperChain", async () => {
+    delete process.env.ATLAS_FF_BUILD_GATE;
+    vi.resetModules();
+    const { getRitualEngine } = await import("@/lib/engine/factory");
+    const engine = await getRitualEngine("p");
+    expect((engine as unknown as { postDeveloperChain: string[] }).postDeveloperChain).not.toContain("build-gate");
+  });
+
+  it("ATLAS_FF_BUILD_GATE=true: build-gate is FIRST entry in postDeveloperChain", async () => {
+    process.env.ATLAS_FF_BUILD_GATE = "true";
+    vi.resetModules();
+    const { getRitualEngine } = await import("@/lib/engine/factory");
+    const engine = await getRitualEngine("p");
+    const chain = (engine as unknown as { postDeveloperChain: string[] }).postDeveloperChain;
+    expect(chain[0]).toBe("build-gate");
   });
 });

@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth/clerk-compat";
 import { getRitualEngine } from "@/lib/engine/factory";
 import type { EditClass } from "@atlas/ritual-engine";
+import type { ArtifactKind } from "@atlas/canvas-runtime";
 import type { SecurityReport } from "@/components/SecurityReportPanel";
 import type { AccessibilityReport } from "@/components/AccessibilityReportPanel";
 
@@ -10,6 +11,13 @@ export interface StartRitualInput {
   projectId: string;
   userTurn: string;
   editClass: EditClass;
+  /** Plan PFP — optional user-provided hint that bypasses the architect's
+   *  artifactKind classification. Forwarded to engine.start(). */
+  artifactKindHint?: ArtifactKind;
+  /** Plan SPU — user-supplied reference imagery. Forwarded to engine.start()
+   *  which folds it into the architect's priorArtifact so it flows through
+   *  to Designer. Empty array → omitted (no behavior change). */
+  referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
 }
 
 /** Plain JSON-serializable shape returned to the client. ChatPanel renders
@@ -56,11 +64,26 @@ export async function startRitual(input: StartRitualInput): Promise<StartRitualR
   const { userId } = await auth();
   if (!userId) throw new Error("unauthorized");
   const engine = await getRitualEngine(input.projectId);
+  // Task B: snapshot the curated set of "anchor" files from the live
+  // sandbox so the architect's prompt can include a "## Current sandbox
+  // files" section even on a cold start. readCurrentFilesForProject is
+  // failure-safe — returns [] when the sandbox isn't provisioned yet,
+  // when E2B is down, or when no files exist. Architect then runs
+  // exactly as it does today.
+  const { readCurrentFilesForProject } = await import("@/lib/sandbox/read-current-files");
+  const currentFiles = await readCurrentFilesForProject(input.projectId);
   const ritualId = await engine.start({
     userTurn: input.userTurn,
     editClass: input.editClass,
     projectId: input.projectId,
-    userId
+    userId,
+    ...(input.artifactKindHint ? { artifactKindHint: input.artifactKindHint } : {}),
+    ...(currentFiles.length > 0 ? { currentFiles } : {}),
+    // Plan SPU — only forward referenceImages when non-empty so the engine's
+    // exactOptionalPropertyTypes-driven `=== undefined` checks behave consistently.
+    ...(input.referenceImages && input.referenceImages.length > 0
+      ? { referenceImages: input.referenceImages }
+      : {})
   });
   // Snapshot is in-memory; same engine instance is cached per-request via
   // React `cache()` in factory.ts, so this getRitual() always finds the

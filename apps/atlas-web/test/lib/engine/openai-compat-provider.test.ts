@@ -652,3 +652,196 @@ describe("OpenAICompatProvider — fallback for proxies that drop tools[]", () =
     expect(res.input).toEqual({ summary: "from-tool-call" });
   });
 });
+
+describe("OpenAICompatProvider — 404-on-tools auto-fallback", () => {
+  it("retries with tools stripped when OpenRouter returns 404 'No endpoints found that support tool use'", async () => {
+    // First call: OpenRouter rejects with the canonical 404-tool-use body.
+    // Second call: same provider, no tools array, model returns the structured
+    // input as bare-JSON content (the schema-injection path the existing
+    // proxy-strip fallback already handles).
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message:
+                  'No endpoints found that support tool use. Try disabling "emit_developer_output". To learn more about provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection',
+                code: 404
+              }
+            }),
+            { status: 404, headers: { "content-type": "application/json" } }
+          )
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            choices: [
+              {
+                finish_reason: "stop",
+                message: { content: '{"summary":"recovered via schema-injection"}' }
+              }
+            ],
+            usage: { prompt_tokens: 100, completion_tokens: 5 }
+          })
+        );
+
+      const p = new OpenAICompatProvider({
+        baseUrl: "https://openrouter.ai/api/v1",
+        apiKey: "sk-or-v1-test",
+        fetchFn: fetchFn as unknown as typeof fetch
+      });
+      const res = await p.completeWithToolUse(
+        [{ role: "user", content: "do it" }],
+        {
+          // Use a known-tool-supporting model so the 404 is the ONLY trigger
+          // for the fallback (not the up-front capability check).
+          model: "anthropic/claude-sonnet-4.5",
+          maxTokens: 100,
+          tools: [TOOL],
+          toolChoice: { type: "tool", name: "propose_plan" }
+        }
+      );
+
+      expect(res.toolName).toBe("propose_plan");
+      expect(res.input).toEqual({ summary: "recovered via schema-injection" });
+
+      // Two requests fired: original (with tools) + retry (without).
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+
+      // Original request had tools[].
+      const firstBody = JSON.parse(
+        (fetchFn.mock.calls[0]![1] as RequestInit).body as string
+      ) as { tools?: unknown; tool_choice?: unknown; messages: Array<{ role: string }> };
+      expect(firstBody.tools).toBeDefined();
+      expect(firstBody.tool_choice).toBeDefined();
+
+      // Retry stripped tools[] but kept the schema-injection system message.
+      const retryBody = JSON.parse(
+        (fetchFn.mock.calls[1]![1] as RequestInit).body as string
+      ) as { tools?: unknown; tool_choice?: unknown; messages: Array<{ role: string; content: string }> };
+      expect(retryBody.tools).toBeUndefined();
+      expect(retryBody.tool_choice).toBeUndefined();
+      expect(retryBody.messages[0]!.role).toBe("system");
+      expect(retryBody.messages[0]!.content).toContain("propose_plan");
+      expect(retryBody.messages[0]!.content).toContain("JSON Schema");
+
+      // Observable warning fired.
+      const warnings = warnSpy.mock.calls.map((c) => c[0] as string);
+      const fallbackWarning = warnings.find((w) =>
+        w.includes("doesn't support tool_use, falling back to schema-injection")
+      );
+      expect(fallbackWarning).toBeDefined();
+      expect(fallbackWarning).toContain("anthropic/claude-sonnet-4.5");
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("caps the 404 fallback at one retry — propagates if the second attempt also 404s", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      // BOTH attempts return 404-tool-use. We must surface the second 404,
+      // not loop into a third attempt.
+      const fourOhFour = () =>
+        new Response(
+          JSON.stringify({ error: { message: "No endpoints found that support tool use", code: 404 } }),
+          { status: 404, headers: { "content-type": "application/json" } }
+        );
+      const fetchFn = vi.fn().mockResolvedValueOnce(fourOhFour()).mockResolvedValueOnce(fourOhFour());
+
+      const p = new OpenAICompatProvider({
+        baseUrl: "https://openrouter.ai/api/v1",
+        fetchFn: fetchFn as unknown as typeof fetch
+      });
+      await expect(
+        p.completeWithToolUse(
+          [{ role: "user", content: "x" }],
+          {
+            model: "anthropic/claude-sonnet-4.5",
+            maxTokens: 100,
+            tools: [TOOL],
+            toolChoice: { type: "tool", name: "propose_plan" }
+          }
+        )
+      ).rejects.toThrow(/HTTP 404/);
+      // Exactly two attempts — no third.
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does NOT trigger the fallback for unrelated 404s (e.g. unknown model)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const fetchFn = vi.fn().mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: { message: "Model not found", code: 404 } }),
+          { status: 404, headers: { "content-type": "application/json" } }
+        )
+      );
+      const p = new OpenAICompatProvider({
+        baseUrl: "https://openrouter.ai/api/v1",
+        fetchFn: fetchFn as unknown as typeof fetch
+      });
+      await expect(
+        p.completeWithToolUse(
+          [{ role: "user", content: "x" }],
+          {
+            model: "anthropic/claude-sonnet-4.5",
+            maxTokens: 100,
+            tools: [TOOL],
+            toolChoice: { type: "tool", name: "propose_plan" }
+          }
+        )
+      ).rejects.toThrow(/HTTP 404/);
+      // Only ONE attempt — no retry for non-tool-use 404s.
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("skips tools[] up-front when the model is registered as NOT supporting tool_use", async () => {
+    // Qwen 2.5 is in the registry as supportsTools=false. The provider
+    // should send the schema-injection request immediately — no wasted
+    // round-trip to OpenRouter that we KNOW will 404.
+    const fetchFn = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: '{"summary":"qwen returned schema-shaped JSON"}' }
+          }
+        ],
+        usage: {}
+      })
+    );
+    const p = new OpenAICompatProvider({
+      baseUrl: "https://openrouter.ai/api/v1",
+      fetchFn: fetchFn as unknown as typeof fetch
+    });
+    const res = await p.completeWithToolUse(
+      [{ role: "user", content: "x" }],
+      {
+        model: "qwen/qwen-2.5-coder-32b-instruct",
+        maxTokens: 100,
+        tools: [TOOL],
+        toolChoice: { type: "tool", name: "propose_plan" }
+      }
+    );
+
+    expect(res.input).toEqual({ summary: "qwen returned schema-shaped JSON" });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      (fetchFn.mock.calls[0]![1] as RequestInit).body as string
+    ) as { tools?: unknown; tool_choice?: unknown; messages: Array<{ role: string; content: string }> };
+    expect(body.tools).toBeUndefined();
+    expect(body.tool_choice).toBeUndefined();
+    // Schema instruction still present.
+    expect(body.messages[0]!.role).toBe("system");
+    expect(body.messages[0]!.content).toContain("propose_plan");
+  });
+});

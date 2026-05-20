@@ -7,7 +7,7 @@ import type {
 } from "@/lib/events/EventBroker";
 
 describe("EventBroker types (Plan E.0 contract)", () => {
-  it("RitualEventType is the union from Plan E.0 spec + Plan P additions (gates + auto-fix)", () => {
+  it("RitualEventType is the union from Plan E.0 spec + Plan P additions (gates + auto-fix) + Plan S.4 (canvas+designer) + Plan S.5 (visual quality) + Plan S.2 (researcher)", () => {
     type Expected =
       | "ritual.started" | "ritual.completed" | "ritual.escalated"
       | "ritual.escalation_requested"
@@ -18,7 +18,27 @@ describe("EventBroker types (Plan E.0 contract)", () => {
       | "security.started" | "security.completed" | "security.failed"
       | "accessibility.started" | "accessibility.completed" | "accessibility.failed"
       // Plan P: auto-fix events drive the meta-state counter.
-      | "auto_fix.attempted" | "auto_fix.budget_exhausted" | "auto_fix.failed";
+      | "auto_fix.attempted" | "auto_fix.budget_exhausted" | "auto_fix.failed"
+      // Plan S.5: visual-quality merge gate.
+      | "visual_quality.started" | "visual_quality.passed" | "visual_quality.failed"
+      | "visual_quality.skipped" | "visual_quality.completed" | "visual_quality.errored"
+      // Plan S.2: researcher brief lifecycle.
+      | "researcher.brief.started" | "researcher.brief.completed"
+      | "researcher.brief.skipped" | "researcher.brief.failed"
+      // Plan S.4: canvas + architect manifest + designer events.
+      | "architect.canvas_manifest.emitted"
+      | "designer.proposal.emitted" | "designer.proposal.failed"
+      | "canvas.options.requested" | "canvas.option.selected"
+      | "canvas.refinement.started" | "canvas.refinement.completed"
+      // Plan SPU: Designer three-pass + AssetGenerator lifecycle.
+      | "designer.draft.completed"
+      | "designer.critique.started" | "designer.critique.completed"
+      | "designer.revise.started" | "designer.revise.completed"
+      | "asset.gen.started" | "asset.gen.completed" | "asset.gen.failed"
+      // Architect triage clarifying-question pause.
+      | "architect.triage.needs_input"
+      // Plan L0: build-gate lifecycle.
+      | "build-gate.started" | "build-gate.passed" | "build-gate.failed" | "build-gate.completed";
     expectTypeOf<RitualEventType>().toEqualTypeOf<Expected>();
   });
 

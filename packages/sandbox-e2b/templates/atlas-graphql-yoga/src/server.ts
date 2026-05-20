@@ -17,7 +17,9 @@ export interface CreateServerOptions {
 }
 
 export function createServer(opts: CreateServerOptions = {}) {
-  const port = opts.port ?? Number(process.env.PORT ?? 3000);
+  // Default port 3001 (NOT 3000) — the e2bdev/code-interpreter base image
+  // already binds :3000, so Bun.serve EADDRINUSEs on 3000.
+  const port = opts.port ?? Number(process.env.PORT ?? 3001);
   const hostname = opts.hostname ?? "0.0.0.0";
 
   return Bun.serve({

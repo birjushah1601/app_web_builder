@@ -30,7 +30,9 @@ export const DesignDirectionSchema = z.object({
   shortDescription: z.string().min(1),
   technicalDescription: z.string().min(1),
   citedReferences: z.array(z.string()),
-  tokens: DesignTokensSchema
+  tokens: DesignTokensSchema,
+  layoutDirective: z.string().min(20)
+    .describe("1-3 sentences describing the page skeleton this direction implies, including any explicit exclusions like 'NO testimonials block'.")
 });
 export type DesignDirection = z.infer<typeof DesignDirectionSchema>;
 

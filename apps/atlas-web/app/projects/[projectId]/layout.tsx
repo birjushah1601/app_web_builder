@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { PreferencesRepo } from "@atlas/spec-graph-data";
 import { auth, currentUser } from "@/lib/auth/clerk-compat";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { getLatestRitualForProject } from "@/lib/actions/getLatestRitualForProject";
 import { EventSourceProvider } from "@/lib/events/EventSourceProvider";
 import { RailShell } from "@/components/shell/RailShell";
 import { RitualStatusStrip } from "@/components/ritual/RitualStatusStrip";
@@ -29,11 +30,22 @@ export default async function ProjectLayout({
   const liveEventsOn = isFeatureEnabled("live-events");
   const multiTurnOn = isFeatureEnabled("multi-turn");
   const editorLayoutV2On = isFeatureEnabled("editor-layout-v2");
+  // Plan UXO Task 6 — gate ReferenceDropZone in RailShell's ChatPanel.
+  const referenceInputOn = isFeatureEnabled("reference-input");
+  // Plan UXO Task 7 — gate CritiqueDisclosure in the rail's RitualTimeline.
+  const editablePlanOn = isFeatureEnabled("editable-plan");
+  // Refine-by-default — server-side fetch of the most recent ritualId so
+  // ChatPanel auto-routes the next submit through refineRitual. Failure-safe:
+  // returns null when DB unreachable OR project has no rituals yet → ChatPanel
+  // falls back to the cold-start path.
+  const latestRitual = multiTurnOn ? await getLatestRitualForProject(projectId) : null;
+  const initialLatestRitualId = latestRitual?.ritualId;
 
   const topNav = (
     <nav className="flex items-center gap-4 border-b border-slate-200 px-4 py-2">
       <Link href={`/projects/${projectId}/canvas`} className="text-sm hover:underline">Canvas</Link>
       <Link href={`/projects/${projectId}/code`} className="text-sm hover:underline">Code</Link>
+      <Link href={`/projects/${projectId}/events`} className="text-sm hover:underline">Events</Link>
       <span className="ml-auto text-xs text-slate-500">Persona: {persona}</span>
     </nav>
   );
@@ -56,7 +68,7 @@ export default async function ProjectLayout({
           <div className="flex flex-1 min-h-0">
             <EditorShell
               projectId={projectId}
-              left={<RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} />}
+              left={<RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} referenceInputEnabled={referenceInputOn} editablePlanEnabled={editablePlanOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />}
               right={<main className="flex-1 min-w-0 overflow-auto">{children}</main>}
             />
           </div>
@@ -70,7 +82,7 @@ export default async function ProjectLayout({
       <div className="flex h-screen flex-col">
         {topNav}
         <div className="flex flex-1 min-h-0">
-          <RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} />
+          <RailShell projectId={projectId} multiTurnFlagEnabled={multiTurnOn} referenceInputEnabled={referenceInputOn} editablePlanEnabled={editablePlanOn} {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})} />
           <main className="flex-1 min-w-0 overflow-auto">{children}</main>
         </div>
       </div>

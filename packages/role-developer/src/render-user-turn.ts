@@ -1,0 +1,173 @@
+/**
+ * Renders the Developer's user-turn message with prominent sections for
+ * data the LLM frequently overlooks when buried inside a JSON dump:
+ *
+ * - `selectedTokens` (the Designer's chosen palette/typography/spacing) —
+ *   surfaced first so the developer applies them to design-tokens.json
+ *   AND uses the matching Tailwind classes throughout.
+ * - `designIntent` and `canvasManifest` — kept as JSON since they're
+ *   already structured but no longer leading.
+ * - `runnablePlan` and `specGraph` — last, since they're often empty for
+ *   greenfield prompts and the developer can fall back to user intent.
+ *
+ * Falls back gracefully when architectArtifact is null / missing fields.
+ */
+
+interface SelectedTokens {
+  palette?: Record<string, unknown>;
+  typeScale?: Record<string, unknown>;
+  typography?: Record<string, unknown>;
+  density?: string;
+  componentSet?: string;
+  imageryStrategy?: string;
+  copyVoice?: string;
+}
+
+function extractSelectedLayoutDirective(artifact: unknown): string | undefined {
+  if (!artifact || typeof artifact !== "object") return undefined;
+  const v = (artifact as { selectedLayoutDirective?: unknown }).selectedLayoutDirective;
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+function extractSelectedTokens(artifact: unknown): SelectedTokens | undefined {
+  if (!artifact || typeof artifact !== "object") return undefined;
+  const tokens = (artifact as { selectedTokens?: SelectedTokens }).selectedTokens;
+  if (!tokens || typeof tokens !== "object") return undefined;
+  return tokens;
+}
+
+function renderTokensSection(tokens: SelectedTokens): string {
+  const lines = ["## Chosen design tokens (apply these — don't reinvent)"];
+  if (tokens.palette) {
+    lines.push("", "Palette (rewrite `src/design-tokens.json` with these values):");
+    for (const [k, v] of Object.entries(tokens.palette)) {
+      lines.push(`  - ${k}: ${String(v)}`);
+    }
+  }
+  const typo = tokens.typography ?? tokens.typeScale;
+  if (typo) {
+    lines.push("", "Typography:");
+    for (const [k, v] of Object.entries(typo)) {
+      lines.push(`  - ${k}: ${String(v)}`);
+    }
+  }
+  if (tokens.density) lines.push("", `Density: ${tokens.density}`);
+  if (tokens.componentSet) lines.push(`Component set: ${tokens.componentSet}`);
+  if (tokens.imageryStrategy) lines.push(`Imagery: ${tokens.imageryStrategy}`);
+  if (tokens.copyVoice) lines.push(`Copy voice: ${tokens.copyVoice}`);
+
+  lines.push(
+    "",
+    "Use these tokens consistently across hero, sections, buttons, and footer. " +
+    "Update `src/design-tokens.json` to reflect them so Tailwind's theme rebuilds. " +
+    "Don't fall back to default purple/blue if the palette specifies something else.",
+    ""
+  );
+  return lines.join("\n");
+}
+
+export function renderDeveloperUserTurn(userTurn: string, architectArtifact: unknown): string {
+  const sections: string[] = [`User intent: ${userTurn}`];
+  const tokens = extractSelectedTokens(architectArtifact);
+  const layoutDirective = extractSelectedLayoutDirective(architectArtifact);
+  if (tokens) sections.push("", renderTokensSection(tokens));
+
+  // Plan SPU — when the engine's AssetGenerator ran, the architect artifact
+  // arrives with an `assetManifest` field containing hero + per-section image
+  // URLs (e.g. `/atlas-assets/<sha>.jpg`). Surface these as a separate section
+  // so the LLM uses them verbatim instead of inventing `https://example.com`
+  // placeholders. Falls back silently when assetManifest is absent.
+  const manifest = (architectArtifact as { assetManifest?: { hero?: { slot?: string; url?: string; alt?: string }; sections?: Array<{ slot?: string; url?: string; alt?: string }> } } | undefined)?.assetManifest;
+  // JSX-safe alt — the LLM copies this string verbatim into <img alt="…" />,
+  // so embedded quotes or newlines turn into unterminated-string-constant
+  // build errors. Asset generators are also supposed to sanitize, but
+  // double-sanitize here as a last line of defense for legacy snapshots
+  // and Unsplash alt_description payloads.
+  const safeAlt = (raw: string | undefined): string =>
+    (raw ?? "").replace(/[“”"]/g, "'").replace(/\s+/g, " ").trim();
+  if (manifest && (manifest.hero || (manifest.sections?.length ?? 0) > 0)) {
+    const lines = ["## Asset manifest (use these URLs verbatim — don't invent image URLs)"];
+    if (manifest.hero?.url) {
+      lines.push(`- Hero: \`<img src="${manifest.hero.url}" alt="${safeAlt(manifest.hero.alt)}" />\``);
+    }
+    for (const s of manifest.sections ?? []) {
+      if (s.url) {
+        lines.push(`- ${s.slot ?? "section"}: \`<img src="${s.url}" alt="${safeAlt(s.alt)}" />\``);
+      }
+    }
+    const sectionsProvided = (manifest.sections?.length ?? 0) > 0;
+    if (!sectionsProvided) {
+      // Only the hero is generated. Tell the developer NOT to fabricate
+      // URLs for the other image-heavy sections (chef portraits, gallery
+      // tiles, property cards, etc.) — those URLs 404 inside the sandbox.
+      // Use a CSS gradient backed by the palette tokens or a solid
+      // surface block as a placeholder until real photography is
+      // provided. Same hero may be reused if visually appropriate, but
+      // duplicating it across 6 cards looks broken.
+      lines.push(
+        "",
+        "**Image strategy (only hero is generated, no other image URLs are available):**",
+        "- Use the hero URL above ONLY for the actual hero section.",
+        "- For any OTHER image slot (chef portraits, gallery tiles, property cards, food photos, agent avatars, etc.): **DO NOT invent image URLs** — those will 404 inside the sandbox. Instead, use one of:",
+        "  - A CSS gradient using the palette's primary + accent colors (e.g. `bg-gradient-to-br from-[#0D9488] to-[#F97316]`)",
+        "  - A solid color block with an icon (lucide-react icons available — `<ChefHat />`, `<UtensilsCrossed />`, `<Home />`, etc.)",
+        "  - A muted background with text-centered content (no `<img>` at all)",
+        "- Do NOT reuse the hero image for multiple cards — repeating the same photo 4× looks broken."
+      );
+    }
+    if (lines.length > 1) sections.push("", lines.join("\n"));
+  }
+
+  sections.push("", "## Build target");
+  if (layoutDirective) {
+    sections.push(
+      "",
+      "Use this page skeleton (specified by the Designer for this category):",
+      "",
+      "    " + layoutDirective,
+      "",
+      "Honor the named sections AND any explicit exclusions (e.g., 'NO testimonials' means no testimonials block). The Designer chose what fits the category — do not add 'standard' sections just because they appear on most landing pages."
+    );
+  } else {
+    sections.push(
+      "",
+      "Produce a complete landing page (not a stub). Default scaffold for new-app / new-feature requests:",
+      "- Hero section with headline, subheading, primary CTA",
+      "- 2-4 supporting sections (features grid, about, gallery, testimonials, or pricing — pick what fits the intent)",
+      "- Footer with at least site name + a couple links"
+    );
+  }
+
+  const componentSet = (tokens?.componentSet as string | undefined) ?? "shadcn";
+  if (componentSet === "radix-bare") {
+    sections.push(
+      "",
+      "## Component primitives — radix-bare",
+      "",
+      "The Designer chose `componentSet: radix-bare` for this marketing/content page. This means:",
+      "- Do NOT reach for shadcn's `Button`, `Card`, `Tabs`, `Dialog`, etc. primitives — they'd impose slate+blue defaults that fight the chosen palette.",
+      "- DO use raw Tailwind utility classes, lucide-react icons, and framer-motion animations directly.",
+      "- Build cards/buttons/sections from `<div>` + the design tokens. Tokens are in `src/design-tokens.json`.",
+      "- The atlas-next-ts template still ships shadcn imports — leave them in place but don't import from them in NEW components."
+    );
+  } else if (componentSet === "custom") {
+    sections.push(
+      "",
+      "## Component primitives — custom",
+      "",
+      "The Designer chose `componentSet: custom` — build hand-crafted components from raw Tailwind + the design tokens. Don't use shadcn's primitives. This is a distinctive-brand surface."
+    );
+  }
+
+  sections.push(
+    "",
+    "Match the chosen design tokens. Use semantic HTML (header / main / section / footer). Tailwind utilities only — no inline color overrides.",
+    "",
+    "## Architect artifact (full context)",
+    "",
+    "```json",
+    JSON.stringify(architectArtifact, null, 2),
+    "```"
+  );
+  return sections.join("\n");
+}

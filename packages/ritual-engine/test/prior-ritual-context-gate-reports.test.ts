@@ -30,3 +30,20 @@ describe("PriorRitualContext — gate report fields (Plan L Task 2)", () => {
     expect(ctx.parentAccessibilityReport).toBeDefined();
   });
 });
+
+describe("buildPriorRitualContext — parentBuildReport (Plan L0 Task 9)", () => {
+  it("threads buildReport through as parentBuildReport", () => {
+    const ctx = buildPriorRitualContext({
+      ritualId: "r-1",
+      buildReport: { passed: false, errorKind: "compile", errors: [{ file: "x.ts", line: 1, col: 1 }] }
+    });
+    expect(ctx.kind).toBe("priorRitual");
+    expect(ctx.parentBuildReport).toBeDefined();
+    expect((ctx.parentBuildReport as { errorKind: string }).errorKind).toBe("compile");
+  });
+
+  it("leaves parentBuildReport undefined when buildReport is not supplied", () => {
+    const ctx = buildPriorRitualContext({ ritualId: "r-2" });
+    expect(ctx.parentBuildReport).toBeUndefined();
+  });
+});

@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Mock read-current-files at the module boundary — the real impl hits E2B
+// and times out 5s in unit tests. Returns [] so the action runs as if no
+// sandbox is provisioned (cold-start path).
+vi.mock("@/lib/sandbox/read-current-files", () => ({
+  readCurrentFilesForProject: vi.fn(async () => [])
+}));
+
 beforeEach(() => { vi.resetModules(); });
 
 describe("startRitual action", () => {
@@ -58,6 +65,105 @@ describe("startRitual action", () => {
     vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: null }) }));
     const { startRitual } = await import("@/lib/actions/startRitual");
     await expect(startRitual({ projectId: "p-1", userTurn: "x", editClass: "cosmetic" })).rejects.toThrow(/unauth/i);
+  });
+
+  it("forwards artifactKindHint to engine.start when provided", async () => {
+    const start = vi.fn(async () => "r-pfp-1");
+    const getRitual = vi.fn(() => ({
+      state: "agree",
+      projectId: "p-1",
+      userId: "u-1",
+      artifact: { plan: "build api" },
+      roleEvents: []
+    }));
+    vi.doMock("@/lib/engine/factory", () => ({
+      getRitualEngine: async () => ({ start, getRitual })
+    }));
+    vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    const { startRitual } = await import("@/lib/actions/startRitual");
+    await startRitual({
+      projectId: "p-1",
+      userTurn: "build a REST API for todos",
+      editClass: "structural",
+      artifactKindHint: "backend-rest-api"
+    });
+    expect(start).toHaveBeenCalledOnce();
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({
+      artifactKindHint: "backend-rest-api",
+      userTurn: "build a REST API for todos",
+      editClass: "structural",
+      projectId: "p-1",
+      userId: "u-1"
+    }));
+  });
+
+  it("forwards referenceImages to engine.start when provided (Plan SPU)", async () => {
+    const start = vi.fn(async () => "r-spu-1");
+    const getRitual = vi.fn(() => ({
+      state: "agree",
+      projectId: "p-1",
+      userId: "u-1",
+      artifact: { plan: "x" },
+      roleEvents: []
+    }));
+    vi.doMock("@/lib/engine/factory", () => ({
+      getRitualEngine: async () => ({ start, getRitual })
+    }));
+    vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    const { startRitual } = await import("@/lib/actions/startRitual");
+    await startRitual({
+      projectId: "p-1",
+      userTurn: "build a restaurant page",
+      editClass: "structural",
+      referenceImages: [{ url: "https://example.com/ref.jpg", caption: "warm" }]
+    });
+    expect(start).toHaveBeenCalledOnce();
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({
+      referenceImages: [{ url: "https://example.com/ref.jpg", caption: "warm" }]
+    }));
+  });
+
+  it("omits referenceImages from engine.start when absent (Plan SPU)", async () => {
+    const start = vi.fn(async () => "r-spu-2");
+    const getRitual = vi.fn(() => ({
+      state: "agree",
+      projectId: "p-1",
+      userId: "u-1",
+      artifact: {},
+      roleEvents: []
+    }));
+    vi.doMock("@/lib/engine/factory", () => ({
+      getRitualEngine: async () => ({ start, getRitual })
+    }));
+    vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    const { startRitual } = await import("@/lib/actions/startRitual");
+    await startRitual({ projectId: "p-1", userTurn: "x", editClass: "structural" });
+    const call = start.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.referenceImages).toBeUndefined();
+  });
+
+  it("omits referenceImages from engine.start when an empty array is passed (Plan SPU)", async () => {
+    const start = vi.fn(async () => "r-spu-3");
+    const getRitual = vi.fn(() => ({
+      state: "agree",
+      projectId: "p-1",
+      userId: "u-1",
+      artifact: {},
+      roleEvents: []
+    }));
+    vi.doMock("@/lib/engine/factory", () => ({
+      getRitualEngine: async () => ({ start, getRitual })
+    }));
+    vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    const { startRitual } = await import("@/lib/actions/startRitual");
+    await startRitual({
+      projectId: "p-1",
+      userTurn: "x",
+      editClass: "structural",
+      referenceImages: []
+    });
+    const call = start.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.referenceImages).toBeUndefined();
   });
 
   it("returns sandboxApplyResult from the engine snapshot when present", async () => {

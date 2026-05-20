@@ -15,15 +15,15 @@ docker build -t "$IMAGE_TAG" .
 
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
-echo "Starting container on port 3000..."
-docker run -d --name "$CONTAINER_NAME" -p 3000:3000 "$IMAGE_TAG"
+echo "Starting container on port 3001..."
+docker run -d --name "$CONTAINER_NAME" -p 3001:3001 "$IMAGE_TAG"
 
 echo "Waiting for status page to come up..."
 for i in {1..30}; do
-  if curl -fsS http://localhost:3000 > /dev/null; then
-    echo "OK http://localhost:3000 returns 200"
+  if curl -fsS http://localhost:3001 > /dev/null; then
+    echo "OK http://localhost:3001 returns 200"
     echo "First 80 bytes:"
-    curl -s http://localhost:3000/ | head -c 80
+    curl -s http://localhost:3001/ | head -c 80
     echo ""
 
     echo "Exec'ing the example CLI subcommand inside the container..."

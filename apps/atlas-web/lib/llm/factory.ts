@@ -6,12 +6,16 @@ import type {
   VisualQualityRole as TVisualQualityRole,
   SandboxExec as TSandboxExec
 } from "@atlas/gate-visual-quality";
+import type { BuildGateRole as TBuildGateRole, SandboxExec as TBuildSandboxExec } from "@atlas/gate-build";
 
 /**
  * Lazily construct an LLMProvider from environment configuration.
  *
  * Provider precedence (matches lib/engine/factory.ts):
- *   1. ATLAS_LLM_BASE_URL → OpenAI-compatible local proxy (Claude Code CLI etc.)
+ *   1. ATLAS_LLM_BASE_URL → OpenAI-compatible primary endpoint (OpenRouter, etc.)
+ *      When ATLAS_LLM_CLAUDE_BASE_URL is also set, wraps both in a RoutingProvider
+ *      that sends anthropic/* and bare claude-* model IDs to the Claude endpoint
+ *      (local Claude Code CLI proxy) and everything else to the primary.
  *   2. ANTHROPIC_API_KEY → official Anthropic SDK
  *   3. Neither → returns null (caller decides how to degrade)
  *
@@ -21,10 +25,19 @@ import type {
 export const getLlmProvider = cache(async (): Promise<LLMProvider | null> => {
   if (process.env.ATLAS_LLM_BASE_URL) {
     const { OpenAICompatProvider } = await import("@/lib/engine/openai-compat-provider");
-    return new OpenAICompatProvider({
+    const primary = new OpenAICompatProvider({
       baseUrl: process.env.ATLAS_LLM_BASE_URL,
       apiKey: process.env.ATLAS_LLM_API_KEY ?? "sk-no-auth"
     });
+    if (process.env.ATLAS_LLM_CLAUDE_BASE_URL) {
+      const { RoutingProvider } = await import("@/lib/engine/routing-provider");
+      const claude = new OpenAICompatProvider({
+        baseUrl: process.env.ATLAS_LLM_CLAUDE_BASE_URL,
+        apiKey: process.env.ATLAS_LLM_CLAUDE_API_KEY ?? "sk-no-auth"
+      });
+      return new RoutingProvider({ primary, claude });
+    }
+    return primary;
   }
   if (process.env.ANTHROPIC_API_KEY) {
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
@@ -80,7 +93,10 @@ export const getDesignerRole = cache(async (): Promise<TDesignerRole | null> => 
   if (!llm) return null;
 
   const { DesignerRole } = await import("@atlas/role-designer");
-  return new DesignerRole({ llm });
+  return new DesignerRole({
+    llm,
+    critiqueModel: process.env.ATLAS_LLM_CRITIQUE_MODEL ?? "anthropic/claude-sonnet-4.5"
+  });
 });
 
 /**
@@ -133,5 +149,23 @@ export const getVisualQualityRole = cache(
       previewUrl: params.previewUrl,
       ...(model ? { model } : {})
     });
+  }
+);
+
+/**
+ * Plan L0: construct the BuildGateRole when the feature flag is on.
+ *
+ * Caller supplies the live SandboxExec + template name. Returns null when
+ * ATLAS_FF_BUILD_GATE !== "true" so getRitualEngine() can skip wiring it.
+ * Mirrors getVisualQualityRole's shape.
+ */
+export const getBuildGateRole = cache(
+  async (params: {
+    exec: TBuildSandboxExec;
+    template: string;
+  }): Promise<TBuildGateRole | null> => {
+    if (process.env.ATLAS_FF_BUILD_GATE !== "true") return null;
+    const { BuildGateRole } = await import("@atlas/gate-build");
+    return new BuildGateRole({ template: params.template, exec: params.exec });
   }
 );

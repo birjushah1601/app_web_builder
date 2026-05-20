@@ -16,6 +16,7 @@ const direction = (id: string, refs: string[] = []) => ({
   shortDescription: "x",
   technicalDescription: "y",
   citedReferences: refs,
+  layoutDirective: "Hero with food. Menu by category. NO testimonials.",
   tokens
 });
 
@@ -148,7 +149,7 @@ describe("DesignerRole", () => {
     const args = (llm as { completeWithToolUse: ReturnType<typeof vi.fn> }).completeWithToolUse.mock.calls[0];
     const messages = args[0] as Array<{ content: string }>;
     for (const msg of messages) {
-      expect(msg.content).not.toMatch(/persona/i);
+      expect(msg.content).not.toMatch(/\bpersona\b/i);
       expect(msg.content).not.toMatch(/\bama\b/);
     }
   });

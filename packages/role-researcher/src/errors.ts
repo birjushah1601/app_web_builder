@@ -1,12 +1,12 @@
 export class ResearcherFailedError extends Error {
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
   readonly category?: string;
 
   constructor(message: string, opts: { cause?: unknown; category?: string } = {}) {
     super(message);
     this.name = "ResearcherFailedError";
-    this.cause = opts.cause;
-    this.category = opts.category;
+    if (opts.cause !== undefined) this.cause = opts.cause;
+    if (opts.category !== undefined) this.category = opts.category;
   }
 }
 
@@ -28,6 +28,6 @@ export class WebFetchError extends Error {
     super(message);
     this.name = "WebFetchError";
     this.provider = opts.provider;
-    this.status = opts.status;
+    if (opts.status !== undefined) this.status = opts.status;
   }
 }

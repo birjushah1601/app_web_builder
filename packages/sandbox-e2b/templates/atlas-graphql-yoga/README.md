@@ -29,7 +29,9 @@ cd packages/sandbox-e2b/templates/atlas-graphql-yoga
 ./scripts/smoke-test-local.sh
 ```
 
-The script builds the Docker image, runs the container on port 3000, polls `/health`, then issues a `{ hello }` GraphQL query. Both should succeed.
+The script builds the Docker image, runs the container on port **3001**, polls `/health`, then issues a `{ hello }` GraphQL query. Both should succeed.
+
+> **Why 3001 (not 3000)?** The `e2bdev/code-interpreter` base image already binds something on :3000, so `Bun.serve` fails fast with `EADDRINUSE` if we try to use 3000. Per-template port mapping lives in `apps/atlas-web/lib/sandbox/template-router.ts`.
 
 ## Build + push to E2B
 

@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "crypto";
 import type { Conductor } from "@atlas/conductor";
+import type { ArtifactKind } from "@atlas/canvas-runtime";
 import type { EventSink, EditClass, RitualEvent } from "./events.js";
 import type { PersonaPreferences } from "./personas.js";
 import { applyTransition, isTerminal, type RitualState, type RitualTransition } from "./state.js";
@@ -51,6 +52,19 @@ export interface StartInput {
   editClass: EditClass;
   projectId: string;
   userId: string;
+  /** Optional snapshot of files that already exist in the project's live
+   *  sandbox. Threaded into the architect's RoleInvocation.currentFiles so
+   *  the prompt assembler can prepend a "## Current sandbox files" section.
+   *  Absent → architect runs without anchor-file context (today's default). */
+  currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
+  /** Plan PFP — optional user-provided hint that bypasses the architect's
+   *  artifactKind classification. Threads into the architect's
+   *  RoleInvocation.priorArtifact so role-architect can short-circuit. */
+  artifactKindHint?: ArtifactKind;
+  /** Plan SPU — user-supplied reference imagery. Folded into the
+   *  architect's priorArtifact so it flows through to Designer for
+   *  visual conditioning. Empty array → omitted from priorArtifact. */
+  referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
 }
 
 /** Plan K: refine starts a NEW ritual linked to the parent via
@@ -61,6 +75,10 @@ export interface RefineInput {
   projectId: string;
   userId: string;
   userTurn: string;
+  /** Same shape + intent as StartInput.currentFiles — refines also benefit
+   *  from anchor-file context so the architect's plan stays aligned with the
+   *  current tree (not just the parent ritual's view of it). */
+  currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
 }
 
 /** Events emitted by the role during dispatch. Plain JSON-serializable; safe
@@ -123,6 +141,8 @@ interface RitualRecord {
   securityReport?: unknown;
   /** Plan I: present when AccessibilityRole ran in the post-developer chain. */
   accessibilityReport?: unknown;
+  /** Plan L0: present when BuildGateRole ran in the post-developer chain. Carries the BuildReport (compile/type errors with file:line:col). */
+  buildReport?: unknown;
   /** Plan K: when this ritual was created via refine(), points back to
    *  the parent ritual whose snapshot was threaded into the architect's
    *  prompt as PriorRitualContext. */
@@ -155,6 +175,8 @@ export interface RitualSnapshot {
   securityReport?: unknown;
   /** Plan I: present when AccessibilityRole ran. Same shape contract. */
   accessibilityReport?: unknown;
+  /** Plan L0: present when BuildGateRole ran in the post-developer chain. Carries the BuildReport (compile/type errors with file:line:col). */
+  buildReport?: unknown;
   /** Plan K: present when ritual was created via refine(); links lineage. */
   parentRitualId?: string;
   /** Plan L: count of auto-fix attempts in this ritual's lineage. ChatPanel
@@ -236,7 +258,8 @@ export class RitualEngine {
       projectId: input.projectId,
       userId: input.userId,
       priorContext,
-      parentRitualId: input.parentRitualId
+      parentRitualId: input.parentRitualId,
+      ...(input.currentFiles !== undefined ? { currentFiles: input.currentFiles } : {})
     });
   }
 
@@ -277,7 +300,27 @@ export class RitualEngine {
 
     // Dispatch Architect role for the Visualize step. When refining, pass
     // the PriorRitualContext as priorArtifact so the architect's prompt
-    // assembly can prepend a "Previous turn" preamble.
+    // assembly can prepend a "Previous turn" preamble. When currentFiles
+    // is set (atlas-web wires this from a live sandbox snapshot), thread
+    // it through too so the architect prompt also gets a "## Current
+    // sandbox files" section. Plan PFP: when artifactKindHint is set,
+    // fold it into priorArtifact so role-architect can short-circuit the
+    // artifactKind classification pass.
+    const dispatchOptions: { priorArtifact?: unknown; currentFiles?: ReadonlyArray<{ path: string; content?: string }> } = {};
+    const architectPriorArtifact = {
+      ...(input.priorContext ? input.priorContext : {}),
+      ...(input.artifactKindHint ? { artifactKindHint: input.artifactKindHint } : {}),
+      // Plan SPU — only thread referenceImages when non-empty so downstream
+      // `=== undefined` checks behave consistently with exactOptionalPropertyTypes.
+      ...(input.referenceImages && input.referenceImages.length > 0
+        ? { referenceImages: input.referenceImages }
+        : {})
+    };
+    if (Object.keys(architectPriorArtifact).length > 0) {
+      dispatchOptions.priorArtifact = architectPriorArtifact;
+    }
+    if (input.currentFiles !== undefined) dispatchOptions.currentFiles = input.currentFiles;
+
     const result = await this.conductor.dispatch(
       {
         ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
@@ -285,7 +328,7 @@ export class RitualEngine {
         userTurn: input.userTurn,
         projectId: input.projectId
       },
-      input.priorContext ? { priorArtifact: input.priorContext } : undefined
+      Object.keys(dispatchOptions).length > 0 ? dispatchOptions : undefined
     );
 
     // Pull the artifact from the role's pass2.completed event (D.2 contract)
@@ -306,6 +349,10 @@ export class RitualEngine {
     // Designer → emit canvas.options.requested → await pause → emit
     // canvas.option.selected → fold selectedTokens into developer's priorArtifact.
     let selectedTokens: unknown | undefined;
+    let selectedLayoutDirective: string | undefined;
+    // Plan SPU — captured inside the canvas-flow block when AssetGenerator runs
+    // after the canvas pause; folded into the developer's priorArtifact below.
+    let assetManifest: unknown | undefined;
     if (this.canvasFlowEnabled && artifact && input.editClass !== "cosmetic") {
       const manifest = (artifact as { canvasManifest?: unknown }).canvasManifest;
       const designIntent = (artifact as { designIntent?: unknown }).designIntent;
@@ -400,6 +447,14 @@ export class RitualEngine {
           });
           selectedTokens = resolution.tokens;
           record.selectedTokens = selectedTokens;
+          const chosenDirection =
+            proposal.recommended.id === resolution.directionId
+              ? proposal.recommended
+              : (proposal.alternates as Array<{ id: string; tokens: unknown }>).find((d) => d.id === resolution.directionId) ?? proposal.recommended;
+          selectedLayoutDirective =
+            typeof (chosenDirection as unknown as { layoutDirective?: unknown }).layoutDirective === "string"
+              ? (chosenDirection as unknown as { layoutDirective: string }).layoutDirective
+              : undefined;
           await this.emit({
             type: "canvas.option.selected",
             ritualId,
@@ -410,16 +465,59 @@ export class RitualEngine {
               autoSelected: resolution.autoSelected
             }
           });
+
+          // Plan SPU — dispatch AssetGenerator after the canvas pause when it's
+          // registered in the conductor. Silently skipped when the role isn't
+          // present (atlas-web's factory only registers it behind asset-gen flag).
+          // Failures collapse to an `asset.gen.failed` synthetic event in
+          // roleEvents — the ritual still proceeds without imagery rather than
+          // failing outright.
+          if (this.conductor.hasRole?.("asset-generator")) {
+            try {
+              const a = await this.conductor.dispatch(
+                {
+                  ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+                  graphVersion: 0,
+                  userTurn: input.userTurn,
+                  projectId: input.projectId
+                },
+                {
+                  forceRoleId: "asset-generator",
+                  priorArtifact: { proposal, brief, projectId: input.projectId }
+                }
+              );
+              record.roleEvents = [
+                ...(record.roleEvents ?? []),
+                ...a.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
+              ];
+              const out = a.output as { artifact?: { assetManifest?: unknown } };
+              assetManifest = out.artifact?.assetManifest;
+            } catch (err) {
+              record.roleEvents = [
+                ...(record.roleEvents ?? []),
+                {
+                  eventType: "asset.gen.failed",
+                  payload: { error: err instanceof Error ? err.message : String(err) }
+                }
+              ];
+            }
+          }
         }
       }
     }
 
-    // Plan S.4: developer receives architect artifact merged with selectedTokens
-    // (when canvas flow resolved). Falls back to the bare architect artifact
-    // when canvas flow is off or no design pause occurred.
+    // Plan S.4 + SPU: developer receives architect artifact merged with
+    // selectedTokens (when canvas flow resolved) and assetManifest (when
+    // AssetGenerator ran). Falls back to the bare architect artifact when
+    // canvas flow is off or no design pause occurred.
     const developerPriorArtifact =
       selectedTokens !== undefined && artifact && typeof artifact === "object"
-        ? { ...(artifact as object), selectedTokens }
+        ? {
+            ...(artifact as object),
+            selectedTokens,
+            ...(selectedLayoutDirective !== undefined ? { selectedLayoutDirective } : {}),
+            ...(assetManifest !== undefined ? { assetManifest } : {})
+          }
         : artifact;
 
     // Plan B: chain into the developer role when:
@@ -453,14 +551,37 @@ export class RitualEngine {
         // the snapshot — never re-thrown — so the architect plan and
         // developer diff still surface to the user.
         if (this.applier && devResult.output.diff.kind === "patch" && devResult.output.diff.body) {
+          await this.emit({
+            type: "sandbox.apply.started",
+            ritualId,
+            ts: new Date().toISOString(),
+            payload: {}
+          });
           try {
             const applyResult = await this.applier.apply(input.projectId, devResult.output.diff.body);
             record.sandboxApplyResult = applyResult;
+            await this.emit({
+              type: "sandbox.apply.completed",
+              ritualId,
+              ts: new Date().toISOString(),
+              payload: {
+                ok: applyResult.ok,
+                parsed: applyResult.parsed,
+                written: applyResult.written,
+                failed: applyResult.failed
+              }
+            });
           } catch (err) {
             record.sandboxApplyResult = {
               ok: false, parsed: 0, written: 0, failed: 0, skipped: 0,
               files: [], parseError: `applier threw: ${err instanceof Error ? err.message : String(err)}`
             };
+            await this.emit({
+              type: "sandbox.apply.failed",
+              ritualId,
+              ts: new Date().toISOString(),
+              payload: { error: err instanceof Error ? err.message : String(err) }
+            });
           }
         }
 
@@ -503,6 +624,8 @@ export class RitualEngine {
                 record.securityReport = payload?.report;
               } else if (roleId === "accessibility") {
                 record.accessibilityReport = payload?.report;
+              } else if (roleId === "build-gate") {
+                record.buildReport = payload?.report;
               }
 
               if (payload?.passed === false) {
@@ -511,7 +634,11 @@ export class RitualEngine {
                 // — its payload is { reason, requestedBy }. Encode the
                 // gate ID + report into reason (JSON-stringified) so
                 // downstream consumers can recover the structured info.
-                const gateLabel = roleId === "security" ? "L4-security" : "L5-compliance";
+                const gateLabel =
+                  roleId === "security" ? "L4-security" :
+                  roleId === "accessibility" ? "L5-compliance" :
+                  roleId === "build-gate" ? "L0-build" :
+                  `L?-${roleId}`;
                 await this.emit({
                   type: "ritual.escalation_requested",
                   ritualId,
@@ -527,10 +654,21 @@ export class RitualEngine {
                 // _runRitual with the gate report folded into PriorRitualContext.
                 const currentAttempts = record.fixAttempts ?? 0;
                 if (this.autoFixLoopEnabled && currentAttempts < MAX_FIX_ATTEMPTS) {
-                  const issues = (payload.report as { issues?: Array<{ severity?: string; message?: string }> })?.issues ?? [];
-                  const issuesAsBullets = issues
-                    .map((i) => `- [${i.severity ?? "unknown"}] ${i.message ?? "(no message)"}`)
-                    .join("\n");
+                  // Build-gate reports carry errors[]; security/a11y carry issues[].
+                  let issuesAsBullets: string;
+                  if (roleId === "build-gate") {
+                    const errors = (payload.report as {
+                      errors?: Array<{ file?: string; line?: number; col?: number; message?: string }>
+                    })?.errors ?? [];
+                    issuesAsBullets = errors
+                      .map((e) => `- ${e.file ?? "?"}:${e.line ?? 0}:${e.col ?? 0} — ${e.message ?? "(no message)"}`)
+                      .join("\n");
+                  } else {
+                    const issues = (payload.report as { issues?: Array<{ severity?: string; message?: string }> })?.issues ?? [];
+                    issuesAsBullets = issues
+                      .map((i) => `- [${i.severity ?? "unknown"}] ${i.message ?? "(no message)"}`)
+                      .join("\n");
+                  }
                   const fixUserTurn = `Address the ${gateLabel} findings:\n${issuesAsBullets}`;
                   const nextAttempt = currentAttempts + 1;
 
@@ -553,7 +691,8 @@ export class RitualEngine {
                         developerOutput: record.developerOutput,
                         roleEvents: record.roleEvents,
                         securityReport: record.securityReport,
-                        accessibilityReport: record.accessibilityReport
+                        accessibilityReport: record.accessibilityReport,
+                        buildReport: record.buildReport
                       }),
                       parentRitualId: ritualId,
                       fixAttempts: nextAttempt
@@ -651,6 +790,7 @@ export class RitualEngine {
         sandboxApplyResult: r.sandboxApplyResult,
         securityReport: r.securityReport,
         accessibilityReport: r.accessibilityReport,
+        buildReport: r.buildReport,
         parentRitualId: r.parentRitualId,
         fixAttempts: r.fixAttempts,
         selectedTokens: r.selectedTokens,

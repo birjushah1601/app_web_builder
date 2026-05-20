@@ -16,6 +16,11 @@ export interface PriorRitualContext {
   parentSecurityReport?: unknown;
   /** Plan L: gate report from the parent's AccessibilityRole dispatch. Same shape contract. */
   parentAccessibilityReport?: unknown;
+  /** Plan L0: BuildReport from the parent ritual's BuildGateRole when the
+   *  gate failed. When present + report.passed=false, the architect prompt
+   *  prepends a "## Build errors" section enumerating the compile/type
+   *  errors. Read by @atlas/role-architect's deep-plan prompt builder. */
+  parentBuildReport?: unknown;
 }
 
 const DIFF_TRUNCATE_MAX = 8000;
@@ -32,6 +37,8 @@ export function buildPriorRitualContext(input: {
   /** Plan L: gate reports from the parent ritual when the chain failed. */
   securityReport?: unknown;
   accessibilityReport?: unknown;
+  /** Plan L0: BuildReport from the parent's BuildGateRole dispatch. */
+  buildReport?: unknown;
 }): PriorRitualContext {
   let parentDeveloperOutput = input.developerOutput;
   if (parentDeveloperOutput && parentDeveloperOutput.diff.length > DIFF_TRUNCATE_MAX) {
@@ -50,7 +57,8 @@ export function buildPriorRitualContext(input: {
     parentDeveloperOutput,
     parentRoleEvents: input.roleEvents,
     parentSecurityReport: input.securityReport,
-    parentAccessibilityReport: input.accessibilityReport
+    parentAccessibilityReport: input.accessibilityReport,
+    parentBuildReport: input.buildReport
   };
 }
 

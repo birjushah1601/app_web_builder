@@ -83,6 +83,7 @@ describe("DesignDirectionSchema", () => {
     shortDescription: "A premium, magazine-style look with deep blacks and warm accents.",
     technicalDescription: "Inter sans + IBM Plex Serif headline pairing on a near-black surface; amber accent for CTAs; spacious density.",
     citedReferences: ["Bombay Canteen", "Eleven Madison Park"],
+    layoutDirective: "Hero with food. Menu by category. NO testimonials.",
     tokens: {
       palette: {
         primary: "#0a0a0a",
@@ -136,6 +137,7 @@ describe("DesignProposalSchema", () => {
     shortDescription: "x",
     technicalDescription: "y",
     citedReferences: [],
+    layoutDirective: "Hero with food. Menu by category. NO testimonials.",
     tokens: {
       palette: { primary: "#000000", accent: "#ffffff", surface: "#cccccc", text: "#111111", muted: "#888888" },
       typeScale: { sansFamily: "Inter", monoFamily: "Mono", baseSizePx: 16, scale: "minor-third" as const },

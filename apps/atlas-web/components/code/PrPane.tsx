@@ -46,6 +46,16 @@ export function PrPane({ projectId, repoSlug }: PrPaneProps) {
         base: newPrBase,
         title: newPrTitle,
       });
+      if ("status" in result) {
+        // Surface the failure to the user without crashing the pane. Today
+        // the only non-success status is "push_failed"; future variants will
+        // be handled here too.
+        // eslint-disable-next-line no-alert
+        alert(
+          `Could not push branch "${newPrHead}" to remote (exit ${result.exitCode}).\n\n${result.stderr || result.stdout}`
+        );
+        return;
+      }
       window.open(result.prUrl, "_blank");
       setShowOpenForm(false);
       // Refresh PR list

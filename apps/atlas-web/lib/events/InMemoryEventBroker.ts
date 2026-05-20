@@ -89,6 +89,15 @@ function makeSubscription(
         sub.queue.push(state.buffer[i]!);
       }
     }
+  } else {
+    // First-connect subscribers (no Last-Event-ID) — Atlas's submit→redirect
+    // pattern fires the ritual BEFORE the browser opens SSE, so any events
+    // emitted during that gap would be lost on a strict "live-only" replay.
+    // Replay the full ring buffer instead. The buffer is bounded
+    // (RING_BUFFER_SIZE), so this is safe + cheap.
+    for (const evt of state.buffer) {
+      sub.queue.push(evt);
+    }
   }
 
   state.subscribers.add(sub);

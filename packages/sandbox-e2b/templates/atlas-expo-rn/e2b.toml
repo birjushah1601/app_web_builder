@@ -9,8 +9,13 @@
 # Then add the printed template_id to this file in a follow-up commit.
 
 memory_mb = 4_096
+# pnpm install runs at sandbox boot (NOT in the Dockerfile) because Expo's
+# >2 GB unpacked dep tree blows past the template-build rootfs and ENOSPCs.
+# Cold-start cost is ~2-3 min before the web bundle is ready; ready_cmd
+# polls :3000 so the orchestrator waits the right amount of time. See the
+# Dockerfile header for full context.
 ready_cmd = "curl -fsS http://localhost:3000 > /dev/null"
-start_cmd = "cd /code && pnpm expo start --web --port 3000"
+start_cmd = "cd /code && pnpm install --prod=false && pnpm expo start --web --port 3000"
 dockerfile = "Dockerfile"
 template_name = "atlas-expo-rn"
 # template_id added by operator after first build via scripts/build-template.sh

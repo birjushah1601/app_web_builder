@@ -49,7 +49,54 @@ export type RitualEventType =
   | "visual_quality.failed"
   | "visual_quality.skipped"
   | "visual_quality.completed"
-  | "visual_quality.errored";
+  | "visual_quality.errored"
+  // Plan S.2 — Researcher role events. Surfaced as a brief card slotted
+  // between the architect and developer rows in the RitualTimeline. The
+  // started/skipped variants are accepted by the broker but currently
+  // unused by the UI (kept for future telemetry / future "researching…"
+  // indicator); the completed payload carries the InspirationBrief that
+  // the ResearcherBriefCard renders. failed surfaces an error string.
+  | "researcher.brief.started"
+  | "researcher.brief.completed"
+  | "researcher.brief.skipped"
+  | "researcher.brief.failed"
+  // Plan S.4 — canvas + architect manifest + designer events. CanvasShellWired's
+  // useCanvasManifest hook reads architect.canvas_manifest.emitted; its
+  // useDesignerProposal hook reads canvas.options.requested. The other variants
+  // (designer.* / canvas.option.selected / canvas.refinement.*) flow through
+  // for future UI consumers (timeline rows, telemetry).
+  | "architect.canvas_manifest.emitted"
+  | "designer.proposal.emitted"
+  | "designer.proposal.failed"
+  | "canvas.options.requested"
+  | "canvas.option.selected"
+  | "canvas.refinement.started"
+  | "canvas.refinement.completed"
+  // Plan SPU — Designer three-pass (draft → critique → revise) lifecycle.
+  // Surfaces on the rail timeline once mapped through factory.ts; for now
+  // the broker accepts them so the SSE path doesn't drop the events.
+  | "designer.draft.completed"
+  | "designer.critique.started"
+  | "designer.critique.completed"
+  | "designer.revise.started"
+  | "designer.revise.completed"
+  // Plan SPU — AssetGenerator lifecycle. Fired when the engine dispatches
+  // the role after the canvas pause resolves; manifest is folded into the
+  // developer's priorArtifact so generated code can reference real image URLs.
+  | "asset.gen.started"
+  | "asset.gen.completed"
+  | "asset.gen.failed"
+  // Architect triage gate. Emitted when pass1 detects ambiguity and asks
+  // the user a clarifying question. The role pauses and dispatch returns;
+  // without this event the canvas keeps showing the architect-pending
+  // spinner because no role.completed/failed terminator arrives.
+  | "architect.triage.needs_input"
+  // Plan L0 — Build gate. Fired by BuildGateRole; surfaces as its own row
+  // on the rail timeline alongside security/a11y/visual-quality.
+  | "build-gate.started"
+  | "build-gate.passed"
+  | "build-gate.failed"
+  | "build-gate.completed";
 
 /** A published event. The broker assigns `id` on publish; it is opaque to
  *  clients (they echo it back via Last-Event-ID for resume). Format today

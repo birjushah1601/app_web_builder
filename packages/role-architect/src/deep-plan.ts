@@ -24,28 +24,64 @@ export interface DeepPlanInput {
   skills: SkillRegistry;
   llm: LLMProvider;
   deepPlanModel?: string;
+  /** Plan PFP: when the user supplied an artifactKindHint at ritual start
+   *  (e.g. picked "Website" on the prompt-first form), the role extracts it
+   *  from inv.priorArtifact and forwards it here. enrichArchitectOutput uses
+   *  it as the canvasManifest.artifactKind, short-circuiting the implicit
+   *  classification that would otherwise be derived from specGraph.kind. */
+  artifactKindHint?: ArtifactKind;
   /** Plan K: when refining a prior ritual, the engine threads the parent's
    *  PriorRitualContext through here. The prompt prepends a "Previous turn"
    *  section so the model builds on the prior plan + diff instead of starting
    *  from scratch. Other shapes are silently ignored. */
   priorRitual?: unknown;
+  /** Snapshot of the current sandbox files the architect should be aware of
+   *  on a cold start (and on refines too). Each entry is a path + optional
+   *  content. When present, the prompt prepends a "## Current sandbox files"
+   *  section enumerating paths and inlining the contents of small files
+   *  (truncated head 2k + tail 2k for any file ≥ 4KB so prompt budget stays
+   *  bounded). Absent → the section is omitted entirely (today's behavior). */
+  currentFiles?: CurrentFileEntry[];
 }
+
+/** Snapshot of one file in the current sandbox the architect should be aware of. */
+export interface CurrentFileEntry {
+  path: string;
+  /** UTF-8 content. Optional — when absent, the file is listed by path only
+   *  (useful for "this file exists but its content is too large / binary").
+   *  When present and ≥ FILE_TRUNCATE_MAX chars, renderCurrentFilesSection
+   *  truncates with a head/tail elision marker. */
+  content?: string;
+}
+
+/** Per-file character budget — files above this get head-2k + tail-2k elision.
+ *  Mirrors the DIFF_TRUNCATE_MAX pattern in prior-ritual-context.ts. */
+const FILE_TRUNCATE_MAX = 4000;
 
 /** Plan K: pure helper that builds the architect's userTurn string. When
  *  priorRitual is a real PriorRitualContext, prepends a "Previous turn"
- *  preamble with parent's plan + diff. Exported for unit testing. */
+ *  preamble with parent's plan + diff. When currentFiles is non-empty,
+ *  prepends a "## Current sandbox files" section so the architect can
+ *  reason about the existing tree even on a cold start. Exported for unit
+ *  testing. */
 export function buildArchitectUserTurn(input: {
   userTurn: string;
   scope: string;
   priorRitual?: unknown;
+  currentFiles?: CurrentFileEntry[];
 }): string {
   const sections: string[] = [];
 
+  if (input.currentFiles && input.currentFiles.length > 0) {
+    sections.push(renderCurrentFilesSection(input.currentFiles));
+  }
+
   if (isPriorRitualContext(input.priorRitual)) {
     sections.push(renderPriorRitualSection(input.priorRitual));
-    // Plan L: when the prior ritual carries failed gate reports, render a
-    // dedicated "## Gate findings" section so the model sees the issues
-    // verbatim, not buried inside a JSON-dump artifact.
+    // Plan L0: compiler errors are authoritative — render BEFORE the
+    // LLM-interpretive "## Gate findings" so the model prioritizes them.
+    const buildErrors = renderBuildErrorsSection(input.priorRitual);
+    if (buildErrors) sections.push(buildErrors);
     const gateFindings = renderGateFindingsSection(input.priorRitual);
     if (gateFindings) sections.push(gateFindings);
   }
@@ -55,6 +91,36 @@ export function buildArchitectUserTurn(input: {
   return sections.join("\n\n---\n\n");
 }
 
+/** Render a "## Current sandbox files" section enumerating the files the
+ *  architect should be aware of. Files ≥ FILE_TRUNCATE_MAX chars are
+ *  truncated to head-2k + tail-2k with an elision marker — mirrors the
+ *  DIFF_TRUNCATE_MAX pattern in prior-ritual-context.ts. Files with no
+ *  `content` are listed by path only. */
+function renderCurrentFilesSection(files: CurrentFileEntry[]): string {
+  const lines: string[] = [
+    "## Current sandbox files",
+    "",
+    "These files already exist in the project's live sandbox. Build on them — do not duplicate or recreate from scratch.",
+    ""
+  ];
+  for (const f of files) {
+    if (f.content === undefined) {
+      lines.push(`### ${f.path}`, "", "_(content not loaded)_", "");
+      continue;
+    }
+    let body = f.content;
+    if (body.length > FILE_TRUNCATE_MAX) {
+      const half = FILE_TRUNCATE_MAX / 2;
+      const head = body.slice(0, half);
+      const tail = body.slice(-half);
+      const elided = body.length - FILE_TRUNCATE_MAX;
+      body = `${head}\n... [${elided} chars elided] ...\n${tail}`;
+    }
+    lines.push(`### ${f.path}`, "", "```", body, "```", "");
+  }
+  return lines.join("\n").trimEnd();
+}
+
 interface GateIssue {
   severity?: string;
   message?: string;
@@ -62,6 +128,42 @@ interface GateIssue {
 interface GateReport {
   passed?: boolean;
   issues?: GateIssue[];
+}
+
+interface BuildErrorRecord {
+  file?: string;
+  line?: number;
+  col?: number;
+  severity?: string;
+  message?: string;
+  snippet?: string;
+}
+interface BuildReportShape {
+  passed?: boolean;
+  errorKind?: string;
+  template?: string;
+  command?: string;
+  errors?: BuildErrorRecord[];
+}
+
+function renderBuildErrorsSection(prior: PriorRitualContext): string | null {
+  const report = prior.parentBuildReport as BuildReportShape | undefined;
+  const failed = report && report.passed === false && Array.isArray(report.errors) && report.errors.length > 0;
+  if (!failed) return null;
+
+  const lines: string[] = [
+    "## Build errors (compiler is authoritative — fix exactly these)",
+    "",
+    `Command: \`${report!.command ?? "(unknown)"}\` (template: ${report!.template ?? "(unknown)"})`,
+    "",
+    "Each entry below is a real compiler/type-checker error from the parent ritual's diff. Fix the listed locations precisely; do not change unrelated code."
+  ];
+  for (const e of report!.errors!) {
+    const loc = `${e.file ?? "?"}:${e.line ?? 0}:${e.col ?? 0}`;
+    lines.push("", `- ${loc}`, `  ${e.message ?? "(no message)"}`);
+    if (e.snippet) lines.push(`  Offending: \`${e.snippet}\``);
+  }
+  return lines.join("\n");
 }
 
 function renderGateFindingsSection(prior: PriorRitualContext): string | null {
@@ -167,7 +269,8 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
     userTurn: buildArchitectUserTurn({
       userTurn: input.userTurn,
       scope: input.ambiguity.scope,
-      priorRitual: input.priorRitual
+      priorRitual: input.priorRitual,
+      ...(input.currentFiles !== undefined ? { currentFiles: input.currentFiles } : {})
     })
   });
 
@@ -201,7 +304,12 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
   // win wherever it provided them; missing fields get safe placeholders
   // so the schema parse succeeds and downstream consumers (UI, plan C
   // sandbox apply) keep functioning.
-  const enriched = enrichArchitectOutput(result.input, input.graphSlice, input.ambiguity.scope);
+  const enriched = enrichArchitectOutput(
+    result.input,
+    input.graphSlice,
+    input.ambiguity.scope,
+    input.artifactKindHint
+  );
 
   const parse = ArchitectOutputSchema.safeParse(enriched);
   if (!parse.success) {
@@ -220,7 +328,8 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
 function enrichArchitectOutput(
   raw: unknown,
   graphSlice: { bytes: string; hash: string },
-  scope: string
+  scope: string,
+  artifactKindHint?: ArtifactKind
 ): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const model = raw as Record<string, unknown>;
@@ -230,24 +339,44 @@ function enrichArchitectOutput(
   // one and the scope is design-affecting. The manifest tells the engine
   // which canvas modes the user can pick; design-blocking modes pause the
   // ritual until the user selects a direction.
+  // Plan PFP: when an artifactKindHint was supplied by the user at ritual
+  // start, prefer the hint over specGraph.kind so we don't re-classify a
+  // value the user already picked on the prompt-first form.
   if (!("canvasManifest" in model)) {
-    const manifest = synthesizeCanvasManifest(scope, merged);
+    const manifest = synthesizeCanvasManifest(scope, merged, artifactKindHint);
     if (manifest) merged.canvasManifest = manifest;
+  }
+  // Plan PFP: synthesize a default designIntent alongside canvasManifest so
+  // Researcher + Designer don't skip with "no designIntent in priorArtifact".
+  // The default carries the resolved artifactKind as the category — enough
+  // to anchor Researcher's catalog lookup. A future task can prompt-mine the
+  // user's userTurn for a richer category + audienceCues.
+  if (!("designIntent" in model) && "canvasManifest" in merged) {
+    const manifest = merged.canvasManifest as { artifactKind?: string } | undefined;
+    const category = artifactKindHint ?? manifest?.artifactKind;
+    if (category) {
+      merged.designIntent = { category, audienceCues: ["general"] };
+    }
   }
   return merged;
 }
 
 /** Plan S.4: Synthesize a CanvasManifest from the architect's scope + artifact.
  *  Returns undefined when the scope is not user-facing (refactor, ship,
- *  migrate, bug-fix, dep-upgrade) OR when the spec graph's artifactKind
- *  isn't one we have a default manifest for. */
+ *  migrate, bug-fix, dep-upgrade) OR when the resolved artifactKind isn't
+ *  one we have a default manifest for.
+ *
+ *  Plan PFP: when artifactKindHint is provided, it overrides
+ *  specGraph.kind — the user already picked the kind on the prompt-first
+ *  form, so we skip the implicit classification step. */
 export function synthesizeCanvasManifest(
   scope: string,
-  model: Record<string, unknown>
+  model: Record<string, unknown>,
+  artifactKindHint?: ArtifactKind
 ): CanvasManifest | undefined {
   if (!["new-app", "new-feature"].includes(scope)) return undefined;
   const specGraph = model.specGraph as { kind?: string } | undefined;
-  const kind = specGraph?.kind ?? "frontend-app";
+  const kind = artifactKindHint ?? specGraph?.kind ?? "frontend-app";
   const valid: ArtifactKind[] = [
     "frontend-app",
     "backend-rest-api",

@@ -10,7 +10,7 @@ import {
 import { SandboxSpendRepo } from "@atlas/spec-graph-data";
 import pg from "pg";
 import type { SandboxSession } from "./types";
-import { templateForArtifactKind } from "./template-router";
+import { templateForArtifactKind, portForTemplate } from "./template-router";
 import type { ArtifactKind } from "@atlas/canvas-runtime";
 
 interface SandboxFactoryConfig {
@@ -76,19 +76,31 @@ export class SandboxFactory {
     );
     // Port resolution precedence:
     //   1. SandboxFactoryConfig.defaultPort (env-configured at factory init)
-    //   2. Hard-coded TEMPLATE_DEFAULT_PORTS map for known atlas-* templates
-    //   3. 3000 (Next.js — the most common case)
+    //   2. portForTemplate(template) — authoritative per-template map shared
+    //      with the router. Bun trio (atlas-bun-cli/graphql-yoga/hono-bun) →
+    //      3001; Next/FastAPI/dlt/Expo → 3000.
+    //   3. Hard-coded TEMPLATE_DEFAULT_PORTS map for legacy aspirational names.
+    //   4. 3000 (Next.js — the most common case).
     // For the factory, derive preview URL from the sandbox record's previewBaseUrl
     // (set by E2BLifecycle.provision via E2B's getHost) or fall back to a placeholder.
     const port =
       this.config.defaultPort ??
-      TEMPLATE_DEFAULT_PORTS[this.config.defaultTemplate as keyof typeof TEMPLATE_DEFAULT_PORTS] ??
+      portForTemplate(record.templateId) ??
+      TEMPLATE_DEFAULT_PORTS[record.templateId as keyof typeof TEMPLATE_DEFAULT_PORTS] ??
       3000;
     const previewUrl = record.previewBaseUrl ?? `https://${port}-${record.sandboxId}.e2b.app`;
     return { record, previewUrl };
   }
 }
 
+/**
+ * Legacy aspirational-name port map. New entries should be added to
+ * `portForTemplate` in template-router.ts instead — this map only exists to
+ * keep the original KNOWN_ATLAS_TEMPLATES (atlas-python-fastapi, atlas-astro,
+ * etc.) working if anyone has them pinned. The actually-built atlas-* names
+ * (atlas-next-ts-v2, atlas-fastapi, atlas-bun-cli, …) are owned by
+ * `portForTemplate`.
+ */
 const TEMPLATE_DEFAULT_PORTS: Record<TemplateId, number> = {
   "atlas-next-ts": 3000,
   "atlas-python-fastapi": 8000,
@@ -98,17 +110,28 @@ const TEMPLATE_DEFAULT_PORTS: Record<TemplateId, number> = {
   "atlas-expo": 8081
 };
 
-// Module-level singletons — Next.js server-side; constructed lazily on first import.
-let _factory: SandboxFactory | undefined;
-let _spendPool: pg.Pool | null = null;
+// Pin singletons to globalThis. Next.js dev gives Server Actions and Server
+// Components separate module graphs, so a plain module-level `let _factory`
+// would fork into two factory instances — one for Server Actions like
+// redeployPreview, one for the canvas page's Server Component. evict() in
+// one would not invalidate the other's cache, leaving the canvas page
+// pointing at a dead sandbox even after a successful redeploy. Same pattern
+// as broker-singleton.ts and canvas-pause-singleton.ts.
+const FACTORY_KEY = "__atlas_sandbox_factory__";
+const SPEND_POOL_KEY = "__atlas_sandbox_spend_pool__";
+type WithSingletons = {
+  [FACTORY_KEY]?: SandboxFactory;
+  [SPEND_POOL_KEY]?: pg.Pool;
+};
 
 function getSpendPool(): pg.Pool | null {
   const url = process.env.DATABASE_URL;
   if (!url) return null;
-  if (!_spendPool) {
-    _spendPool = new pg.Pool({ connectionString: url });
+  const g = globalThis as unknown as WithSingletons;
+  if (!g[SPEND_POOL_KEY]) {
+    g[SPEND_POOL_KEY] = new pg.Pool({ connectionString: url });
   }
-  return _spendPool;
+  return g[SPEND_POOL_KEY];
 }
 
 function getSpendReader(): SpendReader {
@@ -129,7 +152,8 @@ function getSpendRecorder(): SandboxSpendRepo | undefined {
 }
 
 export function getSandboxFactory(): SandboxFactory {
-  if (!_factory) {
+  const g = globalThis as unknown as WithSingletons;
+  if (!g[FACTORY_KEY]) {
     // Allow operators to point at any E2B template they actually have on
     // their account — including raw template IDs (alphanumeric, e.g.
     // "6f5mwsacoiiqt0qj1bgx") — without forking this file. The atlas-*
@@ -142,7 +166,7 @@ export function getSandboxFactory(): SandboxFactory {
       ? Number(process.env.ATLAS_DEFAULT_SANDBOX_PORT)
       : undefined;
 
-    _factory = new SandboxFactory({
+    g[FACTORY_KEY] = new SandboxFactory({
       lifecycle: new E2BLifecycle({
         apiKey: process.env.E2B_API_KEY ?? "",
         templateDigests: {
@@ -167,12 +191,13 @@ export function getSandboxFactory(): SandboxFactory {
       defaultPort,
     });
   }
-  return _factory;
+  return g[FACTORY_KEY];
 }
 
 /** Test-only — drops the singleton so subsequent getSandboxFactory() calls re-read env. */
 export function _resetSandboxFactoryForTests(): void {
-  _factory = undefined;
+  const g = globalThis as unknown as WithSingletons;
+  g[FACTORY_KEY] = undefined;
 }
 
 /**

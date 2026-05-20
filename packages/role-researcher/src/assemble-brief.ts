@@ -4,7 +4,13 @@ import type { CatalogEntry } from "./local-catalog.js";
 import type { WebHit } from "./web-fetch.js";
 import { ResearcherFailedError } from "./errors.js";
 
-export const RESEARCHER_BRIEF_MODEL = "claude-haiku-4-5";
+// Plan PFP: model ID must be valid on whichever provider is in use. The
+// previous hardcoded "claude-haiku-4-5" is the Anthropic-direct ID and 400s
+// on OpenRouter, which expects "anthropic/claude-haiku-4.5" (prefix + dot).
+// Operators can override via ATLAS_LLM_RESEARCHER_MODEL; default targets the
+// OpenRouter format since atlas-web defaults to OpenRouter via ATLAS_LLM_BASE_URL.
+export const RESEARCHER_BRIEF_MODEL =
+  process.env.ATLAS_LLM_RESEARCHER_MODEL ?? "anthropic/claude-haiku-4.5";
 
 const ROLE_PROMPT = `You are the Researcher role. Given a designIntent (category +
 audience cues), a local-catalog entry (curated references), and optional web-search hits,

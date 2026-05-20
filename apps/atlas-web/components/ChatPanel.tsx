@@ -4,6 +4,8 @@ import { useState } from "react";
 import { SecurityReportPanel, type SecurityReport } from "@/components/SecurityReportPanel";
 import { AccessibilityReportPanel, type AccessibilityReport } from "@/components/AccessibilityReportPanel";
 import { RefinementInputBar } from "@/components/RefinementInputBar";
+import { ReferenceDropZone, type ReferenceImage } from "@/components/prompt/ReferenceDropZone";
+import { SelectionChip } from "@/components/canvas/SelectionChip";
 
 export interface RoleEvent {
   eventType: string;
@@ -50,7 +52,15 @@ export interface ChatPanelProps {
     projectId: string;
     userTurn: string;
     editClass: "structural" | "cosmetic";
+    /** Plan UXO Task 6 — when reference-input is on, ChatPanel forwards the
+     *  user's drag/dropped screenshots so they flow into startRitual's
+     *  referenceImages field. Omitted when reference-input is off or no
+     *  references were dropped (exactOptionalPropertyTypes: omit ≠ undefined). */
+    referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
   }) => Promise<StartRitualResult>;
+  /** Plan UXO Task 6 — when ATLAS_FF_REFERENCE_INPUT is on (read server-side),
+   *  render the ReferenceDropZone above the textarea. */
+  referenceInputEnabled?: boolean;
   /** Plan K: when ATLAS_FF_MULTI_TURN is on (read server-side), render
    *  the <RefinementInputBar /> beneath each developer-output card so the
    *  user can iterate on the prior result. */
@@ -62,6 +72,30 @@ export interface ChatPanelProps {
     parentRitualId: string;
     userTurn: string;
   }) => Promise<StartRitualResult & { parentRitualId: string }>;
+  /**
+   * Refine-by-default: when set, the main input box auto-routes the next
+   * submit through `refineAction` (parentRitualId = this id) instead of the
+   * cold-start `action`. Server-side wiring resolves this from the most
+   * recent ritual.started event for the project, so a chat returning from
+   * a fresh page load picks up where it left off.
+   *
+   * Routing rules (in order):
+   *   1. multiTurnFlagEnabled === false → always cold-start (today's behavior).
+   *   2. refineAction not provided      → always cold-start.
+   *   3. latest ritual id known (this prop OR result of a previous send)
+   *      → refine on that id.
+   *   4. otherwise                       → cold-start.
+   *
+   * After a successful submit the component remembers the new ritualId
+   * locally so subsequent submits within the same session continue the
+   * thread without another DB round-trip.
+   */
+  initialLatestRitualId?: string;
+  /** Plan canvas-in-place-editing Task 21 — when set, renders a SelectionChip
+   *  above the textarea and routes submit through editElementAction. */
+  selectionChip?: { label: string; atlasId: string; filePath: string };
+  onClearSelection?: () => void;
+  editElementAction?: (input: { projectId: string; filePath: string; atlasId: string; instruction: string }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 interface HistoryEntry {
@@ -70,21 +104,94 @@ interface HistoryEntry {
   result?: StartRitualResult;
 }
 
-export function ChatPanel({ projectId, action, multiTurnFlagEnabled = false, refineAction }: ChatPanelProps) {
+export function ChatPanel({
+  projectId,
+  action,
+  multiTurnFlagEnabled = false,
+  refineAction,
+  initialLatestRitualId,
+  referenceInputEnabled = false,
+  selectionChip,
+  onClearSelection,
+  editElementAction
+}: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // Plan UXO Task 6 — accumulate ReferenceDropZone results. Cleared after
+  // a successful submit alongside the textarea (same "fresh prompt" semantics).
+  const [references, setReferences] = useState<ReadonlyArray<ReferenceImage>>([]);
+  // Refine-by-default state: starts at server-supplied initialLatestRitualId
+  // (so chats survive a page refresh) and rolls forward on each successful
+  // submit so subsequent sends in the same session continue the thread.
+  // null = no parent ritual known → cold-start path.
+  const [latestRitualId, setLatestRitualId] = useState<string | null>(
+    initialLatestRitualId ?? null
+  );
+
+  /** Pure helper — exported for unit testing the routing decision. Returns
+   *  true iff the next submit should call refineAction with parentRitualId. */
+  function shouldRefine(): boolean {
+    return Boolean(multiTurnFlagEnabled && refineAction && latestRitualId);
+  }
 
   async function send() {
     if (!text.trim() || pending) return;
     setPending(true);
     setError(null);
     setHistory((h) => [...h, { role: "user", text }]);
+    const capturedText = text;
+    // Plan canvas-in-place-editing Task 21: when a selection chip is active,
+    // route through editElementAction instead of the full ritual pipeline.
+    if (selectionChip && editElementAction) {
+      try {
+        const result = await editElementAction({
+          projectId,
+          filePath: selectionChip.filePath,
+          atlasId: selectionChip.atlasId,
+          instruction: capturedText
+        });
+        if (result.ok) {
+          setText("");
+        } else {
+          setError(result.error ?? "Edit failed. Please try again.");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg || "Something went wrong. Please try again.");
+      } finally {
+        setPending(false);
+      }
+      return;
+    }
     try {
-      const result = await action({ projectId, userTurn: text, editClass: "structural" });
+      let result: StartRitualResult;
+      if (shouldRefine() && refineAction && latestRitualId) {
+        // Refine path — invisible to the user (same input box, same submit).
+        // The result still flows through history as an architect entry, so
+        // the rendering pipeline downstream is identical.
+        result = await refineAction({
+          projectId,
+          parentRitualId: latestRitualId,
+          userTurn: text
+        });
+      } else {
+        // Plan UXO Task 6 — only include referenceImages on the call when
+        // we have at least one. Empty arrays are omitted to keep the action
+        // call shape backwards-compatible with existing tests + flag-OFF.
+        result = await action({
+          projectId,
+          userTurn: text,
+          editClass: "structural",
+          ...(references.length > 0 ? { referenceImages: references } : {})
+        });
+      }
       setHistory((h) => [...h, { role: "architect", result }]);
+      // Roll the parent forward so the next send refines on this turn.
+      setLatestRitualId(result.ritualId);
       setText("");
+      setReferences([]);
     } catch (err) {
       // Surface the failure so users don't experience a silent "the button did nothing"
       // crash. The message is intentionally short — full stacks belong in server logs.
@@ -128,7 +235,23 @@ export function ChatPanel({ projectId, action, multiTurnFlagEnabled = false, ref
             {error}
           </div>
         )}
+        {selectionChip !== undefined && (
+          <div className="mb-1">
+            <SelectionChip
+              label={selectionChip.label}
+              onRemove={onClearSelection ?? (() => {})}
+            />
+          </div>
+        )}
+        {referenceInputEnabled && (
+          <div className="mb-2">
+            <ReferenceDropZone
+              onAdd={(ref) => setReferences((cur) => [...cur, ref])}
+            />
+          </div>
+        )}
         <textarea
+          data-prompt-input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Describe your change…"

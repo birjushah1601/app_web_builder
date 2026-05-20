@@ -23,14 +23,15 @@ function readPersisted(projectId: string): boolean | null {
  *  closed; reload on a fresh tab returns to the default+auto-close logic. */
 export function useTimelineCollapse(projectId: string) {
   const { events } = useEventStream();
-  // Lazy initializer: reads sessionStorage synchronously on mount so that
-  // the very first render already reflects a persisted user choice.
-  // readPersisted guards against SSR (returns null when window is undefined).
-  const [userChoice, setUserChoice] = useState<boolean | null>(() =>
-    readPersisted(projectId)
-  );
+  // Initial state must be deterministic across SSR + first client render to
+  // avoid a hydration mismatch on the <details open={...}> attribute — the
+  // server has no sessionStorage so SSR sees `null`, but a useState lazy
+  // initializer that calls readPersisted would diverge on the client because
+  // sessionStorage IS available there. Initialize to `null` everywhere and
+  // hydrate the persisted value in an effect.
+  const [userChoice, setUserChoice] = useState<boolean | null>(null);
 
-  // Re-sync when projectId changes (e.g. navigating between projects).
+  // Hydrate from sessionStorage after mount, and re-sync when projectId changes.
   useEffect(() => {
     setUserChoice(readPersisted(projectId));
   }, [projectId]);

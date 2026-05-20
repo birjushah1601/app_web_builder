@@ -200,6 +200,81 @@ const CanvasRefinementCompletedSchema = z.object({
   ts: z.string(),
   payload: z.unknown()
 });
+// Plan C — sandbox apply lifecycle events. use-canvas-state listens for
+// sandbox.apply.completed and auto-switches the canvas to preview mode.
+const SandboxApplyStartedSchema = z.object({
+  type: z.literal("sandbox.apply.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const SandboxApplyCompletedSchema = z.object({
+  type: z.literal("sandbox.apply.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const SandboxApplyFailedSchema = z.object({
+  type: z.literal("sandbox.apply.failed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+
+// Plan SPU — Designer three-pass (draft → critique → revise) lifecycle.
+// Loose mirror schemas (payload typed as z.unknown()) following the same
+// pattern as the canvas mirror schemas above. See top-of-file comment for why.
+const DesignerDraftCompletedSchema = z.object({
+  type: z.literal("designer.draft.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerCritiqueStartedSchema = z.object({
+  type: z.literal("designer.critique.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerCritiqueCompletedSchema = z.object({
+  type: z.literal("designer.critique.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerReviseStartedSchema = z.object({
+  type: z.literal("designer.revise.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const DesignerReviseCompletedSchema = z.object({
+  type: z.literal("designer.revise.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+
+// Plan SPU — AssetGenerator role lifecycle. started/completed/failed land
+// on the rail timeline as their own row once the broker mapping ships.
+const AssetGenStartedSchema = z.object({
+  type: z.literal("asset.gen.started"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const AssetGenCompletedSchema = z.object({
+  type: z.literal("asset.gen.completed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
+const AssetGenFailedSchema = z.object({
+  type: z.literal("asset.gen.failed"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.unknown()
+});
 
 export const RitualEventSchema = z.discriminatedUnion("type", [
   RitualStartedSchema,
@@ -223,7 +298,19 @@ export const RitualEventSchema = z.discriminatedUnion("type", [
   CanvasOptionsRequestedSchema,
   CanvasOptionSelectedSchema,
   CanvasRefinementStartedSchema,
-  CanvasRefinementCompletedSchema
+  CanvasRefinementCompletedSchema,
+  SandboxApplyStartedSchema,
+  SandboxApplyCompletedSchema,
+  SandboxApplyFailedSchema,
+  // Plan SPU — designer three-pass + asset generation events
+  DesignerDraftCompletedSchema,
+  DesignerCritiqueStartedSchema,
+  DesignerCritiqueCompletedSchema,
+  DesignerReviseStartedSchema,
+  DesignerReviseCompletedSchema,
+  AssetGenStartedSchema,
+  AssetGenCompletedSchema,
+  AssetGenFailedSchema
 ]);
 export type RitualEvent = z.infer<typeof RitualEventSchema>;
 

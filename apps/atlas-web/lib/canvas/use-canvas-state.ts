@@ -14,10 +14,18 @@
  *
  * Pure-ish: the hook listens to `useEventStream()` from
  * EventSourceProvider but takes no other side effects.
+ *
+ * NOTE: this hook owns the *manifest mode* dimension (designing/preview).
+ * Plan UXO change 2 introduces a separate top-level workspace mode
+ * (agent/plan/visual-edits) via `useCanvasMode` below — orthogonal axis,
+ * persisted to localStorage per-project.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasManifest } from "@atlas/canvas-runtime";
 import { useEventStream } from "@/lib/events/EventSourceProvider";
+import type { CanvasMode } from "@/components/canvas/ModeToolbar";
+
+export type { CanvasMode };
 
 export interface UseCanvasStateInput {
   manifest: CanvasManifest | undefined;
@@ -48,6 +56,14 @@ export function useCanvasState({ manifest }: UseCanvasStateInput): UseCanvasStat
 
   useEffect(() => {
     if (events.length === 0) return;
+    // Wait until the manifest has resolved before attempting any auto-switch.
+    // Previously we processed events even when manifest was undefined, the
+    // targetExists check rejected the switch, AND we advanced lastSeenIdRef
+    // past those events — so by the time the manifest arrived there were no
+    // unprocessed events left to act on and the canvas stayed on "designing"
+    // forever (user-reported as "Generating your site doesn't end").
+    if (!manifest) return;
+
     // Walk only newly-arrived events since the last time we ran. For the
     // disabled / mocked stream we re-derive on every render which is cheap
     // (the events array is stable when the broker is disabled).
@@ -68,7 +84,7 @@ export function useCanvasState({ manifest }: UseCanvasStateInput): UseCanvasStat
     if (nextActive && !overrideRef.current) {
       // Only auto-switch when the manifest actually has the target mode —
       // otherwise we'd render an empty <CanvasShell>.
-      const targetExists = manifest?.modes.some((m) => m.id === nextActive);
+      const targetExists = manifest.modes.some((m) => m.id === nextActive);
       if (targetExists) setActiveModeState(nextActive);
     }
   }, [events, manifest]);
@@ -80,4 +96,89 @@ export function useCanvasState({ manifest }: UseCanvasStateInput): UseCanvasStat
       setActiveModeState(id);
     }
   };
+}
+
+/* -----------------------------------------------------------------------
+ * Plan UXO change 2 — three-mode workspace toolbar.
+ *
+ * `useCanvasMode` owns the Agent/Plan/Visual-Edits dimension for one
+ * project. Persisted to `localStorage["atlas-canvas-mode:" + projectId]`
+ * so the user's last choice survives reloads and SSR transitions.
+ *
+ * Defaults to "agent" — that's today's behavior (conversation-driven).
+ * Consumer wiring (which panels react to which mode) lands in later UXO
+ * slices; for this commit the only consumer is <ModeToolbar /> itself.
+ *
+ * SSR-safe: `localStorage` is read inside a `useEffect`, so the initial
+ * render returns the default and we hydrate the persisted value on the
+ * client. Anything else trips React 19's hydration mismatch guard.
+ * --------------------------------------------------------------------- */
+
+export const DEFAULT_CANVAS_MODE: CanvasMode = "agent";
+const VALID_MODES: ReadonlySet<CanvasMode> = new Set(["agent", "plan", "visual-edits"]);
+
+export function canvasModeStorageKey(projectId: string): string {
+  return `atlas-canvas-mode:${projectId}`;
+}
+
+export interface UseCanvasModeResult {
+  mode: CanvasMode;
+  setMode: (m: CanvasMode) => void;
+}
+
+// Custom window event broadcast — every useCanvasMode consumer in the
+// page listens for this and re-reads localStorage on fire. Without it,
+// ModeToolbarHost's setMode call only updates its own useState; sibling
+// consumers like CanvasPreviewClient (which gate the inspector + overlay
+// on mode === "visual-edits") keep their stale local copy, so the
+// inspector panel can stay visible after the user clicks "Agent". Window
+// `storage` event only fires across tabs — same-window writes need a
+// manual broadcast.
+const CANVAS_MODE_EVENT = "atlas:canvas-mode-changed";
+
+export function useCanvasMode(projectId: string): UseCanvasModeResult {
+  const [mode, setModeState] = useState<CanvasMode>(DEFAULT_CANVAS_MODE);
+
+  // Hydrate from localStorage on mount AND any time another consumer
+  // (sibling component, ModeToolbarHost) writes a new value.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sync = () => {
+      try {
+        const raw = window.localStorage.getItem(canvasModeStorageKey(projectId));
+        if (raw && VALID_MODES.has(raw as CanvasMode)) {
+          setModeState(raw as CanvasMode);
+        }
+      } catch {
+        // localStorage can throw (private mode, quota, disabled). Silently
+        // fall back to the default — the toolbar still works, it just won't
+        // persist this session.
+      }
+    };
+    sync();
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ projectId: string }>).detail;
+      if (detail?.projectId === projectId) sync();
+    };
+    window.addEventListener(CANVAS_MODE_EVENT, handler);
+    return () => window.removeEventListener(CANVAS_MODE_EVENT, handler);
+  }, [projectId]);
+
+  const setMode = useCallback(
+    (next: CanvasMode) => {
+      setModeState(next);
+      if (typeof window === "undefined") return;
+      try {
+        window.localStorage.setItem(canvasModeStorageKey(projectId), next);
+        window.dispatchEvent(
+          new CustomEvent(CANVAS_MODE_EVENT, { detail: { projectId } })
+        );
+      } catch {
+        // Same swallow as above.
+      }
+    },
+    [projectId]
+  );
+
+  return { mode, setMode };
 }

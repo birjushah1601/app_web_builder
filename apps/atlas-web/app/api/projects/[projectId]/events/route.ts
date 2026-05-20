@@ -48,6 +48,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ projectI
           // recent id back as Last-Event-ID on auto-reconnect.
           enqueue(`id: ${event.id}\n`);
           enqueue(`data: ${JSON.stringify(event)}\n\n`);
+          console.log(`[sse] ${projectId.slice(0, 8)} → ${event.type}`);
         }
       } catch (err) {
         // Defensive: never let an iterator throw escape the stream — log
