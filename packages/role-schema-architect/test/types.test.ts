@@ -202,14 +202,28 @@ describe("ContractSchema", () => {
   });
 });
 
-describe("SchemaProposalSchema (top-level shape only — cross-entity validation in Task 5)", () => {
+describe("SchemaProposalSchema — top-level shape", () => {
+  // Minimal valid entity so DataModelSchema's .min(1) is satisfied;
+  // cross-entity validation (broken-reference, duplicate-name) lives in
+  // validate-references.test.ts and is wired via superRefine separately.
+  const minimalEntity = {
+    name: "user",
+    description: "x",
+    fields: [{ name: "id", type: "uuid", nullable: false, default: "gen_random_uuid()" }],
+    primaryKey: { columns: ["id"], strategy: "uuid" as const },
+    indexes: [],
+    constraints: [],
+    rls: { enabled: false, policies: [] },
+    audit: { createdAt: true, updatedAt: true },
+    migrationHints: []
+  };
   const direction = (id: string) => ({
     id,
     name: id,
     shortDescription: "x",
     technicalDescription: "y",
     contract: { style: "rest" as const, operations: [] },
-    dataModel: { entities: [] }
+    dataModel: { entities: [minimalEntity] }
   });
 
   it("requires exactly 2 alternates", () => {

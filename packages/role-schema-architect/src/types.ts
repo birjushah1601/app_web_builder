@@ -45,7 +45,7 @@ export type Constraint = z.infer<typeof ConstraintSchema>;
 export const RlsPolicySchema = z.object({
   name: z.string().min(1),
   applyTo: z.enum(["select", "insert", "update", "delete", "all"]),
-  using: z.string().min(1),
+  using: z.string().min(1).optional(),
   withCheck: z.string().optional(),
   role: z.string().optional()
 });
@@ -69,11 +69,13 @@ export const PrimaryKeySchema = z.object({
   columns: z.array(z.string().min(1)).min(1),
   strategy: z.enum(["uuid", "serial", "composite"])
 });
+export type PrimaryKey = z.infer<typeof PrimaryKeySchema>;
 
 export const PartitioningSchema = z.object({
   kind: z.enum(["range", "list", "hash"]),
   on: z.string().min(1)
 });
+export type Partitioning = z.infer<typeof PartitioningSchema>;
 
 export const EntitySchema = z.object({
   name: z.string().min(1),
@@ -85,13 +87,13 @@ export const EntitySchema = z.object({
   rls: RlsConfigSchema,
   audit: AuditConfigSchema,
   partitioning: PartitioningSchema.optional(),
-  migrationHints: z.array(z.string()),
+  migrationHints: z.array(z.string().min(1)),
   notes: z.string().optional()
 });
 export type Entity = z.infer<typeof EntitySchema>;
 
 export const DataModelSchema = z.object({
-  entities: z.array(EntitySchema)
+  entities: z.array(EntitySchema).min(1)
 });
 export type DataModel = z.infer<typeof DataModelSchema>;
 
