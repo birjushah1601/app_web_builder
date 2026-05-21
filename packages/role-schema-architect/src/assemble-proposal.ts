@@ -171,16 +171,18 @@ export interface AssembleProposalInput {
 export async function assembleProposal(input: AssembleProposalInput): Promise<SchemaProposal> {
   const userTurn = renderUserTurn(input.designIntent, input.brief, input.architectArtifact);
 
-  const userMessage: LLMMessage = { role: "user", content: userTurn };
+  const messages: LLMMessage[] = [
+    { role: "system", content: DRAFT_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+    { role: "user", content: userTurn }
+  ];
 
   let result: { toolName: string; input: unknown };
   try {
     result = await (input.llm as unknown as {
       completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
-    }).completeWithToolUse([userMessage], {
+    }).completeWithToolUse(messages, {
       model: input.model ?? process.env.ATLAS_LLM_SCHEMA_ARCHITECT_MODEL ?? DESIGNER_PROPOSAL_MODEL,
       maxTokens: 8192,
-      system: [{ type: "text", text: DRAFT_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
       tools: [{ name: "emit_schema_proposal", description: "Emit schema proposal", input_schema: PROPOSAL_TOOL_SCHEMA }],
       toolChoice: { type: "tool", name: "emit_schema_proposal" }
     });

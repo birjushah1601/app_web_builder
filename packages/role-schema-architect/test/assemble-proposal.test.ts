@@ -92,8 +92,8 @@ describe("assembleProposal", () => {
       architectArtifact: { artifactKind: "backend-rest-api", focus: "billing" }
     });
     const call = (llm as unknown as { completeWithToolUse: ReturnType<typeof vi.fn> }).completeWithToolUse.mock.calls[0];
-    const messages = call[0] as Array<{ content: string }>;
-    const userText = messages.find((m) => m && typeof m.content === "string")?.content ?? "";
+    const messages = call[0] as Array<{ role: string; content: string }>;
+    const userText = messages.find((m) => m && m.role === "user")?.content ?? "";
     expect(userText).toMatch(/Stripe API|billing|saas-app/);
   });
 });
