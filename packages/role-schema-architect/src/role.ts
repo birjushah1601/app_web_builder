@@ -1,22 +1,8 @@
-import { z } from "zod";
 import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
 import type { Role, RoleInvocation, RoleOutput } from "@atlas/conductor";
 import type { DesignIntent, InspirationBrief } from "@atlas/role-researcher";
+import { DesignIntentSchema, InspirationBriefSchema } from "@atlas/role-researcher";
 import { assembleProposal } from "./assemble-proposal.js";
-
-// Inline minimal schemas to avoid runtime dependency on @atlas/role-researcher
-const DesignIntentSchema = z.object({
-  category: z.string().min(1),
-  audienceCues: z.array(z.string()).optional().default([]),
-  artifactKind: z.string().min(1).optional()
-});
-const InspirationBriefSchema = z.object({
-  category: z.string().min(1),
-  audienceCues: z.array(z.string()),
-  references: z.array(z.unknown()),
-  patternsThatWin: z.array(z.string()),
-  patternsThatLose: z.array(z.string())
-});
 import { SchemaArchitectFailedError } from "./errors.js";
 import { SchemaProposalSchema, type SchemaProposal } from "./types.js";
 import { CRITIQUE_SYSTEM_PROMPT, CRITIQUE_TOOL_SCHEMA, CritiqueSchema, type Critique } from "./critique-prompt.js";
