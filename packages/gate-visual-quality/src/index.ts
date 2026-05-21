@@ -10,7 +10,7 @@ export {
   type DesignTokensSnapshot
 } from "./types.js";
 
-export { VisualQualityError, ScreenshotFailedError, SkillMissingError } from "./errors.js";
+export { VisualQualityError, ScreenshotFailedError, SkillMissingError, InfrastructureUnavailableError, type InfraSignature } from "./errors.js";
 
 export { captureScreenshots, type SandboxExec, type CaptureScreenshotsInput, type CapturedScreenshots } from "./screenshot.js";
 

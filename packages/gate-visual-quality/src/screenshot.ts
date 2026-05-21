@@ -1,4 +1,4 @@
-import { ScreenshotFailedError } from "./errors.js";
+import { InfrastructureUnavailableError, ScreenshotFailedError, type InfraSignature } from "./errors.js";
 import type { Viewport } from "./types.js";
 
 export interface SandboxExec {
@@ -29,11 +29,36 @@ export async function captureScreenshots(input: CaptureScreenshotsInput): Promis
     const cmd = puppeteerCommand({ url: input.previewUrl, viewport: vp, width: dims.width, height: dims.height, timeoutMs: input.timeoutMs ?? 15000 });
     const result = await input.exec.runCommand(cmd);
     if (result.exitCode !== 0) {
-      throw new ScreenshotFailedError(`screenshot failed for ${vp}: ${result.stderr ?? "(no stderr)"}`, { viewport: vp });
+      const stderr = result.stderr ?? "(no stderr)";
+      const infra = classifyInfraFailure(stderr);
+      if (infra) {
+        throw new InfrastructureUnavailableError(
+          `screenshot failed for ${vp} (${infra}): ${stderr}`,
+          { signature: infra, viewport: vp }
+        );
+      }
+      throw new ScreenshotFailedError(`screenshot failed for ${vp}: ${stderr}`, { viewport: vp });
     }
     out[vp] = `data:image/jpeg;base64,${result.stdout.trim()}`;
   }
   return out as CapturedScreenshots;
+}
+
+// Distinguish infra failures (sandbox doesn't have what we need) from
+// content failures (model emitted something puppeteer can't render).
+// Only the latter should drive auto-fix retries; infra issues are out
+// of the model's control and would burn the retry budget for nothing.
+function classifyInfraFailure(stderr: string): InfraSignature | null {
+  if (/puppeteer-core/.test(stderr) && /Cannot find module|MODULE_NOT_FOUND/i.test(stderr)) {
+    return "puppeteer-core-missing";
+  }
+  if (/Failed to launch the browser/i.test(stderr) || /spawn .*chromium.*ENOENT/i.test(stderr)) {
+    return "chromium-launch-failed";
+  }
+  if (/MODULE_NOT_FOUND/i.test(stderr)) {
+    return "module-not-found-generic";
+  }
+  return null;
 }
 
 function puppeteerCommand(input: { url: string; viewport: Viewport; width: number; height: number; timeoutMs: number }): string {

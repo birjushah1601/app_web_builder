@@ -2,6 +2,7 @@ import type { LLMProvider } from "@atlas/llm-provider";
 import type { Role, RoleInvocation, RoleOutput } from "@atlas/conductor";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { runVisualQualityCheck } from "./visual-quality-check.js";
+import { InfrastructureUnavailableError } from "./errors.js";
 import type { SandboxExec } from "./screenshot.js";
 import type { DesignTokensSnapshot } from "./types.js";
 
@@ -43,6 +44,17 @@ export class VisualQualityRole implements Role {
         ...(this.opts.model !== undefined ? { model: this.opts.model } : {})
       });
     } catch (err) {
+      // Infra issues (puppeteer/chromium missing, browser launch failed) are
+      // not the model's fault — re-throwing would record role.failed and the
+      // auto-fix loop would burn 3 retries for nothing. Skip cleanly so the
+      // ritual proceeds; old/stale sandboxes degrade gracefully until they
+      // re-provision off the puppeteer-equipped template.
+      if (err instanceof InfrastructureUnavailableError) {
+        const reason = `infrastructure-unavailable: ${err.signature}${err.viewport ? ` (${err.viewport})` : ""}`;
+        events.push({ eventType: "visual_quality.skipped", payload: { reason } });
+        events.push({ eventType: "visual_quality.completed", payload: { passed: true, skipped: true } });
+        return { events, diff: { kind: "none" } };
+      }
       events.push({ eventType: "visual_quality.errored", payload: { error: (err as Error).message } });
       throw err;
     }
