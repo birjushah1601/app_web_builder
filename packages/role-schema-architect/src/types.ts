@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateReferences } from "./validate-references.js";
 
 export const PostgresTypeSchema = z.string().min(1);
 export type PostgresType = z.infer<typeof PostgresTypeSchema>;
@@ -132,9 +133,27 @@ export const SchemaDirectionSchema = z.object({
 });
 export type SchemaDirection = z.infer<typeof SchemaDirectionSchema>;
 
-export const SchemaProposalSchema = z.object({
-  recommended: SchemaDirectionSchema,
-  alternates: z.tuple([SchemaDirectionSchema, SchemaDirectionSchema]),
-  reasoning: z.string().min(1)
-});
+export const SchemaProposalSchema = z
+  .object({
+    recommended: SchemaDirectionSchema,
+    alternates: z.tuple([SchemaDirectionSchema, SchemaDirectionSchema]),
+    reasoning: z.string().min(1)
+  })
+  .superRefine((proposal, ctx) => {
+    const directions: Array<{ path: ReadonlyArray<string | number>; direction: typeof proposal.recommended }> = [
+      { path: ["recommended"], direction: proposal.recommended },
+      { path: ["alternates", 0], direction: proposal.alternates[0] },
+      { path: ["alternates", 1], direction: proposal.alternates[1] }
+    ];
+    for (const { path, direction } of directions) {
+      const r = validateReferences(direction.dataModel);
+      if (!r.ok) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${r.reason}: ${r.message}`,
+          path: [...path, "dataModel"]
+        });
+      }
+    }
+  });
 export type SchemaProposal = z.infer<typeof SchemaProposalSchema>;

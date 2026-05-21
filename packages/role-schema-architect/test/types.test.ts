@@ -256,3 +256,72 @@ describe("SchemaProposalSchema — top-level shape", () => {
     ).toThrow();
   });
 });
+
+describe("SchemaProposalSchema cross-entity validation", () => {
+  const direction = (entities: Array<Record<string, unknown>>) => ({
+    id: "rec",
+    name: "Recommended",
+    shortDescription: "x",
+    technicalDescription: "y",
+    contract: { style: "rest" as const, operations: [] },
+    dataModel: { entities }
+  });
+
+  const minimalValidEntity = () => ({
+    name: "noop",
+    description: "x",
+    fields: [{ name: "id", type: "uuid", nullable: false, default: "gen_random_uuid()" }],
+    primaryKey: { columns: ["id"], strategy: "uuid" as const },
+    indexes: [],
+    constraints: [],
+    rls: { enabled: false, policies: [] },
+    audit: { createdAt: true, updatedAt: true },
+    migrationHints: []
+  });
+
+  const minimalDirection = () => ({
+    id: "alt",
+    name: "Alt",
+    shortDescription: "x",
+    technicalDescription: "y",
+    contract: { style: "rest" as const, operations: [] },
+    dataModel: { entities: [minimalValidEntity()] }
+  });
+
+  it("rejects proposal with broken FK in recommended direction", () => {
+    const proposal = {
+      recommended: direction([
+        {
+          name: "post",
+          description: "x",
+          fields: [
+            { name: "id", type: "uuid", nullable: false },
+            { name: "user_id", type: "uuid", nullable: false, references: { entity: "user", field: "id", onDelete: "cascade" } }
+          ],
+          primaryKey: { columns: ["id"], strategy: "uuid" },
+          indexes: [],
+          constraints: [],
+          rls: { enabled: false, policies: [] },
+          audit: { createdAt: true, updatedAt: true },
+          migrationHints: []
+        }
+      ]),
+      alternates: [minimalDirection(), { ...minimalDirection(), id: "alt2" }],
+      reasoning: "x"
+    };
+    expect(() => SchemaProposalSchema.parse(proposal)).toThrow(/broken-reference/);
+  });
+
+  it("rejects proposal with duplicate entity name in any direction", () => {
+    const dupEntities = [
+      { name: "user", description: "x", fields: [{ name: "id", type: "uuid", nullable: false }], primaryKey: { columns: ["id"], strategy: "uuid" }, indexes: [], constraints: [], rls: { enabled: false, policies: [] }, audit: { createdAt: true, updatedAt: true }, migrationHints: [] },
+      { name: "user", description: "y", fields: [{ name: "id", type: "uuid", nullable: false }], primaryKey: { columns: ["id"], strategy: "uuid" }, indexes: [], constraints: [], rls: { enabled: false, policies: [] }, audit: { createdAt: true, updatedAt: true }, migrationHints: [] }
+    ];
+    const proposal = {
+      recommended: direction(dupEntities),
+      alternates: [minimalDirection(), { ...minimalDirection(), id: "alt2" }],
+      reasoning: "x"
+    };
+    expect(() => SchemaProposalSchema.parse(proposal)).toThrow(/duplicate-name/);
+  });
+});
