@@ -76,7 +76,10 @@ describe("AssetGeneratorRole", () => {
     expect(writes).toHaveLength(1);
     const artifact = (out as unknown as { artifact?: { assetManifest?: { hero?: { url?: string; prompt?: string } } } }).artifact;
     expect(artifact?.assetManifest?.hero?.url).toBe("/atlas-assets/cached.jpg");
-    expect(artifact?.assetManifest?.hero?.prompt).toContain("frontend-app");
+    // Prompt template no longer mentions artifactKind by name — it's a
+    // cinematic-photograph template that describes the subject matter via
+    // the user's prompt text directly. Verify the hallmark phrasing instead.
+    expect(artifact?.assetManifest?.hero?.prompt).toMatch(/Cinematic.*photograph/i);
     delete process.env.ATLAS_FF_HERO_AI_IMAGE;
   });
 

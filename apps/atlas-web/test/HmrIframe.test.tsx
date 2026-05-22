@@ -115,45 +115,12 @@ describe("HmrIframe — projectId prop + cache-buster src wiring", () => {
   });
 });
 
-describe("HmrIframe — manual Reload preview button", () => {
-  it("renders a 'Reload preview' button with data-testid='preview-reload-button'", () => {
-    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
-      events: [], status: "disabled", lastEventId: null
-    });
-    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
-    const button = screen.getByTestId("preview-reload-button");
-    expect(button).toBeTruthy();
-    expect(button.textContent).toBe("Reload preview");
-  });
-
-  it("clicking 'Reload preview' immediately mutates iframe.src to include atlas-reload=", async () => {
-    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
-      events: [], status: "disabled", lastEventId: null
-    });
-    const user = userEvent.setup();
-    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
-    const iframeBefore = screen.getByTitle("Live preview") as HTMLIFrameElement;
-    const srcBefore = iframeBefore.src;
-    expect(srcBefore).not.toContain("atlas-reload=");
-
-    await user.click(screen.getByTestId("preview-reload-button"));
-
-    const iframeAfter = screen.getByTitle("Live preview") as HTMLIFrameElement;
-    expect(iframeAfter.src).toContain("atlas-reload=");
-    expect(iframeAfter.src).not.toBe(srcBefore);
-  });
-
-  it("manual button works when flag is OFF (events empty + status='disabled')", async () => {
-    (useEventStream as ReturnType<typeof vi.fn>).mockReturnValue({
-      events: [], status: "disabled", lastEventId: null
-    });
-    const user = userEvent.setup();
-    render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
-    await user.click(screen.getByTestId("preview-reload-button"));
-    const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;
-    expect(iframe.src).toContain("atlas-reload=");
-  });
-});
+// REMOVED 2026-05-23: the always-on "Reload preview" button these tests
+// asserted was deliberately removed from HmrIframe (see the comment near
+// `void manualReload;` in HmrIframe.tsx) — CanvasPreviewToolbar exposes the
+// Reload button at the same level, so the always-on duplicate UI was redundant.
+// The toast-scoped Reload button is still covered by the "failure toast
+// renders" describe block below.
 
 describe("HmrIframe — failure toast renders, iframe src does NOT change", () => {
   it("ok:false event with parseError renders a toast above the iframe AND leaves iframe.src untouched", () => {
@@ -172,7 +139,10 @@ describe("HmrIframe — failure toast renders, iframe src does NOT change", () =
     render(<HmrIframe src="https://3000-sbx.e2b.app" title="Live preview" projectId="proj-1" />);
 
     const toast = screen.getByTestId("preview-reload-toast");
-    expect(toast.textContent).toBe("Could not parse diff at line 4");
+    // The alert div contains the message <span> AND the manual Reload
+    // <button> as siblings, so textContent concatenates "Could not parse diff
+    // at line 4" + "Reload". Match the message via the inner span instead.
+    expect(toast.textContent).toMatch(/^Could not parse diff at line 4/);
     expect(toast.getAttribute("role")).toBe("alert");
 
     const iframe = screen.getByTitle("Live preview") as HTMLIFrameElement;

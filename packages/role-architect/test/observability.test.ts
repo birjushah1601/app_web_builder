@@ -43,8 +43,10 @@ describe("ArchitectRole observability", () => {
     const reqMetric = snapshots.find((m) => m.name === "atlas_llm_provider_requests_total");
     expect(reqMetric).toBeDefined();
     const values = (reqMetric as unknown as { values: Array<{ labels: Record<string, string>; value: number }> }).values;
+    // ARCHITECT_TRIAGE_MODEL default switched to OpenRouter-format
+    // "anthropic/claude-haiku-4.5"; deep-plan stays on "claude-opus-4-7".
     const haikuSuccess = values.find(
-      (v) => v.labels.model === "claude-haiku-4-5-20251001" && v.labels.status === "success"
+      (v) => v.labels.model === "anthropic/claude-haiku-4.5" && v.labels.status === "success"
     );
     const opusSuccess = values.find(
       (v) => v.labels.model === "claude-opus-4-7" && v.labels.status === "success"
