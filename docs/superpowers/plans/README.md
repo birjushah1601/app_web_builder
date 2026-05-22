@@ -112,15 +112,45 @@ Builds on Plan S to close the architect-classification → developer-template ga
 | # | File | Plan | Scope | Status |
 |---|---|---|---|---|
 | T.1 | `2026-05-07-plan-t1-multi-stack-fastapi.md` | **FastAPI + routing** | New `atlas-fastapi` E2B template (Python 3.12 + FastAPI 0.115 + Pydantic 2 + uvicorn + sqlalchemy + alembic + pytest + ruff via uv); per-template `SANDBOX_CONTEXT_PROMPT` registry; `templateForArtifactKind` router; per-artifactKind Researcher skills | Shipped |
-| T.2.1 | `(TBA)` | **atlas-hono-bun** | Bun + Hono + Drizzle ORM (alternative `backend-rest-api`) | Directional |
-| T.2.2 | `(TBA)` | **atlas-graphql-yoga** | Bun + GraphQL Yoga + Pothos (`backend-graphql`) | Directional |
-| T.2.3 | `(TBA)` | **atlas-expo-rn** | Expo SDK 52 + React Native + NativeWind + Expo Router (`mobile-app`) | Directional |
-| T.2.4 | `(TBA)` | **atlas-dlt-python** | Python + dlt + DuckDB + dbt (`data-pipeline`) | Directional |
-| T.2.5 | `(TBA)` | **atlas-bun-cli** | Bun + Commander + ink (`cli-tool`) | Directional |
+| T.2.1 | `2026-05-07-plan-t2-1-hono-bun.md` | **atlas-hono-bun** | Bun + Hono + Drizzle ORM (alternative `backend-rest-api`) | Code shipped — pending operator republish |
+| T.2.2 | `2026-05-07-plan-t2-2-graphql-yoga.md` | **atlas-graphql-yoga** | Bun + GraphQL Yoga + Pothos (`backend-graphql`) | Code shipped — pending operator republish |
+| T.2.3 | `2026-05-07-plan-t2-3-expo-rn.md` | **atlas-expo-rn** | Expo SDK 52 + React Native + NativeWind + Expo Router (`mobile-app`) | Code shipped — pending operator republish |
+| T.2.4 | `2026-05-07-plan-t2-4-dlt-python.md` | **atlas-dlt-python** | Python + dlt + DuckDB + dbt (`data-pipeline`) | Shipped (id `v0etfc938frg6ewa7c5j`) |
+| T.2.5 | `2026-05-07-plan-t2-5-bun-cli.md` | **atlas-bun-cli** | Bun + Commander + ink (`cli-tool`) | Code shipped — pending operator republish |
 
-E2B templates published during Plan T.1: `atlas-fastapi` (id `te6ynfz2hw7swuo2us2m`).
+E2B templates published during Plan T: `atlas-fastapi` (id `te6ynfz2hw7swuo2us2m`), `atlas-dlt-python` (id `v0etfc938frg6ewa7c5j`).
 
-Per the writing-plans authoring cadence, T.2.x sub-plans land when execution is ≤ 3 weeks away.
+**Operator post-merge step** for the four "Code shipped — pending operator republish" rows: from each template directory run `./scripts/build-template.sh` (needs `E2B_API_KEY` + Docker) and commit the printed `template_id` back into the template's `e2b.toml`. Until republished, `templateForArtifactKind` returns the template name but `getSandboxFactory().getOrProvision()` will fail with "template not found" — the canvas surfaces this as a red "Preview unavailable" card. T.2.1 (hono-bun) is opt-in only via `ATLAS_DEFAULT_SANDBOX_TEMPLATE`, so its absence does not affect the default route (`backend-rest-api → atlas-fastapi`).
+
+---
+
+## Post-Phase-A iteration plans
+
+Plans authored after the `phase-a/complete` tag — each is a focused, feature-flagged increment on top of the Phase A baseline. All shipped to `main`; flag-OFF preserves prior behavior in every case. See `docs/superpowers/local-dev-status.md` for per-plan flag table + "what turns on" descriptions.
+
+| File | Plan | Scope | Status |
+|---|---|---|---|
+| `2026-04-27-plan-b-developer-chain.md` | **B — Developer chain hardening** | Walkover / both-fail / reviewer-vote semantics + structured error surfaces | Shipped |
+| `2026-04-27-plan-c-apply-diff-to-sandbox.md` | **C — Apply diff to live sandbox** | `parse-diff` → E2B SDK `files.write` → per-file FileApplyResult; never throws | Shipped |
+| `2026-04-28-plan-e0-event-broker-sse.md` | **E.0 — Event broker + SSE** | In-memory broker (singleton) → `/api/projects/[id]/events` SSE route → `EventSourceProvider` client | Shipped (gated by `ATLAS_LIVE_EVENTS`) |
+| `2026-04-28-plan-e-ritual-timeline.md` | **E — Ritual timeline rail row** | 3-row reducer (architect/developer/sandbox) folding broker events | Shipped (gated by `ATLAS_LIVE_EVENTS`) |
+| `2026-04-28-plan-f-preview-reload.md` | **F — Auto-reload preview on diff-apply** | HmrIframe subscribes to `sandbox.apply.completed` and reloads | Shipped (gated by `ATLAS_LIVE_EVENTS`) |
+| `2026-04-28-plan-g-rail-shell.md` | **G — Persistent left-rail chat** | `app/projects/[id]/layout.tsx` wraps every subroute with `RailShell` (ChatPanel + RitualTimelineSlot) | Shipped (gated by `ATLAS_LIVE_EVENTS`) |
+| `2026-04-28-plan-h-persistent-rituals.md` | **H — Ritual snapshot hydration** | `engine.getRitual()` async; Postgres `SpecEventsHydrator` replays into `RitualSnapshot` | Shipped (gated by `ATLAS_RITUAL_HYDRATION`) |
+| `2026-04-28-plan-i-register-roles.md` | **I — Security + Accessibility roles in pipeline** | `getRitualEngine()` appends Sec/A11y to `postDeveloperChain` post-developer; failing gate escalates | Shipped (gated by `ATLAS_FF_SECURITY_ROLE` / `ATLAS_FF_A11Y_ROLE`) |
+| `2026-04-28-plan-j-run-grafana.md` | **J — Run-page Grafana wiring** | `HttpGrafanaClient` query for `HealthSummary` on the Run page | Shipped (gated by `ATLAS_FF_RUN_GRAFANA`) |
+| `2026-04-29-plan-k-multi-turn-refinement.md` | **K — Multi-turn ritual refinement** | `engine.refine()` starts child ritual linked via `parentRitualId`; ChatPanel "Refine" textarea | Shipped (gated by `ATLAS_FF_MULTI_TURN`) |
+| `2026-04-29-plan-l-developer-fix-loop.md` | **L — Auto-fix loop on gate failure** | Engine folds failing gate's report into `parentBuildReport`; up to 2 fix-attempts per lineage | Shipped (gated by `ATLAS_FF_AUTO_FIX_LOOP`) |
+| `2026-04-29-plan-p-streaming-progress.md` | **P — Streaming live progress** | 5-phase rail timeline (architect/dev/sandbox/security/a11y) + auto-fix indicator | Shipped (gated by `ATLAS_LIVE_EVENTS`) |
+| `2026-04-29-plan-q-demo-mode.md` | **Q — Demo-mode toggle** | Per-request env-or-cookie toggle that pins responses to deterministic fixtures | Shipped (per-project toggle) |
+| `2026-04-30-plan-r-editor-layout-v2.md` | **R — EditorShell + EmptyPreviewBackdrop** | Persistent left/right split; replaces forever-spinner under preview errors with an explicit backdrop | Shipped |
+| `2026-05-11-prompt-first-new-project.md` | **Prompt-first new-project** | `/projects/new` lands on PromptForm; View Transitions API morphs textarea → canvas chat input | Shipped (morph gated by `ATLAS_FF_PROMPT_MORPH`) |
+| `2026-05-12-stunning-pipeline-upgrade.md` | **SPU — Stunning pipeline upgrade** | Designer 3-pass (`draft → critique → revise`); reference-image plumbing; asset-generator role (gradient / Unsplash / OpenAI image) | Shipped (gated by `ATLAS_FF_DESIGNER_CRITIQUE`, `ATLAS_FF_REFERENCE_IMAGES`, `ATLAS_FF_ASSET_GEN`) |
+| `2026-05-12-canvas-ux-overhaul.md` | **UXO — Canvas UX overhaul** | Three-mode toolbar (Agent / Plan / Visual-Edits); click-to-edit overlay; ReferenceDropZone; editable plan checkpoints; per-element Haiku-proposed sliders | Shipped (gated by `ATLAS_FF_MODE_TOOLBAR`, `ATLAS_FF_CLICK_TO_EDIT`, `ATLAS_FF_REFERENCE_INPUT`, `ATLAS_FF_EDITABLE_PLAN`, `ATLAS_FF_ELEMENT_SLIDERS`) |
+| `2026-05-13-canvas-in-place-editing.md` | **Inline-edit v1** | Text + image edits driven through `atlas-edit-bridge.ts` inside `atlas-next-ts`; postMessage round-trip back to E2B `files.write` | Shipped (gated by `ATLAS_FF_INLINE_EDIT_V1`) |
+| `2026-05-14-pipeline-variety-tweaks.md` | **Pipeline variety tweaks** | Researcher per-kind skill expansions; designer revise-prompt diversity tightening | Shipped |
+| `2026-05-15-build-gate-l0.md` | **L0 — Build gate** | `@atlas/gate-build` runs per-template compiler/typechecker (tsc / pyright) before security/a11y/visual-quality; auto-fix integration via Plan L | Shipped (gated by `ATLAS_FF_BUILD_GATE`, currently OFF pending end-to-end smoke) |
+| `2026-05-21-schema-canvas-and-architect.md` | **Schema-Canvas + Schema-Architect** | New `@atlas/role-schema-architect` (REST/GraphQL/Event-sourced direction proposal) + `<SchemaCanvas>` renderer + canvas-pause `"schema-direction"` kind; engine `hasBlockingSchema` branch for backend rituals | Shipped |
 
 ---
 
