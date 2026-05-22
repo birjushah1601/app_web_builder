@@ -23,10 +23,13 @@ function mkRegistry() {
 }
 
 describe("<CanvasShell>", () => {
-  it("renders <EmptyCanvas> when no manifest is supplied", () => {
+  it("renders <EmptyCanvas> inside the shell when no manifest is supplied", () => {
     render(<CanvasShell manifest={undefined} persona="ama" registry={mkRegistry()} />);
+    // Per commit 9580d89, the shell wrapper now always renders (even with
+    // no manifest) so the ModeToggle hook + EmptyCanvas can co-exist; the
+    // shell wraps the EmptyCanvas backdrop. Assert the inner backdrop.
     expect(screen.getByTestId("empty-canvas")).toBeInTheDocument();
-    expect(screen.queryByTestId("canvas-shell")).not.toBeInTheDocument();
+    expect(screen.getByTestId("canvas-shell")).toBeInTheDocument();
   });
 
   it("renders the manifest's default mode initially", () => {

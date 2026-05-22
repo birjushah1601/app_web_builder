@@ -118,7 +118,8 @@ vi.mock("@/lib/sandbox/factory", () => ({
   getSandboxFactory: () => ({
     getOrProvision: async () => null,
     evict: () => {}
-  })
+  }),
+  resolveTemplateForRitual: () => "atlas-next-ts"
 }));
 // ritual-engine + conductor — both are imported at the top of factory.ts.
 // Mock the bits the engine uses; postDeveloperChain is exposed as a public
@@ -139,7 +140,10 @@ describe("getRitualEngine — visual-quality flag wiring (Plan S.5)", () => {
     process.env.ATLAS_LLM_BASE_URL = "http://localhost:3456";
   });
 
-  it("with security + a11y + visual-quality flags ON, engine constructs and chain is ['security','accessibility','visual-quality']", async () => {
+  // 15s timeout — this test consistently runs ~2s in isolation but tips
+  // over the default 5s under full-suite parallel load (Windows + heavy
+  // canvas-runtime/ritual-engine module imports).
+  it("with security + a11y + visual-quality flags ON, engine constructs and chain is ['security','accessibility','visual-quality']", { timeout: 15_000 }, async () => {
     process.env.ATLAS_FF_SECURITY_ROLE = "true";
     process.env.ATLAS_FF_A11Y_ROLE = "true";
     process.env.ATLAS_FF_VISUAL_QUALITY_GATE = "true";

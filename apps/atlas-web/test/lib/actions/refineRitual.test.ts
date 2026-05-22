@@ -28,7 +28,10 @@ describe("refineRitual Server Action — Plan K Task 5", () => {
     ).rejects.toThrow(/multi-turn refinement is disabled/i);
   });
 
-  it("flag-ON: calls engine.refine + returns the child snapshot", async () => {
+  // 15s timeout — ~1.6s in isolation but flakes past 5s under full-suite
+  // parallel load (the action's transitive imports pull in the engine factory
+  // + canvas-runtime which are slow to evaluate on Windows under contention).
+  it("flag-ON: calls engine.refine + returns the child snapshot", { timeout: 15_000 }, async () => {
     process.env.ATLAS_FF_MULTI_TURN = "true";
     refineMock.mockResolvedValue("r-child");
     getRitualMock.mockResolvedValue({

@@ -87,6 +87,50 @@ vi.mock("@atlas/ritual-engine", () => ({
   }
 }));
 
+// Mocks added 2026-05-23 to keep up with factory.ts's growing dynamic-import
+// surface. Each entry stubs a module factory.ts pulls in during getRitualEngine.
+vi.mock("@/lib/engine/openai-compat-provider", () => ({
+  OpenAICompatProvider: class { readonly name = "openai-compat"; constructor(_opts: unknown) {} }
+}));
+vi.mock("@/lib/engine/spec-events-hydrator", () => ({
+  SpecEventsHydrator: class { constructor(_opts: unknown) {} }
+}));
+vi.mock("@/lib/engine/canvas-pause-singleton", () => ({
+  getCanvasPauseRegistry: () => ({})
+}));
+vi.mock("@/lib/feature-flags-server", () => ({
+  isFeatureEnabledForRequest: async () => false
+}));
+vi.mock("@/lib/sandbox/apply-diff", () => ({ applyDiff: async () => ({ ok: true, parsed: 0, written: 0, failed: 0, skipped: 0, files: [] }) }));
+vi.mock("@/lib/sandbox/sandbox-fs-adapter", () => ({ createSandboxFsAdapter: () => ({}) }));
+vi.mock("@/lib/sandbox/factory", () => ({
+  getSandboxFactory: () => ({ getOrProvision: async () => ({ exec: { runCommand: async () => ({ exitCode: 0, stdout: "", stderr: "" }) } }) }),
+  resolveTemplateForRitual: () => "atlas-next-ts"
+}));
+vi.mock("@/lib/assets/image-cache", () => ({ cacheImage: async (url: string) => url }));
+vi.mock("@atlas/role-schema-architect", () => ({
+  SchemaArchitectRole: class { constructor(_opts: unknown) {} }
+}));
+vi.mock("@atlas/role-asset-generator", () => ({
+  AssetGeneratorRole: class { constructor(_opts: unknown) {} }
+}));
+vi.mock("@atlas/role-security", () => ({
+  SecurityRole: class { constructor(_opts: unknown) {} }
+}));
+vi.mock("@atlas/role-accessibility", () => ({
+  AccessibilityRole: class { constructor(_opts: unknown) {} }
+}));
+vi.mock("@atlas/gate-build", () => ({
+  BuildGateRole: class { constructor(_opts: unknown) {} }
+}));
+vi.mock("@atlas/gate-visual-quality", () => ({
+  VisualQualityRole: class { constructor(_opts: unknown) {} }
+}));
+vi.mock("@/lib/llm/factory", () => ({
+  getResearcherRole: async () => ({ id: "researcher", run: async () => ({ events: [], diff: { kind: "none" } }) }),
+  getDesignerRole: async () => ({ id: "designer", run: async () => ({ events: [], diff: { kind: "none" } }) })
+}));
+
 const ENV_KEYS = [
   "ATLAS_LLM_BASE_URL",
   "ATLAS_LLM_API_KEY",
@@ -96,6 +140,14 @@ const ENV_KEYS = [
   "ATLAS_DEVELOPER_SEQUENTIAL",
   "ATLAS_LLM_DEVELOPER_MODEL"
 ] as const;
+
+// factory.ts pins the engine map on globalThis under a string key. Clear it
+// before EVERY test in this file (across all describe blocks) so each gets a
+// fresh registry. Without this, the first test of any describe caches and
+// later tests skip the factory body entirely.
+beforeEach(() => {
+  delete (globalThis as { __atlas_ritual_engines__?: Map<string, unknown> }).__atlas_ritual_engines__;
+});
 
 describe("getRitualEngine — provider precedence", () => {
   const saved: Record<string, string | undefined> = {};
@@ -109,6 +161,11 @@ describe("getRitualEngine — provider precedence", () => {
     developerCtor.mockClear();
     ritualEngineCtor.mockClear();
     vi.resetModules();
+    // factory.ts pins the engine map on globalThis under a string key; clear
+    // it between tests so each gets a fresh registry. Without this, the
+    // first test's engine caches and subsequent tests' projectId matches
+    // skip the entire factory body — including ArchitectRole construction.
+    delete (globalThis as { __atlas_ritual_engines__?: Map<string, unknown> }).__atlas_ritual_engines__;
   });
 
   afterEach(() => {

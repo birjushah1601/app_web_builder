@@ -93,8 +93,10 @@ describe("CanvasPreviewClient — forwards projectId to HmrIframe (plan F wiring
         previewUrl="https://3000-sbx.e2b.app"
       />
     );
-    // The Reload button is rendered by HmrIframe — its presence confirms
-    // HmrIframe mounted, and HmrIframe requires projectId to mount (TS-checked).
-    expect(screen.getByTestId("preview-reload-button")).toBeTruthy();
+    // HmrIframe's always-on Reload button was removed (it duplicated
+    // CanvasPreviewToolbar's existing Reload). Confirm HmrIframe mounted by
+    // checking the iframe element instead — HmrIframe requires projectId to
+    // mount (TS-checked).
+    expect(screen.getByTitle(/preview/i)).toBeTruthy();
   });
 });

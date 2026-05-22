@@ -61,7 +61,9 @@ describe("RitualTimeline", () => {
       status: "open", lastEventId: "p-1:2"
     });
     render(<RitualTimeline projectId="p-1" />);
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    // Multiple components in the timeline now expose role="alert" (escalation
+    // callout + maybe another). Assert at least one and the specific message.
+    expect(screen.getAllByRole("alert").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/not authorised/i)).toBeInTheDocument();
   });
 

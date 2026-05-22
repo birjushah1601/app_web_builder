@@ -146,11 +146,11 @@ describe("SchemaCanvas — expand pane on select", () => {
     render(<SchemaCanvas projectId="p1" ritualId="r1" persona="diego" />);
     const card = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!;
     await userEvent.click(card);
-    expect(screen.getByText("GET")).toBeInTheDocument();
-    // /users sits as a text node next to <span>GET</span> inside <li>, so the
-    // <li>'s textContent is "GET /users" — match via regex on the surrounding
-    // element instead of exact-string getByText.
-    expect(screen.getByText(/\/users/)).toBeInTheDocument();
+    // GET appears in a span; /users sits as a text node next to it inside <li>.
+    // Multiple REST ops (GET /users + POST /users) match the regex, so use
+    // getAllByText and assert at least one match.
+    expect(screen.getAllByText("GET").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/\/users/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders GraphQL operations with kind + name", async () => {
@@ -228,7 +228,12 @@ describe("SchemaCanvas — Use this direction", () => {
     render(<SchemaCanvas projectId="p1" ritualId="r1" persona="ama" />);
     await userEvent.click(screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!);
     await userEvent.click(screen.getByRole("button", { name: /use this direction/i }));
-    expect(selectSpy).toHaveBeenCalledWith({ ritualId: "r1", directionId: "rest-crud" });
+    // The action now also receives the full direction (post-PR-#12). Use a
+    // matcher so the test verifies the call shape without depending on the
+    // exact direction payload structure.
+    expect(selectSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ ritualId: "r1", directionId: "rest-crud" })
+    );
   });
 
   it("shows an error toast when selectSchemaDirection throws", async () => {
