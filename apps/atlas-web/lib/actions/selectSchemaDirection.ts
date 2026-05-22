@@ -21,10 +21,16 @@
  */
 import { auth } from "@/lib/auth/clerk-compat";
 import { getCanvasPauseRegistry } from "@/lib/engine/canvas-pause-singleton";
+import type { SchemaDirection } from "@atlas/role-schema-architect";
 
 export interface SelectSchemaDirectionInput {
   ritualId: string;
   directionId: string;
+  /** The full SchemaDirection (contract + dataModel) ridden through the
+   *  registry's opaque `tokens` field so the engine's developer-dispatch
+   *  can fold it into priorArtifact. Without this the developer would
+   *  only see the directionId and have to re-fetch the proposal. */
+  direction?: SchemaDirection;
 }
 
 export async function selectSchemaDirection(input: SelectSchemaDirectionInput): Promise<void> {
@@ -36,6 +42,7 @@ export async function selectSchemaDirection(input: SelectSchemaDirectionInput): 
 
   const registry = getCanvasPauseRegistry();
   registry.resolveOption(input.ritualId, {
-    directionId: input.directionId
+    directionId: input.directionId,
+    tokens: input.direction
   });
 }

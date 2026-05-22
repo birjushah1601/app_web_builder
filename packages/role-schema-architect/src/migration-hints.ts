@@ -18,11 +18,20 @@ const GROWTH_ENTITY_NAMES = new Set([
 export function generateMigrationHints(e: Entity): string[] {
   const hints: string[] = [];
 
-  const wideTable = e.fields.length > 5;
+  // CONCURRENTLY fires on anything that's likely to hold real data:
+  // - explicitly partitioned tables (always)
+  // - growth-table names (user/post/event/transaction/order/message — any of
+  //   these will hold rows in prod, and a non-concurrent index lock blocks
+  //   writes for the duration of the build)
+  // Field count is NOT a reliable proxy for table size — a 4-field `users`
+  // table with 50M rows still deadlocks writers without CONCURRENTLY. The
+  // previous `fields.length > 5` heuristic missed that entire class.
   const partitioned = e.partitioning !== undefined;
+  const growthTable = GROWTH_ENTITY_NAMES.has(e.name);
+  const concurrentlyEligible = partitioned || growthTable;
 
   for (const idx of e.indexes) {
-    if (wideTable || partitioned) {
+    if (concurrentlyEligible) {
       hints.push(
         `Use CREATE INDEX CONCURRENTLY when applying '${idx.name}' on '${e.name}' to avoid blocking writes on a populated table.`
       );
