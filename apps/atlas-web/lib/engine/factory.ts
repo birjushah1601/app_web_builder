@@ -279,6 +279,17 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       roles.set("build-gate", new BuildGateRole({ template, exec: buildExec }));
     }
 
+    // T15: register SchemaArchitectRole when ATLAS_FF_SCHEMA_ARCHITECT=true.
+    // Dispatch is based on artifactKind at ritual time; both schema-architect
+    // and designer can coexist in the roles map without conflict.
+    if (isFeatureEnabled("schema-architect")) {
+      const { SchemaArchitectRole } = await import("@atlas/role-schema-architect");
+      roles.set(
+        "schema-architect",
+        new SchemaArchitectRole({ llm }) as unknown as Role
+      );
+    }
+
     // Plan S.5: Visual-Quality merge gate. Constructed only when the flag
     // is on; appended to postDeveloperChain after Security + A11y. The role
     // needs `exec` (E2B process API) and `previewUrl` — both resolved
