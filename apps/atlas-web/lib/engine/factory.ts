@@ -658,6 +658,21 @@ function mapCheckpointToBrokerEvent(
     case "asset.gen.completed":          return { type: "asset.gen.completed",          payload };
     case "asset.gen.failed":             return { type: "asset.gen.failed",             payload };
 
+    // SchemaArchitect three-pass (proposal → critique → revise) lifecycle +
+    // schema direction selection. Without these mappings the engine's emit()
+    // lands at the broker as default:null and SchemaCanvas never receives the
+    // events it needs to render the schema direction picker.
+    case "schema_architect.proposal.started":   return { type: "schema_architect.proposal.started",   payload };
+    case "schema_architect.proposal.emitted":   return { type: "schema_architect.proposal.emitted",   payload };
+    case "schema_architect.proposal.completed": return { type: "schema_architect.proposal.completed", payload };
+    case "schema_architect.proposal.failed":    return { type: "schema_architect.proposal.failed",    payload };
+    case "schema_architect.proposal.skipped":   return { type: "schema_architect.proposal.skipped",   payload };
+    case "schema_architect.critique.started":   return { type: "schema_architect.critique.started",   payload };
+    case "schema_architect.critique.completed": return { type: "schema_architect.critique.completed", payload };
+    case "schema_architect.revise.started":     return { type: "schema_architect.revise.started",     payload };
+    case "schema_architect.revise.completed":   return { type: "schema_architect.revise.completed",   payload };
+    case "schema.direction.selected":           return { type: "schema.direction.selected",           payload };
+
     default:                        return null;
   }
 }
