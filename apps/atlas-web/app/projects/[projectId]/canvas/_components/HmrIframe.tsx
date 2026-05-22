@@ -24,7 +24,11 @@ interface HmrIframeProps {
 
 export function HmrIframe({ src, title, projectId, onLoad, className, iframeRef: externalRef }: HmrIframeProps) {
   const setIframeRef = (el: HTMLIFrameElement | null) => {
-    if (externalRef) externalRef.current = el;
+    // React 19 typed RefObject.current as readonly. The parent passes a
+    // useRef-created object which is still mutable at runtime; cast through
+    // a minimal shape to assign without taking on React.MutableRefObject
+    // (which has been removed from the new typings).
+    if (externalRef) (externalRef as { current: HTMLIFrameElement | null }).current = el;
   };
   const { cacheBuster, toast, manualReload } = useReloadOnApplied(projectId);
   const lastLoadAtRef = useRef<number>(0);
