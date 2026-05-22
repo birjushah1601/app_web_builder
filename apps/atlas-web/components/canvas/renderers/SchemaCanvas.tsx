@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useEventStream } from "@/lib/events/EventSourceProvider";
+import { selectSchemaDirection } from "@/lib/actions/selectSchemaDirection";
 import type { SchemaProposal, SchemaDirection } from "@atlas/role-schema-architect";
 
 export interface SchemaCanvasProps {
@@ -10,10 +11,44 @@ export interface SchemaCanvasProps {
   persona: "ama" | "diego" | "priya";
 }
 
-export function SchemaCanvas({ projectId: _projectId, ritualId: _ritualId, persona }: SchemaCanvasProps) {
+export function SchemaCanvas({ projectId: _projectId, ritualId, persona }: SchemaCanvasProps) {
   const { events } = useEventStream();
   const proposal = React.useMemo(() => extractLatestProposal(events), [events]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [submitted, setSubmitted] = React.useState(false);
+
+  const cards: Array<{ direction: SchemaDirection; isRecommended: boolean }> = React.useMemo(
+    () =>
+      proposal
+        ? [
+            { direction: proposal.recommended, isRecommended: true },
+            { direction: proposal.alternates[0], isRecommended: false },
+            { direction: proposal.alternates[1], isRecommended: false }
+          ]
+        : [],
+    [proposal]
+  );
+
+  const selected = React.useMemo(
+    () => (selectedId ? cards.find((c) => c.direction.id === selectedId)?.direction ?? null : null),
+    [selectedId, cards]
+  );
+
+  const handleUseThis = React.useCallback(async () => {
+    if (!selected) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await selectSchemaDirection({ ritualId, directionId: selected.id });
+      setSubmitted(true);
+    } catch (err) {
+      setError(`Could not select: ${(err as Error).message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [selected, ritualId]);
 
   if (!proposal) {
     return (
@@ -22,14 +57,6 @@ export function SchemaCanvas({ projectId: _projectId, ritualId: _ritualId, perso
       </div>
     );
   }
-
-  const cards: Array<{ direction: SchemaDirection; isRecommended: boolean }> = [
-    { direction: proposal.recommended, isRecommended: true },
-    { direction: proposal.alternates[0], isRecommended: false },
-    { direction: proposal.alternates[1], isRecommended: false }
-  ];
-
-  const selected = selectedId ? cards.find((c) => c.direction.id === selectedId)?.direction : null;
 
   return (
     <main className="p-6" data-testid="schema-canvas">
@@ -60,6 +87,24 @@ export function SchemaCanvas({ projectId: _projectId, ritualId: _ritualId, perso
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2" data-testid="schema-direction-detail">
           <ContractPane contract={selected.contract} />
           <DataModelPane entities={selected.dataModel.entities} persona={persona} />
+          {!submitted && (
+            <div className="md:col-span-2 mt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleUseThis}
+                disabled={submitting}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitting ? "Selecting…" : "Use this direction"}
+              </button>
+              {error && <span role="alert" className="text-sm text-red-600">{error}</span>}
+            </div>
+          )}
+          {submitted && (
+            <div className="md:col-span-2 mt-2 text-sm text-slate-700" role="status">
+              Selected — Developer building…
+            </div>
+          )}
         </div>
       )}
     </main>

@@ -182,3 +182,63 @@ describe("SchemaCanvas — expand pane on select", () => {
     expect(screen.getByText("citext")).toBeInTheDocument();
   });
 });
+
+describe("SchemaCanvas — Use this direction", () => {
+  const proposal = () => ({
+    recommended: {
+      id: "rest-crud", name: "RESTful CRUD",
+      shortDescription: "x", technicalDescription: "y",
+      contract: { style: "rest" as const, operations: [] },
+      dataModel: { entities: [] }
+    },
+    alternates: [
+      { id: "alt1", name: "Alt1", shortDescription: "x", technicalDescription: "y",
+        contract: { style: "rest" as const, operations: [] },
+        dataModel: { entities: [] } },
+      { id: "alt2", name: "Alt2", shortDescription: "x", technicalDescription: "y",
+        contract: { style: "rest" as const, operations: [] },
+        dataModel: { entities: [] } }
+    ],
+    reasoning: "x"
+  });
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.doMock("@/lib/events/EventSourceProvider", () => ({
+      useEventStream: () => ({
+        events: [{ type: "schema_architect.proposal.emitted", payload: { proposal: proposal() } }],
+        status: "open",
+        lastEventId: "x"
+      })
+    }));
+  });
+
+  it("calls selectSchemaDirection with ritualId + directionId on click", async () => {
+    const selectSpy = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("@/lib/actions/selectSchemaDirection", () => ({ selectSchemaDirection: selectSpy }));
+    const { SchemaCanvas } = await import("@/components/canvas/renderers/SchemaCanvas");
+    render(<SchemaCanvas projectId="p1" ritualId="r1" persona="ama" />);
+    await userEvent.click(screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!);
+    await userEvent.click(screen.getByRole("button", { name: /use this direction/i }));
+    expect(selectSpy).toHaveBeenCalledWith({ ritualId: "r1", directionId: "rest-crud" });
+  });
+
+  it("shows an error toast when selectSchemaDirection throws", async () => {
+    const selectSpy = vi.fn().mockRejectedValue(new Error("unauthorized"));
+    vi.doMock("@/lib/actions/selectSchemaDirection", () => ({ selectSchemaDirection: selectSpy }));
+    const { SchemaCanvas } = await import("@/components/canvas/renderers/SchemaCanvas");
+    render(<SchemaCanvas projectId="p1" ritualId="r1" persona="ama" />);
+    await userEvent.click(screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!);
+    await userEvent.click(screen.getByRole("button", { name: /use this direction/i }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+
+  it("renders 'Developer building...' after a successful select", async () => {
+    vi.doMock("@/lib/actions/selectSchemaDirection", () => ({ selectSchemaDirection: vi.fn().mockResolvedValue(undefined) }));
+    const { SchemaCanvas } = await import("@/components/canvas/renderers/SchemaCanvas");
+    render(<SchemaCanvas projectId="p1" ritualId="r1" persona="ama" />);
+    await userEvent.click(screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!);
+    await userEvent.click(screen.getByRole("button", { name: /use this direction/i }));
+    expect(await screen.findByText(/developer building/i)).toBeInTheDocument();
+  });
+});
