@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { captureScreenshots, type SandboxExec } from "../src/screenshot.js";
-import { ScreenshotFailedError } from "../src/errors.js";
+import { ScreenshotFailedError, InfrastructureUnavailableError } from "../src/errors.js";
 
 const fakeExec = (results: Record<string, { stdout: string; exitCode: number }>) =>
   ({
@@ -54,6 +54,52 @@ describe("captureScreenshots", () => {
       })
     } as unknown as SandboxExec;
     await expect(captureScreenshots({ exec, previewUrl: "http://localhost:3000" })).rejects.toThrow(/mobile/);
+  });
+
+  it("throws InfrastructureUnavailableError when stderr says puppeteer-core is missing", async () => {
+    const exec = {
+      runCommand: vi.fn().mockResolvedValue({
+        stdout: "",
+        exitCode: 1,
+        stderr: "Error: Cannot find module 'puppeteer-core'\nRequire stack:\n- /code/.atlas/visual-quality-check.js"
+      })
+    } as unknown as SandboxExec;
+    await expect(captureScreenshots({ exec, previewUrl: "http://localhost:3000" })).rejects.toThrow(InfrastructureUnavailableError);
+  });
+
+  it("throws InfrastructureUnavailableError on a generic MODULE_NOT_FOUND signal", async () => {
+    const exec = {
+      runCommand: vi.fn().mockResolvedValue({
+        stdout: "",
+        exitCode: 1,
+        stderr: "Error: MODULE_NOT_FOUND while loading 'puppeteer-core'"
+      })
+    } as unknown as SandboxExec;
+    await expect(captureScreenshots({ exec, previewUrl: "http://localhost:3000" })).rejects.toThrow(InfrastructureUnavailableError);
+  });
+
+  it("throws InfrastructureUnavailableError when chromium executable path can't launch", async () => {
+    const exec = {
+      runCommand: vi.fn().mockResolvedValue({
+        stdout: "",
+        exitCode: 1,
+        stderr: "Error: Failed to launch the browser process! spawn /usr/bin/chromium ENOENT"
+      })
+    } as unknown as SandboxExec;
+    await expect(captureScreenshots({ exec, previewUrl: "http://localhost:3000" })).rejects.toThrow(InfrastructureUnavailableError);
+  });
+
+  it("still throws ScreenshotFailedError (NOT Infrastructure) on generic puppeteer crash with no infra signature", async () => {
+    const exec = {
+      runCommand: vi.fn().mockResolvedValue({
+        stdout: "",
+        exitCode: 1,
+        stderr: "Error: Navigation timeout of 15000 ms exceeded"
+      })
+    } as unknown as SandboxExec;
+    const err = await captureScreenshots({ exec, previewUrl: "http://localhost:3000" }).catch((e) => e);
+    expect(err).toBeInstanceOf(ScreenshotFailedError);
+    expect(err).not.toBeInstanceOf(InfrastructureUnavailableError);
   });
 
   it("uses correct viewport dimensions in the puppeteer command", async () => {

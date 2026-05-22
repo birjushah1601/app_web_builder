@@ -80,4 +80,44 @@ describe("VisualQualityRole", () => {
     const role = new VisualQualityRole({ llm: fakeLLM(validReport()) as never, skills: fakeSkills as never, exec: failingExec as never, previewUrl: "http://localhost:3000" });
     await expect(role.run(baseInvocation(designBlockingArtifact))).rejects.toThrow();
   });
+
+  it("emits skipped (not errored) when sandbox lacks puppeteer-core — gate must NOT trigger auto-fix on infra issues", async () => {
+    const infraFailExec = {
+      runCommand: vi.fn().mockResolvedValue({
+        stdout: "",
+        exitCode: 1,
+        stderr: "Error: Cannot find module 'puppeteer-core'"
+      })
+    };
+    const role = new VisualQualityRole({
+      llm: fakeLLM(validReport()) as never,
+      skills: fakeSkills as never,
+      exec: infraFailExec as never,
+      previewUrl: "http://localhost:3000"
+    });
+    const out = await role.run(baseInvocation(designBlockingArtifact));
+    const types = out.events.map((e) => e.eventType);
+    expect(types).toContain("visual_quality.skipped");
+    expect(types).toContain("visual_quality.completed");
+    expect(types).not.toContain("visual_quality.errored");
+    expect(types).not.toContain("visual_quality.failed");
+    const skipped = out.events.find((e) => e.eventType === "visual_quality.skipped");
+    expect((skipped?.payload as { reason: string }).reason).toMatch(/infrastructure/);
+  });
+
+  it("returns passed=true,skipped=true on infra unavailable so the chain proceeds", async () => {
+    const infraFailExec = {
+      runCommand: vi.fn().mockResolvedValue({ stdout: "", exitCode: 1, stderr: "Error: MODULE_NOT_FOUND puppeteer-core" })
+    };
+    const role = new VisualQualityRole({
+      llm: fakeLLM(validReport()) as never,
+      skills: fakeSkills as never,
+      exec: infraFailExec as never,
+      previewUrl: "http://localhost:3000"
+    });
+    const out = await role.run(baseInvocation(designBlockingArtifact));
+    const completed = out.events.find((e) => e.eventType === "visual_quality.completed");
+    expect((completed?.payload as { passed: boolean; skipped: boolean }).passed).toBe(true);
+    expect((completed?.payload as { passed: boolean; skipped: boolean }).skipped).toBe(true);
+  });
 });
