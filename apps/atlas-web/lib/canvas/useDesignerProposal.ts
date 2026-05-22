@@ -27,7 +27,6 @@ export type UseDesignerProposalResult =
 
 const EVENT_TYPE = "canvas.options.requested";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function useDesignerProposal(_projectId: string): UseDesignerProposalResult {
   const { events } = useEventStream();
 
