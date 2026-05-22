@@ -11,11 +11,26 @@
 memory_mb = 4_096
 # pnpm install runs at sandbox boot (NOT in the Dockerfile) because Expo's
 # >2 GB unpacked dep tree blows past the template-build rootfs and ENOSPCs.
-# Cold-start cost is ~2-3 min before the web bundle is ready; ready_cmd
-# polls :3000 so the orchestrator waits the right amount of time. See the
-# Dockerfile header for full context.
+# Cold-start cost is ~10 min on first start (Metro bundles the full app);
+# ready_cmd polls :3000 so the orchestrator waits the right amount of time.
+# See the Dockerfile header for full context.
+#
+# CRITICAL: E2B CLI does NOT read start_cmd / ready_cmd / memory_mb from
+# e2b.toml on `template create` (verified empirically 2026-05-23 — multiple
+# rebuilds with edited e2b.toml kept running the old start_cmd). These
+# fields are DOCUMENTARY only — the live server-side values come from the
+# explicit --cmd / --ready-cmd / --memory-mb flags in scripts/build-template.sh.
+# Keep e2b.toml + the script in sync.
+#
+# Do NOT use `--prod=false` in the start_cmd (pnpm 9 doesn't reliably parse
+# the =false form — earlier builds failed with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL
+# Command "expo" not found` because pnpm install exited fast on that flag and
+# the chained `pnpm expo` then had nothing to exec). Bare `pnpm install`
+# installs dev deps by default. Invoke expo via the binstub path
+# (./node_modules/.bin/expo) so start doesn't reroute through pnpm's
+# recursive-exec wrapper.
 ready_cmd = "curl -fsS http://localhost:3000 > /dev/null"
-start_cmd = "cd /code && pnpm install --prod=false && pnpm expo start --web --port 3000"
+start_cmd = "cd /code && pnpm install --no-frozen-lockfile && exec ./node_modules/.bin/expo start --web --port 3000"
 dockerfile = "Dockerfile"
 template_name = "atlas-expo-rn"
 # template_id added by operator after first build via scripts/build-template.sh
