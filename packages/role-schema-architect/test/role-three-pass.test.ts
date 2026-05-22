@@ -40,7 +40,7 @@ const backendInvocation = {
   userTurn: "x",
   graphSlice: { bytes: "{}", hash: "h" },
   priorArtifact: {
-    designIntent: { category: "backend-rest-api" },
+    designIntent: { category: "backend-rest-api", audienceCues: [] },
     architectArtifact: { artifactKind: "backend-rest-api" }
   }
 } as never;
