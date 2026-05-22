@@ -96,7 +96,20 @@ export type RitualEventType =
   | "build-gate.started"
   | "build-gate.passed"
   | "build-gate.failed"
-  | "build-gate.completed";
+  | "build-gate.completed"
+  // SchemaArchitect three-pass (proposal → critique → revise) lifecycle +
+  // schema direction selection. Forwarded from factory.ts so SSE clients
+  // (SchemaCanvas and later consumers) can react to each phase.
+  | "schema_architect.proposal.started"
+  | "schema_architect.proposal.emitted"
+  | "schema_architect.proposal.completed"
+  | "schema_architect.proposal.failed"
+  | "schema_architect.proposal.skipped"
+  | "schema_architect.critique.started"
+  | "schema_architect.critique.completed"
+  | "schema_architect.revise.started"
+  | "schema_architect.revise.completed"
+  | "schema.direction.selected";
 
 /** A published event. The broker assigns `id` on publish; it is opaque to
  *  clients (they echo it back via Last-Event-ID for resume). Format today
