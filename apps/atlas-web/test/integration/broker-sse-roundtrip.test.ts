@@ -109,8 +109,14 @@ describe("broker → SSE round-trip (integration)", () => {
       projectId: "p-int", ritualId: "r-int", type: "role.completed",
       payload: { i: 4 }, ts: 4
     });
-    const frames1 = await readSseFrames(res1.body!, 1, 1000);
-    expect(frames1[0]!.id).toBe("p-int:4");
+    // A fresh SSE subscription (no Last-Event-ID) replays the ring buffer
+    // first — Atlas's submit→redirect pattern would otherwise lose events
+    // emitted between ritual-start and SSE-open. Drain all 4 frames here
+    // (3 replayed + 1 live) so we can prove res2 with Last-Event-ID truly
+    // skips the replay and emits only the post-cursor event.
+    const frames1 = await readSseFrames(res1.body!, 4, 1000);
+    expect(frames1).toHaveLength(4);
+    expect(frames1[3]!.id).toBe("p-int:4");
     // readSseFrames already cancels its reader; res1.body's lock prevents body.cancel().
 
     const res2 = await GET(

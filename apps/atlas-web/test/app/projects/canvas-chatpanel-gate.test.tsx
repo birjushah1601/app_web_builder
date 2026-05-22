@@ -70,6 +70,10 @@ describe("CanvasPage — ChatPanel gate (plan G)", () => {
   it("does NOT mount ChatPanel when live-events is ON (the rail owns it)", async () => {
     await renderPage(true);
     expect(screen.queryByTestId("chat-panel-mock")).not.toBeInTheDocument();
-    expect(screen.getByTestId("canvas-client-mock")).toBeInTheDocument();
+    // Plan G + S.4 — when canvas-v1 is OFF (this test's default), the page
+    // renders CanvasPreviewClient (not the removed CanvasClient). The mock
+    // for CanvasPreviewClient renders canvas-preview-mock. Assert against
+    // the actual element the page renders today.
+    expect(screen.getByTestId("canvas-preview-mock")).toBeInTheDocument();
   });
 });

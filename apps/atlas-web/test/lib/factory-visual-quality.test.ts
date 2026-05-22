@@ -118,7 +118,8 @@ vi.mock("@/lib/sandbox/factory", () => ({
   getSandboxFactory: () => ({
     getOrProvision: async () => null,
     evict: () => {}
-  })
+  }),
+  resolveTemplateForRitual: () => "atlas-next-ts"
 }));
 // ritual-engine + conductor — both are imported at the top of factory.ts.
 // Mock the bits the engine uses; postDeveloperChain is exposed as a public
