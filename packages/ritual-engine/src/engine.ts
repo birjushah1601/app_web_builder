@@ -376,6 +376,9 @@ export class RitualEngine {
       const hasBlockingDesign = modes.some(
         (m) => typeof m === "object" && m !== null && (m as { blockingFor?: unknown }).blockingFor === "design"
       );
+      const hasBlockingSchema = modes.some(
+        (m) => typeof m === "object" && m !== null && (m as { blockingFor?: unknown }).blockingFor === "schema"
+      );
 
       if (manifestRecord) {
         record.canvasManifest = manifest;
@@ -387,7 +390,94 @@ export class RitualEngine {
         });
       }
 
-      if (hasBlockingDesign) {
+      if (hasBlockingSchema && this.conductor.hasRole?.("schema-architect")) {
+        // Backend-rest-api / backend-graphql path: dispatch schema-architect
+        // in the slot designer occupies for frontend rituals. Same canvas-pause
+        // mechanism — registry.waitForOption resumes on the user's clicked
+        // direction. Selected SchemaDirection rides forward in the developer's
+        // priorArtifact under `selectedSchemaDirection`.
+        let brief: unknown | undefined;
+        if (this.ritualMode !== "fast") {
+          try {
+            const r = await this.conductor.dispatch(
+              {
+                ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+                graphVersion: 0,
+                userTurn: input.userTurn,
+                projectId: input.projectId
+              },
+              { forceRoleId: "researcher", priorArtifact: { designIntent } }
+            );
+            record.roleEvents = [
+              ...(record.roleEvents ?? []),
+              ...r.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
+            ];
+            const completedBrief = r.output.events.find((e) => e.eventType === "researcher.brief.completed");
+            brief = (completedBrief?.payload as { brief?: unknown } | undefined)?.brief;
+          } catch (err) {
+            record.roleEvents = [
+              ...(record.roleEvents ?? []),
+              { eventType: "researcher.dispatch.failed", payload: { error: err instanceof Error ? err.message : String(err) } }
+            ];
+          }
+        }
+
+        let schemaProposal: { recommended: { id: string }; alternates: ReadonlyArray<{ id: string }> } | undefined;
+        try {
+          const sa = await this.conductor.dispatch(
+            {
+              ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+              graphVersion: 0,
+              userTurn: input.userTurn,
+              projectId: input.projectId
+            },
+            { forceRoleId: "schema-architect", priorArtifact: { architectArtifact: artifact, brief, designIntent } }
+          );
+          record.roleEvents = [
+            ...(record.roleEvents ?? []),
+            ...sa.output.events.map((e) => ({ eventType: e.eventType, payload: e.payload as unknown }))
+          ];
+          const ev = sa.output.events.find((e) => e.eventType === "schema_architect.proposal.emitted");
+          schemaProposal = (ev?.payload as { proposal?: typeof schemaProposal } | undefined)?.proposal;
+        } catch (err) {
+          record.roleEvents = [
+            ...(record.roleEvents ?? []),
+            { eventType: "schema_architect.dispatch.failed", payload: { error: err instanceof Error ? err.message : String(err) } }
+          ];
+        }
+
+        if (schemaProposal && this.canvasPauseRegistry) {
+          await this.emit({
+            type: "canvas.options.requested",
+            ritualId,
+            ts: new Date().toISOString(),
+            payload: { proposal: schemaProposal, manifest }
+          });
+          const resolution = await this.canvasPauseRegistry.waitForOption({
+            ritualId,
+            timeoutMs: this.canvasPauseTimeoutMs,
+            recommendedFallback: { directionId: schemaProposal.recommended.id, tokens: schemaProposal.recommended }
+          });
+          // For schema-architect the registry's opaque `tokens` payload is the
+          // full SchemaDirection (the action passes direction.* through tokens).
+          // Surface under a schema-specific key in the developer's priorArtifact
+          // so it doesn't collide with the frontend designer's `selectedTokens`.
+          const allDirections = [schemaProposal.recommended, ...schemaProposal.alternates];
+          const chosen = allDirections.find((d) => d.id === resolution.directionId) ?? schemaProposal.recommended;
+          // Override selectedTokens with the chosen SchemaDirection so the
+          // developer-priorArtifact merge below picks it up under the same
+          // route the designer flow already uses — backend artifacts get the
+          // full direction (contract + dataModel) instead of design tokens.
+          selectedTokens = resolution.tokens ?? chosen;
+          record.selectedTokens = selectedTokens;
+          await this.emit({
+            type: "canvas.option.selected",
+            ritualId,
+            ts: new Date().toISOString(),
+            payload: { directionId: resolution.directionId, tokens: selectedTokens, autoSelected: resolution.autoSelected }
+          });
+        }
+      } else if (hasBlockingDesign) {
         // Researcher (skipped in fast mode OR if dispatch fails — captured into roleEvents).
         let brief: unknown | undefined;
         if (this.ritualMode !== "fast") {

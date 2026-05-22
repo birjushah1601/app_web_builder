@@ -41,7 +41,7 @@ export function SchemaCanvas({ projectId: _projectId, ritualId, persona }: Schem
     setSubmitting(true);
     setError(null);
     try {
-      await selectSchemaDirection({ ritualId, directionId: selected.id });
+      await selectSchemaDirection({ ritualId, directionId: selected.id, direction: selected });
       setSubmitted(true);
     } catch (err) {
       setError(`Could not select: ${(err as Error).message}`);
