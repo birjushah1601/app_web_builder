@@ -5,6 +5,7 @@ import { auth, currentUser } from "@/lib/auth/clerk-compat";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { getLatestRitualForProject } from "@/lib/actions/getLatestRitualForProject";
 import { EventSourceProvider } from "@/lib/events/EventSourceProvider";
+import { getInitialEventsForProject } from "@/lib/events/getInitialEventsForProject";
 import { RailShell } from "@/components/shell/RailShell";
 import { RitualStatusStrip } from "@/components/ritual/RitualStatusStrip";
 import { EditorShell } from "@/components/shell/EditorShell";
@@ -40,6 +41,13 @@ export default async function ProjectLayout({
   // falls back to the cold-start path.
   const latestRitual = multiTurnOn ? await getLatestRitualForProject(projectId) : null;
   const initialLatestRitualId = latestRitual?.ritualId;
+  // Bug D17 — hydrate EventSourceProvider with the most recent persisted
+  // events so the canvas/timeline isn't blank when a ritual already ran.
+  // Failure-safe: getInitialEventsForProject returns [] on any error so
+  // the page still renders; SSE picks up live events from here on. Only
+  // worth the round-trip when live-events is on (the provider is a literal
+  // no-op otherwise).
+  const initialEvents = liveEventsOn ? await getInitialEventsForProject(projectId) : [];
 
   const topNav = (
     <nav className="flex items-center gap-4 border-b border-slate-200 px-4 py-2">
@@ -61,7 +69,7 @@ export default async function ProjectLayout({
 
   if (editorLayoutV2On) {
     return (
-      <EventSourceProvider projectId={projectId} flagEnabled={true}>
+      <EventSourceProvider projectId={projectId} flagEnabled={true} initialEvents={initialEvents}>
         <div className="flex h-screen flex-col">
           {topNav}
           <RitualStatusStrip />
@@ -78,7 +86,7 @@ export default async function ProjectLayout({
   }
 
   return (
-    <EventSourceProvider projectId={projectId} flagEnabled={true}>
+    <EventSourceProvider projectId={projectId} flagEnabled={true} initialEvents={initialEvents}>
       <div className="flex h-screen flex-col">
         {topNav}
         <div className="flex flex-1 min-h-0">

@@ -218,7 +218,7 @@ export class DesignerRole implements Role {
           o: Record<string, unknown>
         ) => Promise<{ toolName: string; input: unknown }>;
       }).completeWithToolUse(messages, {
-        model: process.env.ATLAS_LLM_DESIGNER_REVISE_MODEL ?? "anthropic/claude-sonnet-4.5",
+        model: process.env.ATLAS_LLM_DESIGNER_REVISE_MODEL ?? "anthropic/claude-haiku-4.5",
         maxTokens: 4096,
         tools: [
           {

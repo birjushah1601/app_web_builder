@@ -108,3 +108,89 @@ describe("EventSourceProvider — flag ON", () => {
     expect(MockEventSource.instances[0]!.closed).toBe(true);
   });
 });
+
+describe("EventSourceProvider — initialEvents hydration (bug D17)", () => {
+  beforeEach(() => {
+    MockEventSource.instances.length = 0;
+    vi.stubGlobal("EventSource", MockEventSource);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const seedEvents = [
+    { id: "p-1:db-1", projectId: "p-1", ritualId: "r-1", type: "ritual.started" as const, payload: {}, ts: 1 },
+    { id: "p-1:db-2", projectId: "p-1", ritualId: "r-1", type: "role.started" as const, payload: { roleId: "architect" }, ts: 2 }
+  ];
+
+  it("seeds useEventStream().events with initialEvents before SSE opens (flag ON)", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventSourceProvider projectId="p-1" flagEnabled={true} initialEvents={seedEvents}>
+        {children}
+      </EventSourceProvider>
+    );
+    const { result } = renderHook(() => useEventStream(), { wrapper });
+    expect(result.current.events).toHaveLength(2);
+    expect(result.current.events[0]!.id).toBe("p-1:db-1");
+    expect(result.current.events[1]!.id).toBe("p-1:db-2");
+  });
+
+  it("seeds useEventStream().events with initialEvents when flag is OFF (SSR-safe)", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventSourceProvider projectId="p-1" flagEnabled={false} initialEvents={seedEvents}>
+        {children}
+      </EventSourceProvider>
+    );
+    const { result } = renderHook(() => useEventStream(), { wrapper });
+    expect(result.current.events).toHaveLength(2);
+    expect(result.current.status).toBe("disabled");
+    // flag OFF must NOT open an EventSource even when initialEvents is set
+    expect(MockEventSource.instances).toHaveLength(0);
+  });
+
+  it("skips SSE messages whose id matches an initialEvent (no duplication)", async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventSourceProvider projectId="p-1" flagEnabled={true} initialEvents={seedEvents}>
+        {children}
+      </EventSourceProvider>
+    );
+    const { result } = renderHook(() => useEventStream(), { wrapper });
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    act(() => {
+      MockEventSource.instances[0]!.fireOpen();
+      // Replay the SAME id as an initialEvent — must NOT duplicate
+      MockEventSource.instances[0]!.fireMessage(
+        JSON.stringify({ id: "p-1:db-1", projectId: "p-1", ritualId: "r-1", type: "ritual.started", payload: {}, ts: 1 }),
+        "p-1:db-1"
+      );
+      // A genuinely new event MUST still append
+      MockEventSource.instances[0]!.fireMessage(
+        JSON.stringify({ id: "p-1:99", projectId: "p-1", ritualId: "r-1", type: "role.completed", payload: { roleId: "architect" }, ts: 3 }),
+        "p-1:99"
+      );
+    });
+    expect(result.current.events).toHaveLength(3);
+    const ids = result.current.events.map((e) => e.id);
+    expect(ids).toEqual(["p-1:db-1", "p-1:db-2", "p-1:99"]);
+  });
+
+  it("also dedupes SSE messages that repeat (same id arrives twice on stream)", async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventSourceProvider projectId="p-1" flagEnabled={true} initialEvents={[]}>
+        {children}
+      </EventSourceProvider>
+    );
+    const { result } = renderHook(() => useEventStream(), { wrapper });
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    act(() => {
+      MockEventSource.instances[0]!.fireOpen();
+      MockEventSource.instances[0]!.fireMessage(
+        JSON.stringify({ id: "p-1:1", projectId: "p-1", ritualId: "r-1", type: "ritual.started", payload: {}, ts: 1 }),
+        "p-1:1"
+      );
+      MockEventSource.instances[0]!.fireMessage(
+        JSON.stringify({ id: "p-1:1", projectId: "p-1", ritualId: "r-1", type: "ritual.started", payload: {}, ts: 1 }),
+        "p-1:1"
+      );
+    });
+    expect(result.current.events).toHaveLength(1);
+  });
+});

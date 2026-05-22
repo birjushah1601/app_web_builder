@@ -1,96 +1,107 @@
 # Next session — start here
 
 > One-page handoff. Read this in 60 seconds; pick the first action; go.
-> Deep context in `current-state-2026-05-20.md` if you want it.
+> Deep context in `current-state-2026-05-20.md` (Plan L0 merge snapshot) and `known-deferrals.md` (live tracker).
 
 ## Where we are (one sentence)
 
-Plan L0 (build gate) is merged to main behind a flag-off; the website ritual chain works end-to-end but has 3 known bugs and ~9-minute latency that need attention before adding scope.
+Plan L0 (build gate) is merged to main; 2026-05-21 session shipped 5 follow-up commits closing D16/D17/D18a/D18b cleanly and a defensive partial-fix for D14 — but **nothing has been executed against a real ritual yet**, and the build-gate flag is still OFF.
 
-## What got shipped 2026-05-15 → 2026-05-20
+## What got shipped 2026-05-21
 
-- **Plan L0 build gate** (PR #1, merge commit `b56a871`): `@atlas/gate-build` package + ritual-engine integration + architect prompt extension + atlas-web factory wiring. Catches uncompilable code via per-template `tsc --noEmit` / `pyright`. Flag-OFF by default; enable via `ATLAS_FF_BUILD_GATE=true`.
-- **Hybrid Claude proxy + OpenRouter routing**: `apps/atlas-web/lib/engine/routing-provider.ts`. Claude calls hit local proxy `:3456` (free); other models go through OpenRouter.
-- **Canvas ModeToggle always visible** (`9580d89`): no more `?canvas-modes=show` gate; user always has manual escape hatch when SSE auto-switch misfires.
-- **SSE broker forwards triage + build-gate events** (`ceacaaa`): architect rail row no longer spins forever on triage pause; question card renders correctly.
+All on `plan-l0/build-gate` (+8 ahead of `origin`, **not pushed**):
 
-## Three bugs in priority order — do these first
+| Commit | Item | Files | Status |
+|---|---|---|---|
+| `0f80daa` | **D16** designer schema relax + **D18b** revise model → Haiku | `packages/role-designer/{src/types.ts, src/role.ts, test/types.test.ts}` | Tests added; not executed |
+| `31a7d5d` | **D17** server-fetch `initialEvents` into `<EventSourceProvider>` | `apps/atlas-web/lib/events/{EventSourceProvider.tsx, getInitialEventsForProject.ts*}`, `app/projects/[projectId]/layout.tsx`, test | Tests added; not executed |
+| `79b3782` | **D18a** pre-warm sandbox on project creation (flag `ATLAS_FF_SANDBOX_PREWARM`, default OFF) | `apps/atlas-web/app/projects/new/actions.ts`, `lib/feature-flags.ts`, test | Tests added; not executed |
+| `6cfdb6f` | **D14** apply-diff `CHUNK_END_RE` broadened with `+++`/`new file mode`/`deleted file mode`/`index` markers + synthetic regression test | `apps/atlas-web/lib/sandbox/apply-diff.ts`, `test/.../apply-diff-multi-file-leak.test.ts*` | **Defensive partial-fix only** — see caveat below |
 
-### 1. D16 — Designer schema rejects empty `serifFamily` (~5 min, biggest latency win)
+`*` = new file.
 
-File: `packages/role-designer/src/types.ts`
-Change: `serifFamily: z.string().min(1)` → `serifFamily: z.string().optional()` (and same for `monoFamily`)
-Impact: removes ~30% of designer retries, saves 60-90s per affected ritual.
+## D14 caveat — read before flipping D15
 
-### 2. D14 — Diff-parser writes next file's header into previous file's content (~1-2 hrs)
+The 2026-05-21 fix tightens chunk-boundary detection for the case where the LLM omits `diff --git` between files. **However, the captured Saffron Table symptom (2026-05-20) had `diff --git` *present* in the leaked content** — which the *original* regex already matched. So this fix probably resolves an adjacent variant, not the exact symptom captured. The actual root cause may sit in the `parse-diff` library's handling of malformed hunk counts (`@@ -0,0 +1,N @@` where N disagrees with the actual `+` count, even after our repair walker).
 
-File: `apps/atlas-web/lib/sandbox/apply-diff.ts` — `repairCreateHunkCounts` and/or `collectAddedLines`.
-Symptom: sandbox compile fails with `Expected ';', '}' or <eof>`. Captured 2026-05-20 on Saffron Table ritual — `layout.tsx` content ended with `}\ndiff --git a/src/app/globals.css...`.
-Approach: next ritual that fails this way, capture the raw diff string from the developer's RoleOutput. Write a unit test. Fix the chunk-boundary detection. The CHUNK_END_RE regex in `repairCreateHunkCounts` exists; verify it correctly stops at the NEXT file's `diff --git` header.
+**Action for next session:** run one ritual end-to-end. If the leak does NOT recur → D14 is effectively closed and you can flip D15. If it DOES recur → this time, capture the **raw diff string** from the developer's `RoleOutput` (log it from `apps/atlas-web/lib/sandbox/apply-diff.ts:parseDiff` entry point) so we can debug from real data instead of synthesizing.
 
-### 3. D15 — Flip `ATLAS_FF_BUILD_GATE=true` in `.env.local` (~30 sec, do AFTER D14)
+## Three actions in priority order
 
-The build-gate work is dormant until the flag is on. Flip after D14 lands so the auto-fix loop doesn't waste attempts retrying broken diffs the model didn't actually write incorrectly.
+### 1. Verify in WSL (~10 min, no code change)
 
-## After those three: D17 (canvas hydration) + D18 (perf)
+```bash
+# Tests — couldn't run from Windows session, pnpm symlinks installed from WSL don't resolve on Windows-native node
+pnpm --filter @atlas/role-designer test
+pnpm --filter atlas-web test -- test/lib/events test/lib/sandbox test/app/projects/new
+```
 
-- **D17**: server-side fetch latest events from `SpecEventRepo` and pass as `initialEvents` to `<EventSourceProvider>`. Cures every "I don't see the X" report at the root.
-- **D18**: top wins are (a) pre-warm sandbox on project creation, (b) swap designer-revise from Sonnet → Haiku, (c) move repo from `/mnt/f/` to native Linux filesystem. Full list in `known-deferrals.md` D18.
+If anything's red, fix before proceeding.
 
-## Performance baseline (2026-05-20, Postgres-measured)
+### 2. Run one real ritual (~10 min)
 
-End-to-end ~9 min engine work per ritual:
+Take any restaurant/marketing prompt, run end-to-end. Watch for:
+- D16 verification: designer pass should no longer retry on empty `serifFamily` / `monoFamily`. Expect designer phase ≤ ~150s (was 150-220s with ~30% doubling to 300-400s).
+- D18b verification: designer-revise leg should be measurably faster (Haiku vs Sonnet).
+- D17 verification: refresh the canvas mid-ritual — events should already be present at hydration time, not arrive only via SSE.
+- D14 verification: watch for any `}\ndiff --git` leak in sandbox file writes. If clean, mark D14 closed. If recurs, capture raw diff (see caveat above).
+
+### 3. D15 flag flip (~30 sec, **only if step 2 was clean**)
+
+In `apps/atlas-web/.env.local`:
+
+```
+ATLAS_FF_BUILD_GATE=true
+```
+
+Then run one more ritual to confirm the build gate engages without the auto-fix loop burning retries on D14-style false-positives.
+
+## After the verification pass
+
+- **D18c** — move repo from `/mnt/f/` to native Linux filesystem. 5-30× Turbopack compile speedup. User-only (I can't move files). Document the new path in `.env.local` examples after.
+- **D18a flag flip** — once you've verified the path works end-to-end, set `ATLAS_FF_SANDBOX_PREWARM=true` in `.env.local`. The pre-warm has been designed flag-gated to allow a safe trial.
+
+## Performance baseline (2026-05-20, pre-this-session)
+
+Unchanged until step 2 actually runs:
 - Architect: 5-16s ✓
-- Researcher + Designer 3-pass: 150-220s (doubles on D16 retry)
-- Asset gen + Developer + sandbox cold-start: 230-300s
+- Researcher + Designer 3-pass: 150-220s (was doubling on D16 retry — should no longer)
+- Asset gen + Developer + sandbox cold-start: 230-300s (D18a should shave the cold-start when flag is on)
 - Sandbox file write: 9-12s ✓
 - Security gate + finalize: 3s ✓
 
 ## Start-of-session checklist
 
 ```bash
-# 1. Confirm clean main
-git pull origin main
+git pull origin main          # confirm any merged work
+git checkout plan-l0/build-gate
+git status                    # confirm clean
 
-# 2. Bring up infra
+# Bring up infra
 docker compose up -d postgres
-# (Claude Code CLI proxy on :3456 — run in your own terminal)
 
-# 3. Dev server (Turbopack only — webpack first-compile is 10-17 min on WSL)
+# Dev server (Turbopack only — webpack first-compile is 10-17 min on WSL/mnt-f)
 cd apps/atlas-web && pnpm exec next dev --turbo
-
-# 4. Read these three files (in this order):
-#    - docs/superpowers/NEXT-SESSION.md     (this file)
-#    - docs/superpowers/known-deferrals.md  (D14-D18 detail)
-#    - docs/superpowers/current-state-2026-05-20.md  (deep snapshot)
-
-# 5. Pick D16 as your first action.
 ```
 
-## When asking Claude for help in the next session
-
-Paste this into the first message:
-
-> I'm continuing work on the Atlas repo at /mnt/f/claude/ai_builder (pnpm monorepo, Node 22). Read `docs/superpowers/NEXT-SESSION.md` first — it's a one-page handoff for where I am. The previous session merged Plan L0 (build gate) to main; the three open bugs are D14 (diff parser), D15 (flag flip), and D16 (designer schema retry). I want to start by fixing D16 — change `serifFamily: z.string().min(1)` to optional in `packages/role-designer/src/types.ts`, run the role-designer tests, commit. Then we'll tackle D14.
-
-That message + this doc are enough to start cold. No re-reading the whole session.
-
-## What's NOT in scope for next session
-
-- App development (mobile-app via `atlas-expo-rn`, etc.) — templates exist but unvalidated. Tackle AFTER website chain is stable.
-- Production deploy pipeline — `packages/deploy-orchestrator` exists but no end-to-end. Phase C-1.
-- Native iOS/Android — Phase D or later, only if Expo's web+native story doesn't cover customers.
-
----
-
-**File map (where to look for what):**
+## File map (where to look for what)
 
 - Spec / plan / current-state docs: `docs/superpowers/`
+- Live deferral tracker: `docs/superpowers/known-deferrals.md`
 - Build gate package: `packages/gate-build/`
 - Ritual engine: `packages/ritual-engine/src/engine.ts`
 - Architect prompt: `packages/role-architect/src/deep-plan.ts`
 - Canvas shell + renderers: `apps/atlas-web/components/canvas/`
 - Engine factory + SSE forwarding + LLM provider: `apps/atlas-web/lib/engine/factory.ts`, `apps/atlas-web/lib/llm/factory.ts`, `apps/atlas-web/lib/events/EventBroker.ts`
-- Diff parser (D14 bug): `apps/atlas-web/lib/sandbox/apply-diff.ts`
-- Designer schema (D16 bug): `packages/role-designer/src/types.ts`
+- Hydration loader (NEW): `apps/atlas-web/lib/events/getInitialEventsForProject.ts`
+- Diff parser (D14): `apps/atlas-web/lib/sandbox/apply-diff.ts`
+- Designer schema (D16): `packages/role-designer/src/types.ts`
+- Designer revise model (D18b): `packages/role-designer/src/role.ts:221`
+- Pre-warm site (D18a): `apps/atlas-web/app/projects/new/actions.ts`
 - Local env: `apps/atlas-web/.env.local`
+
+## What's NOT in scope for next session
+
+- App development (mobile-app via `atlas-expo-rn`, etc.) — templates exist but unvalidated. Tackle AFTER website chain is stable.
+- Production deploy pipeline — `packages/deploy-orchestrator` exists but no end-to-end. Phase C-1.
+- Native iOS/Android — Phase D or later.

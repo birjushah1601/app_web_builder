@@ -12,8 +12,8 @@ export const DesignTokensSchema = z.object({
   }),
   typeScale: z.object({
     sansFamily: z.string().min(1),
-    serifFamily: z.string().min(1).optional(),
-    monoFamily: z.string().min(1),
+    serifFamily: z.string().optional(),
+    monoFamily: z.string().optional(),
     baseSizePx: z.number().int().min(12).max(24),
     scale: z.enum(["minor-third", "major-third", "perfect-fourth"])
   }),

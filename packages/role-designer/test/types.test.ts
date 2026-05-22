@@ -35,6 +35,22 @@ describe("DesignTokensSchema", () => {
     expect(() => DesignTokensSchema.parse(noSerif)).not.toThrow();
   });
 
+  it("accepts empty-string serifFamily (model frequently emits '')", () => {
+    const emptySerif = { ...validTokens, typeScale: { ...validTokens.typeScale, serifFamily: "" } };
+    expect(() => DesignTokensSchema.parse(emptySerif)).not.toThrow();
+  });
+
+  it("accepts empty-string monoFamily", () => {
+    const emptyMono = { ...validTokens, typeScale: { ...validTokens.typeScale, monoFamily: "" } };
+    expect(() => DesignTokensSchema.parse(emptyMono)).not.toThrow();
+  });
+
+  it("accepts missing monoFamily", () => {
+    const { monoFamily: _m, ...rest } = validTokens.typeScale;
+    const noMono = { ...validTokens, typeScale: rest };
+    expect(() => DesignTokensSchema.parse(noMono)).not.toThrow();
+  });
+
   it("rejects palette hex without leading #", () => {
     const bad = { ...validTokens, palette: { ...validTokens.palette, primary: "0a0a0a" } };
     expect(() => DesignTokensSchema.parse(bad)).toThrow();
