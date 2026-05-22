@@ -67,7 +67,8 @@ export class SchemaArchitectRole implements Role {
     try {
       critique = await this.critique(draft);
     } catch (err) {
-      events.push({ eventType: "schema_architect.proposal.failed", payload: { error: (err as Error).message, reason: "llm-error" } });
+      const reason = err instanceof SchemaArchitectFailedError ? err.reason : "llm-error";
+      events.push({ eventType: "schema_architect.proposal.failed", payload: { error: (err as Error).message, reason } });
       throw err;
     }
     events.push({ eventType: "schema_architect.critique.completed", payload: { critique } });
@@ -77,7 +78,8 @@ export class SchemaArchitectRole implements Role {
     try {
       final = await this.revise(draft, critique);
     } catch (err) {
-      events.push({ eventType: "schema_architect.proposal.failed", payload: { error: (err as Error).message, reason: "llm-error" } });
+      const reason = err instanceof SchemaArchitectFailedError ? err.reason : "llm-error";
+      events.push({ eventType: "schema_architect.proposal.failed", payload: { error: (err as Error).message, reason } });
       throw err;
     }
     events.push({ eventType: "schema_architect.revise.completed", payload: { proposal: final } });

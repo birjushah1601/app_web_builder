@@ -147,7 +147,10 @@ describe("SchemaCanvas — expand pane on select", () => {
     const card = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!;
     await userEvent.click(card);
     expect(screen.getByText("GET")).toBeInTheDocument();
-    expect(screen.getByText("/users")).toBeInTheDocument();
+    // /users sits as a text node next to <span>GET</span> inside <li>, so the
+    // <li>'s textContent is "GET /users" — match via regex on the surrounding
+    // element instead of exact-string getByText.
+    expect(screen.getByText(/\/users/)).toBeInTheDocument();
   });
 
   it("renders GraphQL operations with kind + name", async () => {
@@ -163,7 +166,9 @@ describe("SchemaCanvas — expand pane on select", () => {
     const card = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!;
     await userEvent.click(card);
     expect(screen.getByText(/query/)).toBeInTheDocument();
-    expect(screen.getByText("listUsers")).toBeInTheDocument();
+    // listUsers sits in the <li>'s text alongside ":" and the returnType, so
+    // exact-string match misses; regex finds it via the parent textContent.
+    expect(screen.getByText(/listUsers/)).toBeInTheDocument();
   });
 
   it("renders entity field rows with type", async () => {
@@ -178,7 +183,10 @@ describe("SchemaCanvas — expand pane on select", () => {
     render(<SchemaCanvas projectId="p1" ritualId="r1" persona="diego" />);
     const card = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!;
     await userEvent.click(card);
-    expect(screen.getByText("email")).toBeInTheDocument();
+    // The <li> renders "email " text node + <span>citext</span> + maybe
+    // " NOT NULL" span — so "email" is a partial match against the <li>;
+    // "citext" matches the inner span exactly.
+    expect(screen.getByText(/email/)).toBeInTheDocument();
     expect(screen.getByText("citext")).toBeInTheDocument();
   });
 });
