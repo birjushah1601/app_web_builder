@@ -1,13 +1,19 @@
 # .github/workflows/atlas-web-e2e.yml
 name: Atlas Web E2E
 
+# DISABLED 2026-05-22: auto-triggers removed pending CI rehab. The
+# workflow can't auth in CI (CLERK_SECRET_KEY / E2B_API_KEY / ATLAS_TEST_PASSWORD
+# are blank in PR contexts). Real verification happens in WSL. To re-enable,
+# restore the push/pull_request blocks below — and configure those secrets
+# in repo settings first.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    paths:
-      - "apps/atlas-web/**"
-      - ".github/workflows/atlas-web-e2e.yml"
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   paths:
+  #     - "apps/atlas-web/**"
+  #     - ".github/workflows/atlas-web-e2e.yml"
 
 concurrency:
   group: atlas-web-e2e-${{ github.ref }}
