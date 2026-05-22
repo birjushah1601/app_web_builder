@@ -1,13 +1,11 @@
-export const REVISE_SYSTEM_PROMPT = `You revised a SchemaProposal in light of a critique. Address each issue from the critique by editing entities/operations in the proposal. Return a revised SchemaProposal via emit_revised_schema_proposal.
+import { PROPOSAL_TOOL_SCHEMA } from "./assemble-proposal.js";
 
-Do NOT change unaffected parts of the proposal — keep them byte-identical so the user's mental model stays stable.`;
+export const REVISE_SYSTEM_PROMPT = `You are revising a SchemaProposal in light of a critique. Address each issue the critique surfaces by editing the relevant entities or operations in the proposal. Return the revised SchemaProposal via the emit_revised_schema_proposal tool.
 
-export const REVISED_PROPOSAL_TOOL_SCHEMA = {
-  type: "object",
-  properties: {
-    recommended: { type: "object" },
-    alternates: { type: "array", minItems: 2, maxItems: 2 },
-    reasoning: { type: "string" }
-  },
-  required: ["recommended", "alternates", "reasoning"]
-} as const;
+Preserve the id, name, shortDescription, and technicalDescription of directions you are NOT revising — only modify entities, fields, operations, or RLS policies where the critique identifies issues. The same 10 hard rules from the original system prompt still apply to the revised output.`;
+
+// Reuse the proposal tool schema verbatim — the revise pass MUST return a full
+// SchemaProposal, not a stub. Earlier scaffold used { recommended: { type:
+// "object" } } which gave the LLM no structural guidance and resulted in
+// nearly-guaranteed schema-mismatch errors at parse time.
+export const REVISED_PROPOSAL_TOOL_SCHEMA = PROPOSAL_TOOL_SCHEMA;

@@ -16,20 +16,21 @@ const base = (over: Partial<Entity> = {}): Entity => ({
 });
 
 describe("generateMigrationHints", () => {
-  it("emits CONCURRENTLY hint for new index on a wide table (>5 fields)", () => {
+  it("emits CONCURRENTLY hint for new index on a growth-table (name-keyed)", () => {
     const e = base({
-      fields: [
-        { name: "id", type: "uuid", nullable: false },
-        { name: "title", type: "text", nullable: false },
-        { name: "body", type: "text", nullable: false },
-        { name: "author_id", type: "uuid", nullable: false },
-        { name: "tags", type: "jsonb", nullable: false },
-        { name: "created_at", type: "timestamptz", nullable: false }
-      ],
-      indexes: [{ name: "post_author_id_idx", columns: ["author_id"] }]
+      name: "post",
+      indexes: [{ name: "post_author_id_idx", columns: ["id"] }]
     });
     const hints = generateMigrationHints(e);
     expect(hints.some((h) => /CONCURRENTLY/.test(h) && /post_author_id_idx/.test(h))).toBe(true);
+  });
+
+  it("does NOT emit CONCURRENTLY hint for a non-growth, non-partitioned table", () => {
+    const e = base({
+      name: "setting",
+      indexes: [{ name: "setting_key_idx", columns: ["id"] }]
+    });
+    expect(generateMigrationHints(e).some((h) => /CONCURRENTLY/.test(h))).toBe(false);
   });
 
   it("emits CONCURRENTLY hint on any partitioned-table index", () => {
