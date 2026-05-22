@@ -45,7 +45,10 @@ export type FeatureFlag =
   // D18a — Pre-warm the project's E2B sandbox at project-creation time so
   // it's already running (or warming) by the time the developer role lands
   // a diff. Cuts the cold-start (~230-300s) out of the critical path.
-  | "sandbox-prewarm";
+  | "sandbox-prewarm"
+  // Plan Architect Schema Refinement — schema-architect role gate.
+  | "schema-architect"
+  | "schema-architect-3pass";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -141,7 +144,11 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // session cache (and its in-flight Map) means the later developer-time
   // getOrProvision() either hits the warm session or awaits the in-flight
   // promise — no change to the developer-role contract.
-  "sandbox-prewarm": "ATLAS_FF_SANDBOX_PREWARM"
+  "sandbox-prewarm": "ATLAS_FF_SANDBOX_PREWARM",
+  // Plan Architect Schema Refinement — gating the schema-architect role.
+  "schema-architect": "ATLAS_FF_SCHEMA_ARCHITECT",
+  // Plan Architect Schema Refinement — gating the 3-pass schema-architect flow.
+  "schema-architect-3pass": "ATLAS_FF_SCHEMA_ARCHITECT_3PASS"
 };
 
 export interface FeatureFlagSource {
@@ -249,6 +256,8 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "hero-unsplash": isFeatureEnabled("hero-unsplash", source),
     "hero-ai-image": isFeatureEnabled("hero-ai-image", source),
     "build-gate": isFeatureEnabled("build-gate", source),
-    "sandbox-prewarm": isFeatureEnabled("sandbox-prewarm", source)
+    "sandbox-prewarm": isFeatureEnabled("sandbox-prewarm", source),
+    "schema-architect": isFeatureEnabled("schema-architect", source),
+    "schema-architect-3pass": isFeatureEnabled("schema-architect-3pass", source)
   };
 }

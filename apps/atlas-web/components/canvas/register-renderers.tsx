@@ -16,6 +16,7 @@ import { canvasModeRegistry } from "./canvas-mode-registry";
 import { DesignerCanvas } from "./renderers/DesignerCanvas";
 import { RefineWizard } from "./renderers/RefineWizard";
 import { PreviewCanvas } from "./renderers/PreviewCanvas";
+import { SchemaCanvas } from "./renderers/SchemaCanvas";
 
 let _registered = false;
 
@@ -25,6 +26,7 @@ function registerOnce() {
   canvasModeRegistry.register("designing", DesignerCanvas as React.ComponentType<unknown>);
   canvasModeRegistry.register("refining", RefineWizard as React.ComponentType<unknown>);
   canvasModeRegistry.register("preview", PreviewCanvas as React.ComponentType<unknown>);
+  canvasModeRegistry.register("schema", SchemaCanvas as React.ComponentType<unknown>);
 }
 
 registerOnce();

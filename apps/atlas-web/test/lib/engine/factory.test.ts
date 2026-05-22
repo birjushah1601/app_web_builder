@@ -372,6 +372,93 @@ describe("getRitualEngine — smoke", () => {
   });
 });
 
+describe("getRitualEngine — SchemaArchitectRole conditional registration (T15)", () => {
+  const saved: Record<string, string | undefined> = {};
+  const schemaArchitectCtor = vi.fn();
+  const designerStubCtor = vi.fn();
+
+  beforeEach(() => {
+    for (const k of [...ENV_KEYS, "ATLAS_FF_SCHEMA_ARCHITECT", "ATLAS_FF_DESIGNER"] as const) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+    schemaArchitectCtor.mockClear();
+    designerStubCtor.mockClear();
+    architectCtor.mockClear();
+    developerCtor.mockClear();
+    ritualEngineCtor.mockClear();
+    vi.resetModules();
+    vi.doMock("@atlas/role-schema-architect", () => ({
+      SchemaArchitectRole: class {
+        constructor(opts: unknown) { schemaArchitectCtor(opts); }
+      }
+    }));
+    // Stub getDesignerRole so the third test (Designer remains alongside)
+    // doesn't depend on resolving + constructing the real @atlas/role-designer
+    // package during unit tests. Sentinel role-shaped object is sufficient
+    // — we're asserting the registration gating, not the role construction.
+    vi.doMock("@/lib/llm/factory", async () => {
+      const actual = await vi.importActual<typeof import("@/lib/llm/factory")>("@/lib/llm/factory");
+      return {
+        ...actual,
+        getDesignerRole: vi.fn(async () => {
+          designerStubCtor();
+          return { id: "designer", name: "designer-stub" } as never;
+        })
+      };
+    });
+  });
+
+  afterEach(() => {
+    for (const k of [...ENV_KEYS, "ATLAS_FF_SCHEMA_ARCHITECT", "ATLAS_FF_DESIGNER"] as const) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+    vi.unmock("@atlas/role-schema-architect");
+    vi.unmock("@/lib/llm/factory");
+  });
+
+  it("registers SchemaArchitectRole when ATLAS_FF_SCHEMA_ARCHITECT=true", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    process.env.ATLAS_FF_SCHEMA_ARCHITECT = "true";
+
+    const { getRitualEngine } = await import("@/lib/engine/factory");
+    const engine = (await getRitualEngine("p-schema-on")) as unknown as {
+      conductor: { roles: Map<string, unknown> };
+    };
+
+    expect(engine.conductor.roles.has("schema-architect")).toBe(true);
+    expect(schemaArchitectCtor).toHaveBeenCalledOnce();
+  });
+
+  it("does NOT register SchemaArchitectRole when ATLAS_FF_SCHEMA_ARCHITECT is unset", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    // ATLAS_FF_SCHEMA_ARCHITECT deliberately unset
+
+    const { getRitualEngine } = await import("@/lib/engine/factory");
+    const engine = (await getRitualEngine("p-schema-off")) as unknown as {
+      conductor: { roles: Map<string, unknown> };
+    };
+
+    expect(engine.conductor.roles.has("schema-architect")).toBe(false);
+    expect(schemaArchitectCtor).not.toHaveBeenCalled();
+  });
+
+  it("DesignerRole remains registered alongside SchemaArchitectRole when both flags are on", async () => {
+    process.env.ATLAS_LLM_BASE_URL = "http://127.0.0.1:3456";
+    process.env.ATLAS_FF_SCHEMA_ARCHITECT = "true";
+    process.env.ATLAS_FF_DESIGNER = "true";
+
+    const { getRitualEngine } = await import("@/lib/engine/factory");
+    const engine = (await getRitualEngine("p-schema-designer")) as unknown as {
+      conductor: { roles: Map<string, unknown> };
+    };
+
+    expect(engine.conductor.roles.has("schema-architect")).toBe(true);
+    expect(engine.conductor.roles.has("designer")).toBe(true);
+  });
+});
+
 describe("factory — checkpointSink wires to broker + SpecEventsSink (plan E.0)", () => {
   beforeEach(async () => {
     const { __resetEventBrokerForTesting } = await import("@/lib/events/broker-singleton");
