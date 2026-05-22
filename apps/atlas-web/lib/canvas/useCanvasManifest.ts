@@ -28,7 +28,6 @@ export interface UseCanvasManifestResult {
 
 const EVENT_TYPE = "architect.canvas_manifest.emitted";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function useCanvasManifest(_projectId: string): UseCanvasManifestResult {
   const { events } = useEventStream();
 
