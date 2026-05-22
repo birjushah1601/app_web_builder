@@ -82,3 +82,8 @@ export function EventSourceProvider({ projectId, flagEnabled, children }: Provid
 export function useEventStream(): EventStreamValue {
   return useContext(Ctx);
 }
+
+/** Exported for visual fixtures and integration test helpers ONLY.
+ *  Wrap children in <EventStreamCtxForTesting.Provider value={...}>
+ *  to inject a pre-cooked event list without opening a real EventSource. */
+export const EventStreamCtxForTesting = Ctx;
