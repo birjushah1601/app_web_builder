@@ -145,6 +145,50 @@ describe("ChatPanel — architect output rendering", () => {
     expect(screen.queryByTestId("architect-plan")).not.toBeInTheDocument();
   });
 
+  it("Plan U: renders <TriageClarificationForm> instead of the bullet list when structuredTriageEnabled", async () => {
+    const action = vi.fn(async () => okResult({
+      roleEvents: [
+        { eventType: "architect.triage.needs_input", payload: { question: "Mobile or Web?", reason: "Affects layout" } },
+        { eventType: "architect.triage.needs_input", payload: { question: "Should we include guest checkout?" } }
+      ]
+    }));
+    render(<ChatPanel projectId="p-1" action={action} structuredTriageEnabled />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "build a thing");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    // Form mounts instead of the old bullet-list panel.
+    expect(await screen.findByTestId("triage-clarification-form")).toBeInTheDocument();
+    expect(screen.queryByTestId("architect-needs-input")).not.toBeInTheDocument();
+    // Both widget shapes inferred correctly.
+    expect(screen.getByTestId("triage-q-0-opt-0")).toBeInTheDocument(); // single-select for "Mobile or Web?"
+    expect(screen.getByTestId("triage-q-1-yes")).toBeInTheDocument();   // yes-no for "Should we ...?"
+  });
+
+  it("Plan U: clarification form submit re-runs action() with the formatted answers as userTurn", async () => {
+    const action = vi.fn()
+      .mockResolvedValueOnce(okResult({
+        roleEvents: [
+          { eventType: "architect.triage.needs_input", payload: { question: "Mobile or Web?" } }
+        ]
+      }))
+      .mockResolvedValueOnce(okResult({
+        artifact: { scope: "feature", summary: "build the thing", plan: { steps: [] } },
+        roleEvents: []
+      }));
+    render(<ChatPanel projectId="p-1" action={action} structuredTriageEnabled />);
+    await userEvent.type(screen.getByPlaceholderText(/Describe your change/i), "build a thing");
+    await userEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+    await screen.findByTestId("triage-clarification-form");
+    await userEvent.click(screen.getByTestId("triage-q-0-opt-1")); // Web
+    await userEvent.click(screen.getByTestId("triage-clarification-submit"));
+
+    // Second action call uses the formatted answer string verbatim as userTurn.
+    expect(action).toHaveBeenCalledTimes(2);
+    const second = action.mock.calls[1]![0] as { userTurn: string };
+    expect(second.userTurn).toBe("- Mobile or Web? → Web");
+  });
+
   it("renders the architect plan with structured steps when artifact has plan.steps", async () => {
     const action = vi.fn(async () => okResult({
       artifact: {
