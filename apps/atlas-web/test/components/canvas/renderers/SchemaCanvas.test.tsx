@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 
 const stubProposal = () => ({
@@ -59,5 +60,125 @@ describe("SchemaCanvas — 3-card render", () => {
     render(<SchemaCanvas projectId="p1" ritualId="r1" persona="ama" />);
     const recommendedCard = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]');
     expect(recommendedCard?.textContent).toMatch(/Recommended/i);
+  });
+});
+
+describe("SchemaCanvas — expand pane on select", () => {
+  const proposalWithRestOps = () => ({
+    recommended: {
+      id: "rest-crud", name: "RESTful CRUD",
+      shortDescription: "x", technicalDescription: "y",
+      contract: {
+        style: "rest" as const,
+        operations: [
+          { method: "GET", path: "/users", summary: "List users", statusCodes: [200] },
+          { method: "POST", path: "/users", summary: "Create user", statusCodes: [201] }
+        ]
+      },
+      dataModel: {
+        entities: [{
+          name: "user",
+          description: "User account",
+          fields: [
+            { name: "id", type: "uuid", nullable: false },
+            { name: "email", type: "citext", nullable: false }
+          ],
+          primaryKey: { columns: ["id"], strategy: "uuid" as const },
+          indexes: [],
+          constraints: [],
+          rls: { enabled: false, policies: [] },
+          audit: { createdAt: true, updatedAt: true },
+          migrationHints: []
+        }]
+      }
+    },
+    alternates: [
+      { id: "alt1", name: "Alt1", shortDescription: "x", technicalDescription: "y",
+        contract: { style: "rest" as const, operations: [] },
+        dataModel: { entities: [] } },
+      { id: "alt2", name: "Alt2", shortDescription: "x", technicalDescription: "y",
+        contract: { style: "rest" as const, operations: [] },
+        dataModel: { entities: [] } }
+    ],
+    reasoning: "x"
+  });
+
+  const proposalWithGraphqlOps = () => {
+    const p = proposalWithRestOps();
+    p.recommended.contract = {
+      style: "graphql" as const,
+      operations: [
+        { kind: "query", name: "listUsers", summary: "List users", args: [], returnType: "[User]" }
+      ]
+    } as never;
+    return p;
+  };
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("shows Contract + Data Model headers when a card is selected", async () => {
+    vi.doMock("@/lib/events/EventSourceProvider", () => ({
+      useEventStream: () => ({
+        events: [{ type: "schema_architect.proposal.emitted", payload: { proposal: proposalWithRestOps() } }],
+        status: "open",
+        lastEventId: "x"
+      })
+    }));
+    const { SchemaCanvas } = await import("@/components/canvas/renderers/SchemaCanvas");
+    render(<SchemaCanvas projectId="p1" ritualId="r1" persona="diego" />);
+    const card = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!;
+    await userEvent.click(card);
+    expect(screen.getByText(/contract/i)).toBeInTheDocument();
+    expect(screen.getByText(/data model/i)).toBeInTheDocument();
+  });
+
+  it("renders REST operations as METHOD path lines", async () => {
+    vi.doMock("@/lib/events/EventSourceProvider", () => ({
+      useEventStream: () => ({
+        events: [{ type: "schema_architect.proposal.emitted", payload: { proposal: proposalWithRestOps() } }],
+        status: "open",
+        lastEventId: "x"
+      })
+    }));
+    const { SchemaCanvas } = await import("@/components/canvas/renderers/SchemaCanvas");
+    render(<SchemaCanvas projectId="p1" ritualId="r1" persona="diego" />);
+    const card = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!;
+    await userEvent.click(card);
+    expect(screen.getByText("GET")).toBeInTheDocument();
+    expect(screen.getByText("/users")).toBeInTheDocument();
+  });
+
+  it("renders GraphQL operations with kind + name", async () => {
+    vi.doMock("@/lib/events/EventSourceProvider", () => ({
+      useEventStream: () => ({
+        events: [{ type: "schema_architect.proposal.emitted", payload: { proposal: proposalWithGraphqlOps() } }],
+        status: "open",
+        lastEventId: "x"
+      })
+    }));
+    const { SchemaCanvas } = await import("@/components/canvas/renderers/SchemaCanvas");
+    render(<SchemaCanvas projectId="p1" ritualId="r1" persona="diego" />);
+    const card = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!;
+    await userEvent.click(card);
+    expect(screen.getByText(/query/)).toBeInTheDocument();
+    expect(screen.getByText("listUsers")).toBeInTheDocument();
+  });
+
+  it("renders entity field rows with type", async () => {
+    vi.doMock("@/lib/events/EventSourceProvider", () => ({
+      useEventStream: () => ({
+        events: [{ type: "schema_architect.proposal.emitted", payload: { proposal: proposalWithRestOps() } }],
+        status: "open",
+        lastEventId: "x"
+      })
+    }));
+    const { SchemaCanvas } = await import("@/components/canvas/renderers/SchemaCanvas");
+    render(<SchemaCanvas projectId="p1" ritualId="r1" persona="diego" />);
+    const card = screen.getByText("RESTful CRUD").closest('[data-testid="schema-direction-card"]')!;
+    await userEvent.click(card);
+    expect(screen.getByText("email")).toBeInTheDocument();
+    expect(screen.getByText("citext")).toBeInTheDocument();
   });
 });

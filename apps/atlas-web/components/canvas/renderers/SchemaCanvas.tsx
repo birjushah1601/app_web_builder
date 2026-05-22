@@ -10,7 +10,7 @@ export interface SchemaCanvasProps {
   persona: "ama" | "diego" | "priya";
 }
 
-export function SchemaCanvas({ projectId: _projectId, ritualId: _ritualId, persona: _persona }: SchemaCanvasProps) {
+export function SchemaCanvas({ projectId: _projectId, ritualId: _ritualId, persona }: SchemaCanvasProps) {
   const { events } = useEventStream();
   const proposal = React.useMemo(() => extractLatestProposal(events), [events]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -28,6 +28,8 @@ export function SchemaCanvas({ projectId: _projectId, ritualId: _ritualId, perso
     { direction: proposal.alternates[0], isRecommended: false },
     { direction: proposal.alternates[1], isRecommended: false }
   ];
+
+  const selected = selectedId ? cards.find((c) => c.direction.id === selectedId)?.direction : null;
 
   return (
     <main className="p-6" data-testid="schema-canvas">
@@ -54,12 +56,80 @@ export function SchemaCanvas({ projectId: _projectId, ritualId: _ritualId, perso
           </button>
         ))}
       </div>
-      {selectedId && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4" data-testid="schema-direction-detail">
-          <p className="text-sm text-slate-500">Selected: {selectedId}. Detail pane lands in Task 19.</p>
+      {selectedId && selected && (
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2" data-testid="schema-direction-detail">
+          <ContractPane contract={selected.contract} />
+          <DataModelPane entities={selected.dataModel.entities} persona={persona} />
         </div>
       )}
     </main>
+  );
+}
+
+function ContractPane({ contract }: { contract: SchemaDirection["contract"] }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-700">Contract</h3>
+      {contract.style === "rest" ? (
+        <ul className="space-y-1 font-mono text-xs">
+          {contract.operations.map((op) => (
+            <li key={`${op.method}-${op.path}`}>
+              <span className="font-semibold">{op.method}</span> {op.path}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="space-y-1 font-mono text-xs">
+          {contract.operations.map((op) => (
+            <li key={`${op.kind}-${op.name}`}>
+              <span className="font-semibold">{op.kind}</span> {op.name}: {op.returnType}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function DataModelPane({ entities, persona }: { entities: Array<import("@atlas/role-schema-architect").Entity>; persona: "ama" | "diego" | "priya" }) {
+  const showAdvanced = persona === "diego" || persona === "priya";
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-700">Data Model</h3>
+      <ul className="space-y-3">
+        {entities.map((e) => (
+          <li key={e.name}>
+            <div className="font-mono text-sm font-semibold">{e.name}</div>
+            <ul className="ml-3 mt-1 space-y-0.5">
+              {e.fields.map((f) => (
+                <li key={f.name} className="font-mono text-xs text-slate-600">
+                  {f.name} <span className="text-slate-400">{f.type}</span>
+                  {showAdvanced && f.nullable === false ? <span className="text-slate-400"> NOT NULL</span> : null}
+                </li>
+              ))}
+            </ul>
+            {showAdvanced && e.indexes.length > 0 && (
+              <div className="ml-3 mt-1 text-xs text-slate-500">
+                {e.indexes.length} index{e.indexes.length === 1 ? "" : "es"}
+              </div>
+            )}
+            {showAdvanced && e.rls.enabled && (
+              <div className="ml-3 mt-1 text-xs text-amber-600">RLS · {e.rls.policies.length} polic{e.rls.policies.length === 1 ? "y" : "ies"}</div>
+            )}
+            {showAdvanced && e.migrationHints.length > 0 && (
+              <details className="ml-3 mt-1 text-xs text-slate-500">
+                <summary>Migration hints ({e.migrationHints.length})</summary>
+                <ul className="mt-1 space-y-0.5 pl-3">
+                  {e.migrationHints.map((h, i) => (
+                    <li key={i}>{h}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
