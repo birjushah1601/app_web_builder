@@ -41,7 +41,10 @@ export type FeatureFlag =
   | "hero-unsplash"
   | "hero-ai-image"
   // Plan L0 — Build gate. Compiler/linter pre-check before other LLM gates.
-  | "build-gate";
+  | "build-gate"
+  // Plan Architect Schema Refinement — schema-architect role gate.
+  | "schema-architect"
+  | "schema-architect-3pass";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -130,7 +133,11 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "hero-ai-image": "ATLAS_FF_HERO_AI_IMAGE",
   // Plan L0 — Build gate. Compiler/linter pre-check runs FIRST in
   // postDeveloperChain so uncompilable code short-circuits LLM gate work.
-  "build-gate": "ATLAS_FF_BUILD_GATE"
+  "build-gate": "ATLAS_FF_BUILD_GATE",
+  // Plan Architect Schema Refinement — gating the schema-architect role.
+  "schema-architect": "ATLAS_FF_SCHEMA_ARCHITECT",
+  // Plan Architect Schema Refinement — gating the 3-pass schema-architect flow.
+  "schema-architect-3pass": "ATLAS_FF_SCHEMA_ARCHITECT_3PASS"
 };
 
 export interface FeatureFlagSource {
@@ -237,6 +244,8 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "asset-gen": isFeatureEnabled("asset-gen", source),
     "hero-unsplash": isFeatureEnabled("hero-unsplash", source),
     "hero-ai-image": isFeatureEnabled("hero-ai-image", source),
-    "build-gate": isFeatureEnabled("build-gate", source)
+    "build-gate": isFeatureEnabled("build-gate", source),
+    "schema-architect": isFeatureEnabled("schema-architect", source),
+    "schema-architect-3pass": isFeatureEnabled("schema-architect-3pass", source)
   };
 }
