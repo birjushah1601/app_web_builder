@@ -8,6 +8,13 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
     include: ["test/**/*.test.{ts,tsx}"],
+    // Default vitest timeout (5s) tips over under monorepo-wide parallel load
+    // on Windows — many atlas-web tests pull in canvas-runtime + ritual-engine
+    // (heavy module graphs with circular zod imports) which are slow to evaluate
+    // when all 42 workspace packages are racing for CPU. The slowest cases
+    // measured in isolation are ~2.5s; 15s gives enough headroom for contention
+    // without masking actual hangs.
+    testTimeout: 15_000,
     server: {
       deps: {
         // pg and next/server are Node-only; let Vite treat them as external
