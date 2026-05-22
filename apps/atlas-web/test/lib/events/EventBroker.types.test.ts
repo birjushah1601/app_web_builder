@@ -38,7 +38,16 @@ describe("EventBroker types (Plan E.0 contract)", () => {
       // Architect triage clarifying-question pause.
       | "architect.triage.needs_input"
       // Plan L0: build-gate lifecycle.
-      | "build-gate.started" | "build-gate.passed" | "build-gate.failed" | "build-gate.completed";
+      | "build-gate.started" | "build-gate.passed" | "build-gate.failed" | "build-gate.completed"
+      // Plan Schema-Canvas + Schema-Architect (2026-05-21) — three-pass
+      // proposal lifecycle + schema direction selection. Forwarded from
+      // factory.ts so SchemaCanvas can react to each phase.
+      | "schema_architect.proposal.started" | "schema_architect.proposal.emitted"
+      | "schema_architect.proposal.completed" | "schema_architect.proposal.failed"
+      | "schema_architect.proposal.skipped"
+      | "schema_architect.critique.started" | "schema_architect.critique.completed"
+      | "schema_architect.revise.started" | "schema_architect.revise.completed"
+      | "schema.direction.selected";
     expectTypeOf<RitualEventType>().toEqualTypeOf<Expected>();
   });
 

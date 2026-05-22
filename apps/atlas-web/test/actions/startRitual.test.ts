@@ -138,7 +138,9 @@ describe("startRitual action", () => {
     vi.doMock("@clerk/nextjs/server", () => ({ auth: async () => ({ userId: "u-1" }) }));
     const { startRitual } = await import("@/lib/actions/startRitual");
     await startRitual({ projectId: "p-1", userTurn: "x", editClass: "structural" });
-    const call = start.mock.calls[0]![0] as Record<string, unknown>;
+    // start.mock.calls is typed by vi.fn's inferred () signature; cast through
+    // unknown to grab the runtime payload the action passed in.
+    const call = (start.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]![0];
     expect(call.referenceImages).toBeUndefined();
   });
 
@@ -162,7 +164,9 @@ describe("startRitual action", () => {
       editClass: "structural",
       referenceImages: []
     });
-    const call = start.mock.calls[0]![0] as Record<string, unknown>;
+    // start.mock.calls is typed by vi.fn's inferred () signature; cast through
+    // unknown to grab the runtime payload the action passed in.
+    const call = (start.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]![0];
     expect(call.referenceImages).toBeUndefined();
   });
 

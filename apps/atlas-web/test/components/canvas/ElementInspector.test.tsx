@@ -33,7 +33,10 @@ const SAMPLE_NODE: DomNode = {
   tag: "button",
   text: "Click me",
   rect: { x: 0, y: 0, width: 80, height: 32 },
-  classes: ["btn", "btn-primary"]
+  classes: ["btn", "btn-primary"],
+  // Plan UXO Task 8 added atlasId — required by DomNode. Tests can use a
+  // placeholder since the inspector never reads it; the bridge does.
+  atlasId: "test-atlas-id"
 };
 
 const SAMPLE_AXES: ElementAxis[] = [
