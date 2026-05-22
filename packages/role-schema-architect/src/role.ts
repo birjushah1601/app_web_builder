@@ -19,8 +19,8 @@ type SchemaArchitectEvents = RoleOutput["events"];
 export class SchemaArchitectRole implements Role {
   readonly id = "schema-architect";
   private readonly llm: LLMProvider;
-  private readonly critiqueModel?: string;
-  private readonly reviseModel?: string;
+  private readonly critiqueModel: string | undefined;
+  private readonly reviseModel: string | undefined;
 
   constructor(opts: SchemaArchitectRoleOptions) {
     this.llm = opts.llm;
