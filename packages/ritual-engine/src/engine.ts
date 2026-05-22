@@ -1,7 +1,21 @@
 import { randomUUID } from "crypto";
 import type { Conductor } from "@atlas/conductor";
-import type { ArtifactKind } from "@atlas/canvas-runtime";
 import type { EventSink, EditClass, RitualEvent } from "./events.js";
+
+// Mirror of @atlas/canvas-runtime's ArtifactKindSchema enum. Inlined here to
+// break the workspace build cycle: canvas-runtime depends on ritual-engine's
+// PersonaTierSchema (runtime value), while ritual-engine only needs
+// ArtifactKind as a type. Keeping the dep would force pnpm to schedule both
+// packages' tsc in parallel and canvas-runtime's build would race ritual-
+// engine's dist/. If you add a kind to ArtifactKindSchema in canvas-runtime,
+// add it here too.
+type ArtifactKind =
+  | "frontend-app"
+  | "backend-rest-api"
+  | "backend-graphql"
+  | "data-pipeline"
+  | "mobile-app"
+  | "cli-tool";
 import type { PersonaPreferences } from "./personas.js";
 import { applyTransition, isTerminal, type RitualState, type RitualTransition } from "./state.js";
 import { applyApproval, type ApprovalDecision } from "./approval.js";
