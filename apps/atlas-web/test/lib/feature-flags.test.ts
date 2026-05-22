@@ -105,6 +105,7 @@ describe("listFlagStates", () => {
       "schema-architect-3pass": false,
       "security-role": false,
       "stripe-payments": true,
+      "structured-triage": false,
       "video-kling": false,
       "visual-quality-gate": false
     });

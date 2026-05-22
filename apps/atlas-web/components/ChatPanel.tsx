@@ -6,6 +6,7 @@ import { AccessibilityReportPanel, type AccessibilityReport } from "@/components
 import { RefinementInputBar } from "@/components/RefinementInputBar";
 import { ReferenceDropZone, type ReferenceImage } from "@/components/prompt/ReferenceDropZone";
 import { SelectionChip } from "@/components/canvas/SelectionChip";
+import { TriageClarificationForm } from "@/components/ritual/TriageClarificationForm";
 
 export interface RoleEvent {
   eventType: string;
@@ -96,6 +97,11 @@ export interface ChatPanelProps {
   selectionChip?: { label: string; atlasId: string; filePath: string };
   onClearSelection?: () => void;
   editElementAction?: (input: { projectId: string; filePath: string; atlasId: string; instruction: string }) => Promise<{ ok: boolean; error?: string }>;
+  /** Plan U — when ATLAS_FF_STRUCTURED_TRIAGE is on (read server-side),
+   *  architect.triage.needs_input events render as a <TriageClarificationForm>
+   *  instead of a bullet list. Submitting the form posts the formatted answers
+   *  back through the same cold-start / refine pipeline. */
+  structuredTriageEnabled?: boolean;
 }
 
 interface HistoryEntry {
@@ -113,7 +119,8 @@ export function ChatPanel({
   referenceInputEnabled = false,
   selectionChip,
   onClearSelection,
-  editElementAction
+  editElementAction,
+  structuredTriageEnabled = false
 }: ChatPanelProps) {
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
@@ -136,12 +143,17 @@ export function ChatPanel({
     return Boolean(multiTurnFlagEnabled && refineAction && latestRitualId);
   }
 
-  async function send() {
-    if (!text.trim() || pending) return;
+  async function send(opts?: { override?: string }) {
+    // Plan U — `override` lets the triage clarification form drive a submit
+    // with text the user never typed into the textarea. The current state
+    // doesn't have to round-trip through setText; we use the override
+    // verbatim and leave the textarea unchanged.
+    const turnText = opts?.override ?? text;
+    if (!turnText.trim() || pending) return;
     setPending(true);
     setError(null);
-    setHistory((h) => [...h, { role: "user", text }]);
-    const capturedText = text;
+    setHistory((h) => [...h, { role: "user", text: turnText }]);
+    const capturedText = turnText;
     // Plan canvas-in-place-editing Task 21: when a selection chip is active,
     // route through editElementAction instead of the full ritual pipeline.
     if (selectionChip && editElementAction) {
@@ -174,7 +186,7 @@ export function ChatPanel({
         result = await refineAction({
           projectId,
           parentRitualId: latestRitualId,
-          userTurn: text
+          userTurn: capturedText
         });
       } else {
         // Plan UXO Task 6 — only include referenceImages on the call when
@@ -182,7 +194,7 @@ export function ChatPanel({
         // call shape backwards-compatible with existing tests + flag-OFF.
         result = await action({
           projectId,
-          userTurn: text,
+          userTurn: capturedText,
           editClass: "structural",
           ...(references.length > 0 ? { referenceImages: references } : {})
         });
@@ -222,6 +234,14 @@ export function ChatPanel({
                 });
                 setHistory((h) => [...h, { role: "user", text: userTurn }, { role: "architect", result: child }]);
               } : undefined}
+              structuredTriageEnabled={structuredTriageEnabled}
+              pending={pending}
+              onClarify={async (formatted: string) => {
+                // Plan U — drive a normal send() with the form's formatted
+                // answers as the userTurn. The existing routing rules apply
+                // (refine if multi-turn + parent known, else cold-start).
+                await send({ override: formatted });
+              }}
             />
           )
         ))}
@@ -276,12 +296,20 @@ function ArchitectOutput({
   result,
   projectId,
   multiTurnFlagEnabled,
-  onRefine
+  onRefine,
+  structuredTriageEnabled,
+  pending,
+  onClarify
 }: {
   result: StartRitualResult;
   projectId: string;
   multiTurnFlagEnabled?: boolean;
   onRefine?: (userTurn: string) => Promise<void>;
+  /** Plan U — when true AND onClarify is provided, the blocker questions
+   *  render as <TriageClarificationForm> instead of a bullet list. */
+  structuredTriageEnabled?: boolean;
+  pending?: boolean;
+  onClarify?: (formatted: string) => Promise<void>;
 }) {
   const blockingQuestions = result.roleEvents.filter(
     (e) => e.eventType === "architect.triage.needs_input"
@@ -303,20 +331,37 @@ function ArchitectOutput({
         </div>
       )}
       {blockingQuestions.length > 0 ? (
-        <div data-testid="architect-needs-input" className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs">
-          <div className="mb-1 font-semibold text-amber-900">Architect needs more info:</div>
-          <ul className="list-disc space-y-1 pl-4 text-amber-900">
-            {blockingQuestions.map((q, i) => {
+        structuredTriageEnabled && onClarify ? (
+          // Plan U — structured triage. Render the form instead of the
+          // bullet list. The flag/callback combo guards against rendering
+          // a non-interactive form when the wiring isn't complete.
+          <TriageClarificationForm
+            questions={blockingQuestions.map((q) => {
               const p = q.payload as { question?: string; reason?: string };
-              return (
-                <li key={i}>
-                  <span className="font-medium">{p.question}</span>
-                  {p.reason ? <span className="text-amber-700"> — {p.reason}</span> : null}
-                </li>
-              );
+              return {
+                question: p.question ?? "",
+                ...(p.reason !== undefined ? { reason: p.reason } : {})
+              };
             })}
-          </ul>
-        </div>
+            onSubmit={onClarify}
+            pending={pending ?? false}
+          />
+        ) : (
+          <div data-testid="architect-needs-input" className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs">
+            <div className="mb-1 font-semibold text-amber-900">Architect needs more info:</div>
+            <ul className="list-disc space-y-1 pl-4 text-amber-900">
+              {blockingQuestions.map((q, i) => {
+                const p = q.payload as { question?: string; reason?: string };
+                return (
+                  <li key={i}>
+                    <span className="font-medium">{p.question}</span>
+                    {p.reason ? <span className="text-amber-700"> — {p.reason}</span> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )
       ) : result.artifact ? (
         <ArchitectPlanCard artifact={result.artifact} />
       ) : (

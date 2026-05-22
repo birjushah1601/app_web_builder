@@ -23,9 +23,12 @@ interface RailShellProps {
   /** Plan UXO Task 7: server-evaluated editable-plan flag forwarded to
    *  the embedded RitualTimelineSlot. */
   editablePlanEnabled?: boolean;
+  /** Plan U: server-evaluated structured-triage flag forwarded to ChatPanel
+   *  so architect.triage.needs_input renders as a form instead of bullets. */
+  structuredTriageEnabled?: boolean;
 }
 
-export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLatestRitualId, referenceInputEnabled = false, editablePlanEnabled = false }: RailShellProps): React.ReactElement {
+export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLatestRitualId, referenceInputEnabled = false, editablePlanEnabled = false, structuredTriageEnabled = false }: RailShellProps): React.ReactElement {
   const cfg = RAIL_SHELL_CONFIG;
   return (
     <aside
@@ -64,6 +67,7 @@ export function RailShell({ projectId, multiTurnFlagEnabled = false, initialLate
           multiTurnFlagEnabled={multiTurnFlagEnabled}
           refineAction={refineRitual}
           referenceInputEnabled={referenceInputEnabled}
+          structuredTriageEnabled={structuredTriageEnabled}
           {...(initialLatestRitualId !== undefined ? { initialLatestRitualId } : {})}
         />
       </div>

@@ -48,7 +48,13 @@ export type FeatureFlag =
   | "sandbox-prewarm"
   // Plan Architect Schema Refinement — schema-architect role gate.
   | "schema-architect"
-  | "schema-architect-3pass";
+  | "schema-architect-3pass"
+  // Plan U — structured triage clarifications. Replaces the flat bullet-list
+  // rendering of architect.triage.needs_input events with an inline form that
+  // infers a widget kind per question (yes-no / single-select / free text)
+  // and posts the formatted answers back through the normal action/refineAction
+  // chain. Engine + architect prompts unchanged in this slice.
+  | "structured-triage";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -148,7 +154,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan Architect Schema Refinement — gating the schema-architect role.
   "schema-architect": "ATLAS_FF_SCHEMA_ARCHITECT",
   // Plan Architect Schema Refinement — gating the 3-pass schema-architect flow.
-  "schema-architect-3pass": "ATLAS_FF_SCHEMA_ARCHITECT_3PASS"
+  "schema-architect-3pass": "ATLAS_FF_SCHEMA_ARCHITECT_3PASS",
+  // Plan U — structured triage form (ChatPanel widget; no engine change).
+  "structured-triage": "ATLAS_FF_STRUCTURED_TRIAGE"
 };
 
 export interface FeatureFlagSource {
@@ -258,6 +266,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "build-gate": isFeatureEnabled("build-gate", source),
     "sandbox-prewarm": isFeatureEnabled("sandbox-prewarm", source),
     "schema-architect": isFeatureEnabled("schema-architect", source),
-    "schema-architect-3pass": isFeatureEnabled("schema-architect-3pass", source)
+    "schema-architect-3pass": isFeatureEnabled("schema-architect-3pass", source),
+    "structured-triage": isFeatureEnabled("structured-triage", source)
   };
 }
