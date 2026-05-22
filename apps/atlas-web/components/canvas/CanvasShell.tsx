@@ -41,7 +41,7 @@ export function CanvasShell({
   persona,
   registry,
   rendererProps,
-  children
+  children: _children
 }: CanvasShellProps) {
   const reg = registry ?? canvasModeRegistry;
 
