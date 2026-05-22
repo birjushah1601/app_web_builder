@@ -444,7 +444,7 @@ function SandboxApplyStatus({ result }: { result: NonNullable<StartRitualResult[
   if (result.ok && result.failed === 0 && result.skipped === 0) {
     return (
       <div data-testid="sandbox-apply-status" className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
-        ✓ Wrote {result.written} file{result.written === 1 ? "" : "s"} to live preview — refresh the iframe if it doesn't update automatically.
+        ✓ Wrote {result.written} file{result.written === 1 ? "" : "s"} to live preview — refresh the iframe if it doesn&apos;t update automatically.
       </div>
     );
   }
