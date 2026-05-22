@@ -44,6 +44,7 @@ describe("E2BLifecycle", () => {
     expect(MockSandbox.create).toHaveBeenCalledWith("atlas-next-ts", {
       apiKey: "test-api-key",
       metadata: { projectId: PROJECT_ID, digest: "sha256abc" },
+      timeoutMs: 3600000,
     });
   });
 

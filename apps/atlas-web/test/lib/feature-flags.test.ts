@@ -69,20 +69,44 @@ describe("listFlagStates", () => {
       ATLAS_FF_STRIPE_PAYMENTS: "1",
       ATLAS_FF_AUTH_KEYCLOAK: "true"
     });
+    // Keep alphabetized to make drift obvious — adding a new flag should add
+    // one line here. The set was last regenerated 2026-05-23 against the
+    // current FeatureFlag union in lib/feature-flags.ts.
     expect(listFlagStates(env)).toEqual({
       "a11y-role": false,
+      "asset-gen": false,
       "auth-keycloak": true,
       "auto-fix-loop": false,
+      "build-gate": false,
+      "canvas-v1": false,
+      "click-to-edit": false,
       "demo-mode": false,
+      "designer": false,
+      "designer-critique": false,
+      "editable-plan": false,
       "editor-layout-v2": false,
+      "element-sliders": false,
       "figma-importer": false,
+      "hero-ai-image": false,
+      "hero-unsplash": false,
+      "inline-edit-v1": false,
       "live-events": false,
+      "mode-toolbar": false,
+      "multi-stack": false,
       "multi-turn": false,
+      "prompt-morph": false,
+      "reference-images": false,
+      "reference-input": false,
+      "researcher": false,
       "ritual-hydration": false,
       "run-grafana": false,
+      "sandbox-prewarm": false,
+      "schema-architect": false,
+      "schema-architect-3pass": false,
       "security-role": false,
       "stripe-payments": true,
-      "video-kling": false
+      "video-kling": false,
+      "visual-quality-gate": false
     });
   });
 });

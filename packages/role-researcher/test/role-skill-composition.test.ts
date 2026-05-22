@@ -109,6 +109,38 @@ describe("ResearcherRole — per-artifactKind skill composition", () => {
   });
 
   it("falls back to generic assemble-brief when artifactKind has no per-kind skill on disk", async () => {
+    const llm = fakeLLM(validBriefReply("unknown-kind-thing"));
+    const role = new ResearcherRole({
+      llm: llm as never,
+      catalogDir: CATALOG_DIR,
+      skillsDir: SKILLS_DIR
+    });
+    const out = await role.run({
+      ritualId: "r1",
+      intent: "researcher",
+      userTurn: "x",
+      graphSlice: { bytes: "{}", hash: "h" },
+      priorArtifact: {
+        designIntent: {
+          category: "unknown-kind-thing",
+          audienceCues: [],
+          // Use a synthetic artifactKind with no per-kind assemble-brief-*.md
+          // skill on disk. As of 2026-05-23, all 6 known kinds (frontend-app,
+          // backend-rest-api, backend-graphql, data-pipeline, mobile-app,
+          // cli-tool) DO have per-kind skills, so the fallback only fires for
+          // truly novel kinds.
+          artifactKind: "synthetic-test-only-no-skill-on-disk"
+        }
+      }
+    });
+
+    const composed = out.events.find((e) => e.eventType === "researcher.skills.composed");
+    expect(composed).toBeDefined();
+    const skills = (composed?.payload as { skills: string[] } | undefined)?.skills ?? [];
+    expect(skills).toEqual(["assemble-brief"]);
+  });
+
+  it("composes per-kind + generic skills when artifactKind has a per-kind skill on disk", async () => {
     const llm = fakeLLM(validBriefReply("data-pipeline-thing"));
     const role = new ResearcherRole({
       llm: llm as never,
@@ -124,7 +156,6 @@ describe("ResearcherRole — per-artifactKind skill composition", () => {
         designIntent: {
           category: "data-pipeline-thing",
           audienceCues: [],
-          // no per-kind skill file exists for this kind in v1
           artifactKind: "data-pipeline"
         }
       }
@@ -133,6 +164,8 @@ describe("ResearcherRole — per-artifactKind skill composition", () => {
     const composed = out.events.find((e) => e.eventType === "researcher.skills.composed");
     expect(composed).toBeDefined();
     const skills = (composed?.payload as { skills: string[] } | undefined)?.skills ?? [];
-    expect(skills).toEqual(["assemble-brief"]);
+    // Per-kind skill is preferred (listed first); generic fallback retained
+    // so the LLM has both contexts to work from.
+    expect(skills).toEqual(["assemble-brief-data-pipeline", "assemble-brief"]);
   });
 });
