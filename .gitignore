@@ -109,3 +109,11 @@ temp/
 
 # --- Git worktrees ---
 .worktrees/
+.gstack/
+
+# --- User-local junk ---
+# Windows shortcuts dropped into the tree
+*.lnk
+# Ad-hoc screenshots committed by accident
+tools/screenshot.png
+tools/Untitled*.png
