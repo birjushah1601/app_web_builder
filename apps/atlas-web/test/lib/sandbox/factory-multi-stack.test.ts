@@ -44,8 +44,8 @@ describe("sandbox factory + template-router integration", () => {
     const stubLlm = {
       complete: async () => ({ content: "" }),
       completeWithToolUse: async () => ({ toolName: "x", input: {} })
-    } as unknown as Parameters<typeof DeveloperRole>[0]["anthropic"];
-    const stubSkills = { get: () => undefined } as unknown as Parameters<typeof DeveloperRole>[0]["skills"];
+    } as unknown as ConstructorParameters<typeof DeveloperRole>[0]["anthropic"];
+    const stubSkills = { get: () => undefined } as unknown as ConstructorParameters<typeof DeveloperRole>[0]["skills"];
     const role = new DeveloperRole({
       anthropic: stubLlm,
       google: stubLlm,
