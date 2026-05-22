@@ -13,6 +13,6 @@ ready_cmd = "curl -fsS http://localhost:3001/health > /dev/null"
 start_cmd = "cd /code && PORT=3001 bun run src/index.ts"
 dockerfile = "Dockerfile"
 template_name = "atlas-hono-bun"
+template_id = "0q923py6g00ak767tix6"
 # Listening port comes from Dockerfile's EXPOSE 3001 (no top-level `port` key
 # in e2b.toml — E2B CLI infers the published port from EXPOSE).
-# template_id added by operator after first build via scripts/build-template.sh
