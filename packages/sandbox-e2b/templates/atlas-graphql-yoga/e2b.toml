@@ -12,6 +12,6 @@ ready_cmd = "curl -fsS http://localhost:3001/health > /dev/null"
 start_cmd = "cd /code && PORT=3001 bun run src/server.ts"
 dockerfile = "Dockerfile"
 template_name = "atlas-graphql-yoga"
+template_id = "gqdxzgm79y0rc2cxdopl"
 # Listening port comes from Dockerfile's EXPOSE 3001 (no top-level `port` key
 # in e2b.toml — E2B CLI infers the published port from EXPOSE).
-# template_id added by operator after first build via scripts/build-template.sh
