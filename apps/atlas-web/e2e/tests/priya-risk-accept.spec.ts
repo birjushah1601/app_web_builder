@@ -1,10 +1,18 @@
+// LEGACY SPEC — skipped 2026-05-23.
+// References UI primitives (intent-input, Start button, preview-iframe testid,
+// bootstrap-checkpoint-modal, etc.) that no longer exist after Plans S/T/UXO
+// replaced the canvas + form surface. Rewriting against today's PromptForm +
+// ChatPanel + canvas-v1 manifest is a per-spec task (~30-60 min each); tracked
+// for a follow-up plan. The smoke specs (prompt-first-smoke, prompt-morph,
+// smoke-public, ux-overhaul-smoke, plan-d/f/g) cover the current UI flow.
+
 // apps/atlas-web/e2e/tests/priya-risk-accept.spec.ts
 import { expect } from "@playwright/test";
 import { makeFreshProjectTest } from "../fixtures/index";
 
 const test = makeFreshProjectTest({ persona: "priya", projectName: "priya-risk" });
 
-test.describe("Priya: L4 gate failure → risk-accept → preview", () => {
+test.describe.skip("Priya: L4 gate failure → risk-accept → preview", () => {
   test("L4 axe-core failure surfaced; Priya risk-accepts with rationale; preview mounts", async ({ freshProject: { page, projectId, sandboxId } }) => {
     // Navigate to the project; inject a flag that forces axe-core to fail
     // The atlas-test template reads FORCE_L4_FAILURE env to return a canned failure

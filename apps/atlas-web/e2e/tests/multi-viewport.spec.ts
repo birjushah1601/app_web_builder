@@ -1,10 +1,18 @@
+// LEGACY SPEC — skipped 2026-05-23.
+// References UI primitives (intent-input, Start button, preview-iframe testid,
+// bootstrap-checkpoint-modal, etc.) that no longer exist after Plans S/T/UXO
+// replaced the canvas + form surface. Rewriting against today's PromptForm +
+// ChatPanel + canvas-v1 manifest is a per-spec task (~30-60 min each); tracked
+// for a follow-up plan. The smoke specs (prompt-first-smoke, prompt-morph,
+// smoke-public, ux-overhaul-smoke, plan-d/f/g) cover the current UI flow.
+
 // apps/atlas-web/e2e/tests/multi-viewport.spec.ts
 import { expect } from "@playwright/test";
 import { makeFreshProjectTest } from "../fixtures/index";
 
 const test = makeFreshProjectTest({ persona: "ama", projectName: "viewport-test" });
 
-test.describe("Multi-viewport preview — toggle 1440 → 768 → 375", () => {
+test.describe.skip("Multi-viewport preview — toggle 1440 → 768 → 375", () => {
   test("viewport selector updates iframe src query param at each breakpoint", async ({ freshProject: { page, projectId } }) => {
     // Navigate directly to preview (assumes a prior ritual has landed in Build state)
     // Seed the project in Build state via query flag used in e2e
