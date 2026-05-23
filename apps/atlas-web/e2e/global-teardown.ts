@@ -2,13 +2,15 @@
 import { execSync } from "node:child_process";
 
 export default async function globalTeardown() {
-  // Kill any atlas-test sandboxes older than 30 min (guards against CI crash)
+  // Kill any atlas-test sandboxes older than 30 min (guards against CI crash).
+  // Use `npx @e2b/cli` instead of a bare `e2b` binary — the CLI isn't always
+  // installed globally (`'e2b' is not recognized` noise on Windows local runs).
   try {
-    execSync("e2b sandbox kill --all --template atlas-test --older-than 30m", {
-      stdio: "inherit",
-      timeout: 30_000,
-    });
+    execSync(
+      "npx --yes @e2b/cli sandbox kill --all --template atlas-test --older-than 30m",
+      { stdio: "inherit", timeout: 60_000 }
+    );
   } catch {
-    // Non-fatal: e2b CLI may not be available in all CI environments
+    // Non-fatal: orphans get garbage-collected by E2B after their TTL anyway.
   }
 }
