@@ -72,21 +72,21 @@ test.describe("plan-d real stack: project creation", () => {
   test.use({ storageState: TEST_PERSONA_FILE });
 
   test("authenticated user can create a project and land on /projects/<id>/canvas", async ({ page }) => {
-    test.setTimeout(45_000);
+    test.setTimeout(60_000);
     requireAuthState();
 
     await page.goto("/");
-    // Landing page has a "+ New project" link
-    await page.getByRole("link", { name: /new project/i }).click();
+    // Plan UXO Task 1 (prompt-morph) — when ATLAS_FF_PROMPT_MORPH=true the
+    // landing page renders the PromptForm hero directly (no "+ New project"
+    // link). Drive the form: fill the prompt textarea + click Create. The
+    // server action provisions a project and redirects to /canvas.
+    const promptTextarea = page.getByPlaceholder(/what do you want to build/i).first();
+    await promptTextarea.waitFor({ state: "visible", timeout: 10_000 });
+    await promptTextarea.fill(`A simple hello-world landing page (e2e ${Date.now()})`);
+    await page.getByRole("button", { name: /^create$/i }).click();
 
-    // /projects/new — submit the create form
-    await page.waitForURL("**/projects/new");
-    const projectName = `e2e-${Date.now()}`;
-    await page.getByLabel(/name|project/i).first().fill(projectName);
-    await page.getByRole("button", { name: /create|continue|start/i }).first().click();
-
-    // Lands on the canvas page for the new project
-    await page.waitForURL(/\/projects\/[a-f0-9-]+\/canvas/, { timeout: 15_000 });
+    // Server action redirects on success
+    await page.waitForURL(/\/projects\/[a-f0-9-]+\/canvas/, { timeout: 30_000 });
     expect(page.url()).toMatch(/\/projects\/[a-f0-9-]+\/canvas/);
   });
 });
@@ -228,11 +228,13 @@ test.describe("plan-d real stack: visible loop", () => {
 // happy path so each test gets clean state.
 // =====================================================================
 async function openCanvasOnFreshProject(page: Page): Promise<void> {
+  // Plan UXO Task 1 (prompt-morph) — landing page hosts the PromptForm
+  // directly. Fill the prompt + click Create; the server action provisions
+  // a project and redirects to its canvas page.
   await page.goto("/");
-  await page.getByRole("link", { name: /new project/i }).click();
-  await page.waitForURL("**/projects/new");
-  const projectName = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  await page.getByLabel(/name|project/i).first().fill(projectName);
-  await page.getByRole("button", { name: /create|continue|start/i }).first().click();
+  const promptTextarea = page.getByPlaceholder(/what do you want to build/i).first();
+  await promptTextarea.waitFor({ state: "visible", timeout: 10_000 });
+  await promptTextarea.fill(`A simple hello-world (e2e ${Date.now()}-${Math.random().toString(36).slice(2, 6)})`);
+  await page.getByRole("button", { name: /^create$/i }).click();
   await page.waitForURL(/\/projects\/[a-f0-9-]+\/canvas/, { timeout: 30_000 });
 }

@@ -153,15 +153,14 @@ test.describe("plan-g rail shell: project switch re-key", () => {
 // Helper: navigate to a fresh project's canvas; returns the projectId.
 // ===================================================================
 async function openCanvasOnFreshProject(page: Page): Promise<string> {
+  // Plan UXO Task 1 (prompt-morph) — landing page hosts the PromptForm
+  // directly. Fill the prompt + click Create; the server action provisions
+  // a project and redirects to its canvas page.
   await page.goto("/");
-  await page.getByRole("link", { name: /new project/i }).click();
-  await page.waitForURL("**/projects/new");
-  const projectName = `e2e-g-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  await page.getByLabel(/name|project/i).first().fill(projectName);
-  await page
-    .getByRole("button", { name: /create|continue|start/i })
-    .first()
-    .click();
+  const promptTextarea = page.getByPlaceholder(/what do you want to build/i).first();
+  await promptTextarea.waitFor({ state: "visible", timeout: 10_000 });
+  await promptTextarea.fill(`g-rail (e2e ${Date.now()}-${Math.random().toString(36).slice(2, 6)})`);
+  await page.getByRole("button", { name: /^create$/i }).click();
   await page.waitForURL(/\/projects\/[a-f0-9-]+\/canvas/, { timeout: 30_000 });
   const url = page.url();
   const match = url.match(/\/projects\/([a-f0-9-]+)\/canvas/);

@@ -123,11 +123,13 @@ test.describe("plan-f real stack: manual reload button", () => {
 // can run independently.
 // =====================================================================
 async function openCanvasOnFreshProject(page: Page): Promise<void> {
+  // Plan UXO Task 1 (prompt-morph) — landing page hosts the PromptForm
+  // directly. Fill the prompt + click Create; the server action provisions
+  // a project and redirects to its canvas page.
   await page.goto("/");
-  await page.getByRole("link", { name: /new project/i }).click();
-  await page.waitForURL("**/projects/new");
-  const projectName = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  await page.getByLabel(/name|project/i).first().fill(projectName);
-  await page.getByRole("button", { name: /create|continue|start/i }).first().click();
+  const promptTextarea = page.getByPlaceholder(/what do you want to build/i).first();
+  await promptTextarea.waitFor({ state: "visible", timeout: 10_000 });
+  await promptTextarea.fill(`A simple hello-world (e2e ${Date.now()}-${Math.random().toString(36).slice(2, 6)})`);
+  await page.getByRole("button", { name: /^create$/i }).click();
   await page.waitForURL(/\/projects\/[a-f0-9-]+\/canvas/, { timeout: 30_000 });
 }

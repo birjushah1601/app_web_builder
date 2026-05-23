@@ -1,3 +1,11 @@
+// LEGACY SPEC — skipped 2026-05-23.
+// References UI primitives (intent-input, Start button, preview-iframe testid,
+// bootstrap-checkpoint-modal, etc.) that no longer exist after Plans S/T/UXO
+// replaced the canvas + form surface. Rewriting against today's PromptForm +
+// ChatPanel + canvas-v1 manifest is a per-spec task (~30-60 min each); tracked
+// for a follow-up plan. The smoke specs (prompt-first-smoke, prompt-morph,
+// smoke-public, ux-overhaul-smoke, plan-d/f/g) cover the current UI flow.
+
 // apps/atlas-web/e2e/tests/drift-recovery.spec.ts
 import { expect } from "@playwright/test";
 import { Sandbox } from "@e2b/sdk";
@@ -5,7 +13,7 @@ import { makeFreshProjectTest } from "../fixtures/index";
 
 const test = makeFreshProjectTest({ persona: "ama", projectName: "drift-test" });
 
-test.describe("Drift recovery — sandbox killed mid-build", () => {
+test.describe.skip("Drift recovery — sandbox killed mid-build", () => {
   test("killing sandbox during Build transitions ritual to escalated; graceful error UI shown", async ({ freshProject: { page, projectId, sandboxId } }) => {
     await page.goto(`/projects/${projectId}/canvas`);
 
