@@ -47,8 +47,10 @@ test.describe("plan-f real stack: preview auto-reload after apply", () => {
     await openCanvasOnFreshProject(page);
 
     // Capture the iframe src BEFORE submitting the prompt.
+    // Sandbox cold-start can take 30-90s on the first provision; 60s wasn't
+    // enough for fresh projects. Bumped to 120s for headroom.
     const iframe = page.locator("iframe[title='Live preview']");
-    await expect(iframe).toBeVisible({ timeout: 60_000 });
+    await expect(iframe).toBeVisible({ timeout: 120_000 });
     const srcBefore = await iframe.getAttribute("src");
     expect(srcBefore).toBeTruthy();
     expect(srcBefore!).not.toContain("atlas-reload=");
@@ -83,7 +85,17 @@ test.describe("plan-f real stack: preview auto-reload after apply", () => {
 // =====================================================================
 // Spec 2: manual "Reload preview" button cache-busts immediately
 // =====================================================================
-test.describe("plan-f real stack: manual reload button", () => {
+// SKIPPED 2026-05-23: the test's assumption (manual reload → adds
+// `atlas-reload=` to iframe.src) is wrong. CanvasPreviewToolbar's
+// always-on Reload button increments a `reloadKey` that re-keys the
+// iframe — fresh React unmount/remount with the SAME src — no
+// `atlas-reload=` query param. The `atlas-reload=` mechanism is
+// SSE-driven (`useReloadOnApplied`) and exercised by the auto-reload
+// spec above. The manual button's effect is observable as iframe
+// re-mount (DOM identity change), not as src mutation. Either update
+// the test to assert the remount, or drop the spec entirely if the
+// auto-reload path is sufficient coverage. Skipped pending design call.
+test.describe.skip("plan-f real stack: manual reload button", () => {
   test.use({ storageState: TEST_PERSONA_FILE });
 
   test("clicking 'Reload preview' mutates iframe.src to a new atlas-reload value", async ({ page }) => {
@@ -97,8 +109,11 @@ test.describe("plan-f real stack: manual reload button", () => {
     const iframe = page.locator("iframe[title='Live preview']");
     await expect(iframe).toBeVisible({ timeout: 120_000 });
 
-    // Click manual reload — works regardless of whether ATLAS_LIVE_EVENTS is on.
-    const button = page.getByTestId("preview-reload-button");
+    // Click the always-on Reload button in CanvasPreviewToolbar. The
+    // `preview-reload-button` testid (inside HmrIframe) only renders when
+    // there's a reload-error toast — `preview-toolbar-reload` is the
+    // user-visible always-on reload. Works regardless of ATLAS_LIVE_EVENTS.
+    const button = page.getByTestId("preview-toolbar-reload");
     await expect(button).toBeVisible();
     await button.click();
 
