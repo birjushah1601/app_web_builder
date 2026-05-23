@@ -15,7 +15,18 @@ if (existsSync(envFile)) {
     if (!m) continue;
     const [, key, rawVal] = m;
     if (process.env[key!] !== undefined) continue;
-    const val = rawVal!.replace(/^["'](.*)["']$/, "$1");
+    let val = rawVal!;
+    // Strip trailing "  # comment" — Next.js's dotenv loader does this for
+    // the dev server, but a naive regex like the previous version captured
+    // the comment as part of the value. That broke checks like
+    // `process.env.ATLAS_LIVE_EVENTS === "true"` because the actual value
+    // was `"true             # Plan E.0..."`. Quoted values escape this:
+    // a `#` inside `"..."` or `'...'` is treated as a literal.
+    if (!/^["']/.test(val.trim())) {
+      const hashIdx = val.indexOf("#");
+      if (hashIdx >= 0) val = val.slice(0, hashIdx);
+    }
+    val = val.trim().replace(/^["'](.*)["']$/, "$1");
     process.env[key!] = val;
   }
 }

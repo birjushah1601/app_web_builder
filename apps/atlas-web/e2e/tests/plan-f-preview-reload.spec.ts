@@ -87,12 +87,15 @@ test.describe("plan-f real stack: manual reload button", () => {
   test.use({ storageState: TEST_PERSONA_FILE });
 
   test("clicking 'Reload preview' mutates iframe.src to a new atlas-reload value", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     requireAuthState();
     await openCanvasOnFreshProject(page);
 
+    // Sandbox cold-start can take 30-90s on first provision for a new project
+    // (canvas page calls getSandboxFactory().getOrProvision server-side).
+    // Bump to 120s — the previous 60s passed reliably only on warm projects.
     const iframe = page.locator("iframe[title='Live preview']");
-    await expect(iframe).toBeVisible({ timeout: 60_000 });
+    await expect(iframe).toBeVisible({ timeout: 120_000 });
 
     // Click manual reload — works regardless of whether ATLAS_LIVE_EVENTS is on.
     const button = page.getByTestId("preview-reload-button");
