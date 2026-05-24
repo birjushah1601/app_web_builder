@@ -43,17 +43,7 @@ function requireLiveEventsFlag() {
 // ===================================================================
 // Spec 1: chat survives navigation between /canvas, /code, /events
 // ===================================================================
-// SKIPPED 2026-05-23: textarea value isn't preserved across in-app nav
-// even with client-side Link clicks (verified at round 9 — textarea
-// resets to empty when navigating /canvas → /code). The cause is in
-// the product, not the test: somewhere in the layout subtree, the
-// rail is being remounted on route change. Could be the EventSourceProvider
-// re-keying on a changing prop, the layout's server-side hydration
-// of `latestRitual`, or the per-route `_components` boundary. Needs
-// product-level investigation before this spec can pass.
-// Spec 2 (project switch re-key) still verifies the "fresh state per
-// project" contract, which is the more user-visible part of plan-g.
-test.describe.skip("plan-g rail shell: persistent chat", () => {
+test.describe("plan-g rail shell: persistent chat", () => {
   test.use({ storageState: TEST_PERSONA_FILE });
 
   test("ChatPanel DOM persists + textarea value preserved across /canvas → /code → /run", async ({ page }) => {
