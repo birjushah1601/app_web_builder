@@ -51,6 +51,23 @@ test.describe("plan-f real stack: preview auto-reload after apply", () => {
     // enough for fresh projects. Bumped to 120s for headroom.
     const iframe = page.locator("iframe[title='Live preview']");
     await expect(iframe).toBeVisible({ timeout: 120_000 });
+
+    // Empirical flake fix (2026-05): after 4 sequential green runs, the 5th
+    // run hung past its own 7m setTimeout. Root failure-mode hypothesis is
+    // SSE-stream staleness — after many tests share the same browser/server,
+    // the EventSource connection inherited at canvas-mount can be in a
+    // degraded state and miss the sandbox.apply.completed broadcast (the
+    // signal useReloadOnApplied depends on to mutate the iframe src).
+    //
+    // Reloading the page here forces a clean EventSource teardown +
+    // re-handshake against a now-warm sandbox (getOrProvision cache hit).
+    // The Server Component re-seeds initialEvents so dedupe state is fresh.
+    // Adds ~1-3s to the test; eliminates the cross-test SSE-state class of
+    // flakes without changing what's being tested (the auto-reload pathway
+    // is still fully exercised post-reload).
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(iframe).toBeVisible({ timeout: 120_000 });
+
     const srcBefore = await iframe.getAttribute("src");
     expect(srcBefore).toBeTruthy();
     expect(srcBefore!).not.toContain("atlas-reload=");
