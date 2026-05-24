@@ -9,6 +9,8 @@ import { getInitialEventsForProject } from "@/lib/events/getInitialEventsForProj
 import { RailShell } from "@/components/shell/RailShell";
 import { RitualStatusStrip } from "@/components/ritual/RitualStatusStrip";
 import { EditorShell } from "@/components/shell/EditorShell";
+import { PersonaToggleClient } from "@/components/PersonaToggleClient";
+import type { PersonaTier } from "@atlas/ritual-engine";
 
 export default async function ProjectLayout({
   children,
@@ -56,7 +58,8 @@ export default async function ProjectLayout({
       <Link href={`/projects/${projectId}/canvas`} className="text-sm hover:underline">Canvas</Link>
       <Link href={`/projects/${projectId}/code`} className="text-sm hover:underline">Code</Link>
       <Link href={`/projects/${projectId}/events`} className="text-sm hover:underline">Events</Link>
-      <span className="ml-auto text-xs text-slate-500">Persona: {persona}</span>
+      <span className="ml-auto" />
+      <PersonaToggleClient projectId={projectId} current={persona as PersonaTier} />
     </nav>
   );
 
