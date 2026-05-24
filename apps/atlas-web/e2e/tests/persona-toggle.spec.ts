@@ -1,38 +1,33 @@
-// LEGACY SPEC — skipped 2026-05-23.
-// References UI primitives (intent-input, Start button, preview-iframe testid,
-// bootstrap-checkpoint-modal, etc.) that no longer exist after Plans S/T/UXO
-// replaced the canvas + form surface. Rewriting against today's PromptForm +
-// ChatPanel + canvas-v1 manifest is a per-spec task (~30-60 min each); tracked
-// for a follow-up plan. The smoke specs (prompt-first-smoke, prompt-morph,
-// smoke-public, ux-overhaul-smoke, plan-d/f/g) cover the current UI flow.
-
 // apps/atlas-web/e2e/tests/persona-toggle.spec.ts
-import { expect } from "@playwright/test";
-import { makeFreshProjectTest } from "../fixtures/index";
+//
+// SKIPPED 2026-05-24 — sharper rationale than the previous blanket "legacy UI"
+// comment. Investigated for rewrite against the post-Plans S/T/UXO UI;
+// CONCLUSION: the contract this spec asserts does not exist in the running app.
+//
+// What today's UI provides:
+//   - components/PersonaToggle.tsx exists but is NOT mounted on ANY page.
+//     Verified via `grep -r "PersonaToggle"` → only its own unit test imports it.
+//   - app/projects/[projectId]/layout.tsx reads persona server-side via
+//     PreferencesRepo.getOverride() and renders it as read-only text:
+//       <span ...>Persona: {persona}</span>
+//   - lib/actions/setPersonaOverride.ts exists as a server action but has zero
+//     client-side caller wired into a button/menu/select.
+//
+// Therefore no mid-session UI toggle can be exercised by a Playwright spec —
+// there is no button to click, no menu to open, no testid to query. The spec's
+// previous assertions (persona-toggle-button, persona-toggle-menu, plain card
+// → graph diff re-render) all describe a never-shipped contract.
+//
+// Unskip when: (a) PersonaToggle gets mounted into TopNav or RailShell AND
+// (b) it's wired to setPersonaOverride such that the rendered "Persona: X"
+// text in the topNav reflects the new value without a full page reload.
+import { test } from "@playwright/test";
+import { PERSONA_STORAGE_STATE } from "../fixtures/personas";
 
-const test = makeFreshProjectTest({ persona: "ama", projectName: "toggle-test", withSandbox: false });
+test.use({ storageState: PERSONA_STORAGE_STATE.ama });
 
 test.describe.skip("Persona toggle — Ama → Diego mid-session", () => {
-  test("toggling to Diego in Agree step shows graph diff; ritual state preserved", async ({ freshProject: { page, projectId } }) => {
-    await page.goto(`/projects/${projectId}/canvas`);
-
-    await page.getByTestId("intent-input").fill("add a contact form");
-    await page.getByRole("button", { name: /start/i }).click();
-
-    // Wait for Agree as Ama (plain card)
-    await expect(page.getByTestId("ritual-step-indicator")).toHaveText(/Agree/i, { timeout: 60_000 });
-    await expect(page.getByTestId("agree-artifact-plain-summary")).toBeVisible();
-
-    // Toggle persona to Diego
-    await page.getByTestId("persona-toggle-button").click();
-    const toggleMenu = page.getByTestId("persona-toggle-menu");
-    await toggleMenu.getByRole("menuitem", { name: /diego/i }).click();
-
-    // Agree artifact re-renders to graph diff
-    await expect(page.getByTestId("agree-artifact-graph-diff")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId("agree-artifact-plain-summary")).not.toBeVisible();
-
-    // Ritual step is still Agree — state preserved
-    await expect(page.getByTestId("ritual-step-indicator")).toHaveText(/Agree/i);
+  test("toggling persona mid-session updates topNav display", async () => {
+    // Intentionally empty — see header comment for rationale.
   });
 });
