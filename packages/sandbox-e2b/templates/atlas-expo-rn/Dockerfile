@@ -2,24 +2,34 @@
 # served at port 3000 for the E2B preview iframe. Native iOS/Android simulator
 # preview is NOT supported in v1 — sandbox runs `expo start --web` only.
 #
-# IMPORTANT: pnpm install is INTENTIONALLY DEFERRED to runtime (e2b.toml
+# IMPORTANT: npm install is INTENTIONALLY DEFERRED to runtime (e2b.toml
 # start_cmd) rather than baked into the image. Expo SDK 52's transitive dep
 # tree unpacks to >2 GB of node_modules + Metro caches, which exceeds E2B's
-# template-build rootfs ceiling and fails with ENOSPC during `pnpm install`.
+# template-build rootfs ceiling and fails with ENOSPC during install.
 # Installing at sandbox boot uses the (larger) runtime rootfs and adds
 # ~2-3 min of cold-start latency before `expo start --web` is ready. The
 # tradeoff is acceptable for v1: the alternative (slimming Expo's deps) is
 # fragile because Expo's Metro config pulls many of those packages
 # transitively at start-time anyway.
+#
+# WHY npm INSTEAD OF pnpm: Metro's resolver expects a hoisted
+# node_modules/<pkg> layout for resolving transitive deps (e.g. NativeWind's
+# `react-native-css-interop/jsx-runtime`). pnpm's symlinked .pnpm/<pkg>/...
+# layout fails resolution, and an in-template .npmrc with
+# `node-linker=hoisted` was NOT honored by pnpm inside the E2B container
+# (verified empirically 2026-05-23 — Metro stack still showed .pnpm paths).
+# npm uses hoisted layout by default, so transitive deps Just Work.
 FROM e2bdev/code-interpreter:latest
 
 USER root
 
-# Node 22 LTS + pnpm. Expo Metro needs git on PATH for some plugin paths.
+# Node 22 LTS. Expo Metro needs git on PATH for some plugin paths.
+# npm ships with Node so no extra install is needed for the in-container
+# install step. (We deliberately do NOT install pnpm here — see the
+# "WHY npm INSTEAD OF pnpm" note above.)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && apt-get install -y --no-install-recommends nodejs git \
- && rm -rf /var/lib/apt/lists/* \
- && npm install -g pnpm@9
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /code
 
@@ -38,7 +48,7 @@ COPY global.css ./global.css
 COPY app ./app/
 COPY tests ./tests/
 
-# DO NOT `pnpm install` here — see the ENOSPC note at the top of the file.
+# DO NOT `npm install` here — see the ENOSPC note at the top of the file.
 # We still need /code to be writable by `user` so the runtime install can
 # create node_modules and .expo caches under it.
 RUN chown -R user:user /code
@@ -48,7 +58,7 @@ USER user
 EXPOSE 3000
 
 # Note: e2b.toml's start_cmd is the canonical entrypoint (it runs
-# `pnpm install` first, then `expo start`). This CMD exists only so the
+# `npm install` first, then `expo start`). This CMD exists only so the
 # image is locally smoke-testable via `docker run` AFTER an interactive
-# `pnpm install` inside the container.
-CMD ["pnpm", "expo", "start", "--web", "--port", "3000"]
+# `npm install` inside the container.
+CMD ["npx", "expo", "start", "--web", "--port", "3000"]

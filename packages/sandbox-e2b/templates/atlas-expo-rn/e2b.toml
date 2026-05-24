@@ -9,7 +9,7 @@
 # Then add the printed template_id to this file in a follow-up commit.
 
 memory_mb = 4_096
-# pnpm install runs at sandbox boot (NOT in the Dockerfile) because Expo's
+# npm install runs at sandbox boot (NOT in the Dockerfile) because Expo's
 # >2 GB unpacked dep tree blows past the template-build rootfs and ENOSPCs.
 # Cold-start cost is ~10 min on first start (Metro bundles the full app);
 # ready_cmd polls :3000 so the orchestrator waits the right amount of time.
@@ -22,15 +22,46 @@ memory_mb = 4_096
 # explicit --cmd / --ready-cmd / --memory-mb flags in scripts/build-template.sh.
 # Keep e2b.toml + the script in sync.
 #
-# Do NOT use `--prod=false` in the start_cmd (pnpm 9 doesn't reliably parse
-# the =false form — earlier builds failed with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL
-# Command "expo" not found` because pnpm install exited fast on that flag and
-# the chained `pnpm expo` then had nothing to exec). Bare `pnpm install`
-# installs dev deps by default. Invoke expo via the binstub path
-# (./node_modules/.bin/expo) so start doesn't reroute through pnpm's
-# recursive-exec wrapper.
+# WHY npm INSTEAD OF pnpm: Metro's resolver expects a hoisted
+# node_modules/<pkg> layout for transitive deps (e.g. NativeWind's
+# `react-native-css-interop/jsx-runtime`). pnpm's symlinked .pnpm/<pkg>/...
+# layout fails resolution, and an in-template .npmrc with
+# `node-linker=hoisted` was NOT honored by pnpm inside the E2B container
+# (verified empirically 2026-05-23). npm uses hoisted layout by default.
+# `--legacy-peer-deps` is required because Expo SDK 52's peer-dep graph has
+# minor mismatches that npm 10+ would otherwise reject. Invoke expo via the
+# binstub path (./node_modules/.bin/expo) so start doesn't reroute through
+# any package-manager wrapper.
+#
+# KNOWN FAILURE (2026-05-24, build attempt #3 in session):
+#   `npm install --legacy-peer-deps` succeeds (1028 packages added in ~51s;
+#   hoisted layout confirmed by Require stack showing `/code/node_modules/<pkg>`
+#   paths — no .pnpm/ segments). Expo CLI then crashes during Metro config load:
+#     Error: Cannot find module 'tailwindcss/package.json'
+#     Require stack: /code/node_modules/nativewind/dist/metro/tailwind/index.js
+#                 -> /code/node_modules/nativewind/dist/metro/index.js
+#                 -> /code/metro.config.js
+#   Root cause hypothesis: nativewind 4.x metro plugin does
+#   `require('tailwindcss/package.json')`, but the template's package.json
+#   does NOT declare `tailwindcss` (or `postcss` / `autoprefixer`) as a
+#   direct dep — NativeWind 4 expects the consumer to install tailwind
+#   explicitly per their setup guide. The pnpm builds never reached this
+#   error because Metro's resolver failed earlier on
+#   `react-native-css-interop/jsx-runtime`; switching to npm got us past
+#   that and exposed the next missing dep.
+#
+# NEXT INVESTIGATION STEP (separate session — do NOT rebuild a 4th time
+# in this one):
+#   Add to package.json devDependencies:
+#     "tailwindcss": "^3.4.0"     (NativeWind 4 pins tailwind v3, NOT v4)
+#     "postcss": "^8.4.0"         (likely required by nativewind metro)
+#     "autoprefixer": "^10.4.0"   (likely required by nativewind metro)
+#   Then rebuild. After the next `npm install` inside the container,
+#   inspect node_modules/nativewind/dist/metro/tailwind/index.js to confirm
+#   which exact peer modules its plugin walks. Reference:
+#   https://www.nativewind.dev/v4/getting-started/expo-router
 ready_cmd = "curl -fsS http://localhost:3000 > /dev/null"
-start_cmd = "cd /code && pnpm install --no-frozen-lockfile && exec ./node_modules/.bin/expo start --web --port 3000"
+start_cmd = "cd /code && npm install --no-audit --no-fund --legacy-peer-deps && exec ./node_modules/.bin/expo start --web --port 3000"
 dockerfile = "Dockerfile"
 template_name = "atlas-expo-rn"
 # template_id added by operator after first build via scripts/build-template.sh

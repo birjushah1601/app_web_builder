@@ -19,7 +19,7 @@ echo "Building atlas-expo-rn E2B template (this takes ~10-12 min - Metro bundle 
 # e2b.toml file documents the canonical values; this script is the single
 # source of truth for what actually gets registered server-side.
 npx --yes @e2b/cli template create atlas-expo-rn \
-  --cmd "cd /code && pnpm install --no-frozen-lockfile && exec ./node_modules/.bin/expo start --web --port 3000" \
+  --cmd "cd /code && npm install --no-audit --no-fund --legacy-peer-deps && exec ./node_modules/.bin/expo start --web --port 3000" \
   --ready-cmd "curl -fsS http://localhost:3000 > /dev/null" \
   --memory-mb 4096
 
