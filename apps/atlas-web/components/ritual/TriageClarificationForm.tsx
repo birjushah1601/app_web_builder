@@ -25,6 +25,13 @@ export interface TriageQuestionInput {
   question: string;
   /** Optional human-readable rationale ("…because we don't know the framework"). */
   reason?: string;
+  /** Plan U (full): optional widget kind declared by the architect's
+   *  triage LLM. When set, the form uses this kind directly instead of
+   *  the heuristic inference. When absent, falls back to classifyQuestion. */
+  widgetKind?: "yes-no" | "single-select" | "text";
+  /** Plan U (full): required when widgetKind === "single-select". A
+   *  list of 2-6 short option labels. Ignored for other kinds. */
+  options?: ReadonlyArray<string>;
 }
 
 export interface TriageClarificationFormProps {
@@ -119,6 +126,19 @@ export function formatAnswers(
 }
 
 function resolveQuestion(q: TriageQuestionInput): ResolvedQuestion {
+  // Plan U (full): prefer the architect's declared widget kind when present.
+  // Falls back to the original heuristic inference when the kind is absent
+  // (backward compat with pre-Plan-U-full triage outputs).
+  if (q.widgetKind !== undefined) {
+    return {
+      question: q.question,
+      ...(q.reason !== undefined ? { reason: q.reason } : {}),
+      kind: q.widgetKind,
+      ...(q.widgetKind === "single-select" && q.options !== undefined
+        ? { options: q.options }
+        : {})
+    };
+  }
   const { kind, options } = classifyQuestion(q.question);
   return {
     question: q.question,

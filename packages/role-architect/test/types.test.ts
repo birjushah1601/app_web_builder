@@ -49,3 +49,99 @@ describe("types", () => {
     expect(() => ArchitectOutputSchema.parse(bad)).toThrow();
   });
 });
+
+describe("AmbiguityQuestionSchema — Plan U (full) optional widget hints", () => {
+  it("accepts a question WITHOUT widgetKind/options (backward compat)", () => {
+    const report: AmbiguityReport = {
+      passed: false,
+      scope: "new-app",
+      questions: [
+        { question: "What's the user count?", reason: "scaling decision", severity: "blocker" }
+      ]
+    };
+    expect(AmbiguityReportSchema.parse(report)).toEqual(report);
+  });
+
+  it("accepts widgetKind=yes-no without options", () => {
+    const report: AmbiguityReport = {
+      passed: false,
+      scope: "new-app",
+      questions: [
+        { question: "Include guest checkout?", reason: "auth flow varies", severity: "blocker", widgetKind: "yes-no" }
+      ]
+    };
+    expect(AmbiguityReportSchema.parse(report)).toEqual(report);
+  });
+
+  it("accepts widgetKind=single-select with 2-6 options", () => {
+    const report: AmbiguityReport = {
+      passed: false,
+      scope: "new-app",
+      questions: [
+        {
+          question: "Which payment provider?",
+          reason: "checkout integration",
+          severity: "blocker",
+          widgetKind: "single-select",
+          options: ["Stripe", "Razorpay", "PayPal"]
+        }
+      ]
+    };
+    expect(AmbiguityReportSchema.parse(report)).toEqual(report);
+  });
+
+  it("accepts widgetKind=text without options", () => {
+    const report: AmbiguityReport = {
+      passed: false,
+      scope: "new-feature",
+      questions: [
+        { question: "Who's the audience?", reason: "design direction", severity: "blocker", widgetKind: "text" }
+      ]
+    };
+    expect(AmbiguityReportSchema.parse(report)).toEqual(report);
+  });
+
+  it("rejects widgetKind=single-select WITHOUT options (validation)", () => {
+    const bad = {
+      passed: false,
+      scope: "new-app",
+      questions: [
+        { question: "Which?", reason: "x", severity: "blocker", widgetKind: "single-select" }
+      ]
+    };
+    expect(() => AmbiguityReportSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects widgetKind=single-select with only 1 option", () => {
+    const bad = {
+      passed: false,
+      scope: "new-app",
+      questions: [
+        { question: "Which?", reason: "x", severity: "blocker", widgetKind: "single-select", options: ["Only one"] }
+      ]
+    };
+    expect(() => AmbiguityReportSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects widgetKind=yes-no WITH options (Yes/No is implicit)", () => {
+    const bad = {
+      passed: false,
+      scope: "new-app",
+      questions: [
+        { question: "?", reason: "x", severity: "blocker", widgetKind: "yes-no", options: ["Yes", "No"] }
+      ]
+    };
+    expect(() => AmbiguityReportSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects an unknown widgetKind value", () => {
+    const bad = {
+      passed: false,
+      scope: "new-app",
+      questions: [
+        { question: "?", reason: "x", severity: "blocker", widgetKind: "slider" }
+      ]
+    };
+    expect(() => AmbiguityReportSchema.parse(bad)).toThrow();
+  });
+});

@@ -22,10 +22,38 @@ export const ScopeSchema = z.enum([
 ]);
 export type Scope = z.infer<typeof ScopeSchema>;
 
+// Plan U (full) — optional widget hints. When the triage LLM declares a
+// widget kind, the atlas-web TriageClarificationForm renders the
+// matching control directly (radio for single-select / yes-no, text
+// input for text). When omitted, the form falls back to the heuristic
+// inference from the original Plan U slice. Backward compatible:
+// pre-Plan-U-full triage outputs (no kind / no options) keep working.
+export const TriageWidgetKindSchema = z.enum(["yes-no", "single-select", "text"]);
+export type TriageWidgetKind = z.infer<typeof TriageWidgetKindSchema>;
+
 export const AmbiguityQuestionSchema = z.object({
   question: z.string().min(1),
   reason: z.string().min(1),
-  severity: z.enum(["blocker", "recommended"])
+  severity: z.enum(["blocker", "recommended"]),
+  // Plan U (full): optional widget kind + options. The LLM SHOULD set
+  // these when it knows the answer shape ahead of time.
+  widgetKind: TriageWidgetKindSchema.optional(),
+  options: z.array(z.string().min(1).max(120)).min(2).max(6).optional()
+}).superRefine((q, ctx) => {
+  if (q.widgetKind === "single-select" && (!q.options || q.options.length < 2)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "single-select widgetKind requires at least 2 options",
+      path: ["options"]
+    });
+  }
+  if (q.widgetKind === "yes-no" && q.options !== undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "yes-no widgetKind must not supply options (Yes/No is implicit)",
+      path: ["options"]
+    });
+  }
 });
 export type AmbiguityQuestion = z.infer<typeof AmbiguityQuestionSchema>;
 
