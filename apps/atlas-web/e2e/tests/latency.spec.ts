@@ -1,10 +1,19 @@
-// LEGACY SPEC — skipped 2026-05-23.
-// References UI primitives (intent-input, Start button, preview-iframe testid,
-// bootstrap-checkpoint-modal, etc.) that no longer exist after Plans S/T/UXO
-// replaced the canvas + form surface. Rewriting against today's PromptForm +
-// ChatPanel + canvas-v1 manifest is a per-spec task (~30-60 min each); tracked
-// for a follow-up plan. The smoke specs (prompt-first-smoke, prompt-morph,
-// smoke-public, ux-overhaul-smoke, plan-d/f/g) cover the current UI flow.
+// LEGACY SPEC — skipped 2026-05-24.
+//
+// Infrastructure-blocked. The test asserts a cosmetic edit's p50
+// latency stays under 200ms over 5 runs — but the "cosmetic edit
+// fast-path" UI it targets (editClass: "cosmetic" intent-input flow
+// that skips the developer dispatch) no longer surfaces in the current
+// UI. Plan UXO replaced the explicit edit-class picker with click-to-
+// edit + inline-edit-v1 surfaces (FloatingToolbar, ImageReplacePopover,
+// ElementInspector sliders) that all hit DIFFERENT latency budgets
+// (typically sub-1s per token, not 200ms p50).
+//
+// Un-skip when: (a) someone defines + measures a latency budget for
+// the inline-edit-v1 surface that's specific enough to test (e.g.,
+// "click→toolbar mount under 100ms p50, save→preview-refresh under
+// 800ms p50"), OR (b) the cosmetic-edit fast-path is re-introduced
+// as a distinct intent-input mode.
 
 // apps/atlas-web/e2e/tests/latency.spec.ts
 import { expect } from "@playwright/test";
