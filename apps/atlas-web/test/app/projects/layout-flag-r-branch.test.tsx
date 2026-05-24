@@ -25,6 +25,12 @@ vi.mock("@/components/shell/EditorShell", () => ({
     <div data-testid="editor-shell">{left}{right}</div>
   )
 }));
+// PersonaToggleClient uses useRouter() from next/navigation which throws
+// outside a real Next.js page mount. Stub it; this spec only verifies
+// the editor-layout-v2 flag-branch tree shape.
+vi.mock("@/components/PersonaToggleClient", () => ({
+  PersonaToggleClient: () => <span data-testid="persona-toggle-host-stub" />
+}));
 
 const flagState = { "editor-layout-v2": false, "live-events": true, "multi-turn": false };
 vi.mock("@/lib/feature-flags", () => ({
