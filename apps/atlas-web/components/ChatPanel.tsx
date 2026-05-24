@@ -337,10 +337,18 @@ function ArchitectOutput({
           // a non-interactive form when the wiring isn't complete.
           <TriageClarificationForm
             questions={blockingQuestions.map((q) => {
-              const p = q.payload as { question?: string; reason?: string };
+              const p = q.payload as {
+                question?: string;
+                reason?: string;
+                // Plan U (full): optional widget hints from the architect.
+                widgetKind?: "yes-no" | "single-select" | "text";
+                options?: ReadonlyArray<string>;
+              };
               return {
                 question: p.question ?? "",
-                ...(p.reason !== undefined ? { reason: p.reason } : {})
+                ...(p.reason !== undefined ? { reason: p.reason } : {}),
+                ...(p.widgetKind !== undefined ? { widgetKind: p.widgetKind } : {}),
+                ...(p.options !== undefined ? { options: p.options } : {})
               };
             })}
             onSubmit={onClarify}

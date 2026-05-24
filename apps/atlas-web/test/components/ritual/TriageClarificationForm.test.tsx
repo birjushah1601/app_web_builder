@@ -201,3 +201,65 @@ describe("<TriageClarificationForm>", () => {
     );
   });
 });
+
+describe("<TriageClarificationForm> — Plan U (full) declared widgetKind", () => {
+  it("uses declared widgetKind=yes-no even when text looks like a single-select", () => {
+    // Question text contains " or " which heuristic would classify as
+    // single-select. Declared widgetKind overrides it.
+    render(
+      <TriageClarificationForm
+        questions={[
+          { question: "Are Stripe or Razorpay both acceptable?", widgetKind: "yes-no" }
+        ]}
+        onSubmit={() => {}}
+      />
+    );
+    expect(screen.getByTestId("triage-q-0-yes")).toBeInTheDocument();
+    expect(screen.getByTestId("triage-q-0-no")).toBeInTheDocument();
+    expect(screen.queryByTestId("triage-q-0-opt-0")).not.toBeInTheDocument();
+  });
+
+  it("uses declared widgetKind=single-select with architect-supplied options (even when text doesn't contain ' or ')", () => {
+    render(
+      <TriageClarificationForm
+        questions={[
+          {
+            question: "Pick a payment provider",
+            widgetKind: "single-select",
+            options: ["Stripe", "Razorpay", "PayPal"]
+          }
+        ]}
+        onSubmit={() => {}}
+      />
+    );
+    expect(screen.getByLabelText("Stripe")).toBeInTheDocument();
+    expect(screen.getByLabelText("Razorpay")).toBeInTheDocument();
+    expect(screen.getByLabelText("PayPal")).toBeInTheDocument();
+  });
+
+  it("uses declared widgetKind=text even when text matches a yes-no pattern", () => {
+    // Heuristic would pick yes-no from "Should we" prefix. Declared text wins.
+    render(
+      <TriageClarificationForm
+        questions={[
+          { question: "Should we use a specific font for the heading?", widgetKind: "text" }
+        ]}
+        onSubmit={() => {}}
+      />
+    );
+    expect(screen.getByTestId("triage-q-0-text")).toBeInTheDocument();
+    expect(screen.queryByTestId("triage-q-0-yes")).not.toBeInTheDocument();
+  });
+
+  it("falls back to heuristic inference when widgetKind is omitted (backward compat)", () => {
+    render(
+      <TriageClarificationForm
+        questions={[{ question: "Mobile or Web?" }]}
+        onSubmit={() => {}}
+      />
+    );
+    // Heuristic detects 'X or Y?' → single-select with 2 options.
+    expect(screen.getByLabelText("Mobile")).toBeInTheDocument();
+    expect(screen.getByLabelText("Web")).toBeInTheDocument();
+  });
+});

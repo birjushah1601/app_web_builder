@@ -90,7 +90,18 @@ export class ArchitectRole implements Role {
 
     if (!report.passed) {
       for (const q of report.questions.filter((x) => x.severity === "blocker")) {
-        events.push({ eventType: "architect.triage.needs_input", payload: { question: q.question, reason: q.reason } });
+        events.push({
+          eventType: "architect.triage.needs_input",
+          payload: {
+            question: q.question,
+            reason: q.reason,
+            // Plan U (full): forward optional widget hints so the form
+            // can render the right control instead of falling back to
+            // the heuristic inference from the original Plan U slice.
+            ...(q.widgetKind !== undefined ? { widgetKind: q.widgetKind } : {}),
+            ...(q.options !== undefined ? { options: q.options } : {})
+          }
+        });
       }
       return { events, diff: { kind: "none" } };
     }

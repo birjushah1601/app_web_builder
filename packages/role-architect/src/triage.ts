@@ -36,6 +36,24 @@ severity="recommended" — the user can refine later.
 This gate is meant to catch genuine architectural ambiguity, not interrogate the user
 on a hello-world page. Default to forward motion.
 
+## Widget kind (Plan U — optional, declare when known)
+
+For every blocker question you emit, ALSO declare a widgetKind so the UI can
+render the right control:
+  - "yes-no" — binary answer ("Should we include guest checkout?", "Do you
+    have an existing user table?")
+  - "single-select" — a finite list of named choices. Also emit \`options\`
+    as an array of 2-6 short labels (each ≤ 120 chars). Examples: which
+    payment provider (Stripe/Razorpay/PayPal), which auth (Clerk/Auth0/
+    built-in), which DB (Postgres/MySQL/SQLite).
+  - "text" — open-ended free-form answer needed (audience cues, naming
+    decisions, custom domain values). Default when neither yes-no nor
+    single-select fits.
+
+Set widgetKind ONLY when you're confident the answer shape fits. When in
+doubt, omit it — the UI falls back to a heuristic that infers from the
+question text. Don't supply \`options\` for yes-no or text kinds.
+
 Call the emit_ambiguity_report tool exactly once with your findings.`;
 
 const AMBIGUITY_TOOL_SCHEMA = {
@@ -56,7 +74,20 @@ const AMBIGUITY_TOOL_SCHEMA = {
         properties: {
           question: { type: "string" },
           reason: { type: "string" },
-          severity: { type: "string", enum: ["blocker", "recommended"] }
+          severity: { type: "string", enum: ["blocker", "recommended"] },
+          // Plan U (full): optional widget hint + options for the UI form.
+          widgetKind: {
+            type: "string",
+            enum: ["yes-no", "single-select", "text"],
+            description: "Optional. Declare when answer shape is known so the UI renders the right control."
+          },
+          options: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 2,
+            maxItems: 6,
+            description: "Required when widgetKind=single-select (2-6 short labels). Must be omitted for yes-no and text kinds."
+          }
         },
         required: ["question", "reason", "severity"]
       }
