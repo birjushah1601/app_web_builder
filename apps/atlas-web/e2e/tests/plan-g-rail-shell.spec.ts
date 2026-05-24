@@ -68,9 +68,11 @@ test.describe("plan-g rail shell: persistent chat", () => {
     // Navigate to /code via the in-page Link (client-side nav). `page.goto`
     // is a full page navigation which always resets React state — but the
     // intent here is to verify the rail survives an in-app route change.
-    // The topNav exposes Canvas/Code/Run links wired with next/link.
+    // The topNav exposes Canvas/Code/Events links wired with next/link.
+    // Bumped toHaveURL to 60s — first /code visit in dev mode triggers
+    // route compilation which can take 15-45s on cold cache.
     await page.getByRole("link", { name: /^code$/i }).click();
-    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/code`));
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/code`), { timeout: 60_000 });
     await expect(page.getByTestId("rail-shell")).toBeVisible();
     await expect(page.getByPlaceholder(/Describe your change/i)).toHaveValue(
       "draft message that must survive nav"
@@ -79,8 +81,9 @@ test.describe("plan-g rail shell: persistent chat", () => {
     // Navigate to /events via the in-page Link (client-side nav). The
     // topNav links are Canvas / Code / Events (no Run link); /run exists
     // as a route but isn't part of the persistent-nav contract.
+    // Same 60s timeout for cold-compile of /events.
     await page.getByRole("link", { name: /^events$/i }).click();
-    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/events`));
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/events`), { timeout: 60_000 });
     await expect(page.getByTestId("rail-shell")).toBeVisible();
     await expect(page.getByPlaceholder(/Describe your change/i)).toHaveValue(
       "draft message that must survive nav"
@@ -91,7 +94,7 @@ test.describe("plan-g rail shell: persistent chat", () => {
     // be visible. We assert this by counting matches: there must be exactly
     // ONE textarea matching the placeholder.
     await page.getByRole("link", { name: /^canvas$/i }).click();
-    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/canvas`));
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/canvas`), { timeout: 60_000 });
     await expect(page.getByPlaceholder(/Describe your change/i)).toHaveCount(1);
   });
 });
