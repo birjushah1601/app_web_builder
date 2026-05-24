@@ -177,9 +177,20 @@ Feature flag default OFF — existing Clerk integration is untouched. Sovereign 
 
 **Why still deferred (2026-05-21):** Held pending D14 verification. The 2026-05-21 partial-fix for D14 may not cover the original captured symptom; flipping the gate before confirming clean would cause the auto-fix loop to retry false-positive failures and eat the latency budget.
 
+**2026-05-24 flip-attempt verdict:** Tried again and reverted within the same session. Findings:
+
+  - Flag-OFF (round 10 baseline): plan-d 6/6 tests pass in 7.7m total wall time.
+  - Flag-ON (verify2 round): plan-d 3/6 fail (architect plan @ 42.5s, sandbox apply @ 2.7m, visible loop @ 4.4m). Developer chain still passes because it only asserts the diff card, which lands before the gate runs.
+
+  Failure pattern confirms D14's prediction: with the gate active, the auto-fix loop fires. `startRitual` waits for the FULL chain (architect → developer → sandbox-apply → build-gate → maybe-retry) to complete before the result is returned. The architect-plan testid only paints once the action resolves, so the tests see 240s of "nothing visible" while the engine grinds through fix attempts (capped at `MAX_FIX_ATTEMPTS=2`).
+
+  Two follow-ups needed before D15 can land cleanly:
+  1. **Real D14 root cause** — `6cfdb6f`'s fix covers an adjacent variant but the gate is still triggering on real prompts. Need raw-diff capture from `parseDiff()`'s entry point (log it from `apps/atlas-web/lib/sandbox/apply-diff.ts:43`) on a fresh prompt to see what's actually leaking. The synthetic regression test in `apply-diff-multi-file-leak.test.ts` doesn't cover the live failure mode.
+  2. **Test SLA realignment** — the architect/sandbox-apply tests assume the result resolves once architect finishes. With the gate ON, the result resolves only after the whole post-developer chain. Either move the assertion to an SSE event boundary (`architect.pass2.completed`) instead of waiting on the final action return, or bump the architect-plan test timeout to 6+ minutes to cover gate + auto-fix worst case.
+
 **Risk if left:** The build gate's main value doesn't materialize until the flag is on.
 
-**Trigger to revisit:** Immediately after a single clean ritual confirms D14 doesn't recur.
+**Trigger to revisit:** After (1) real D14 root-cause fix lands AND (2) the test SLAs are realigned to handle gate-loop latency.
 
 **Owner-of-revisit:** Same as D14.
 
