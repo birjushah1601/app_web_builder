@@ -45,6 +45,13 @@ export function parseDiff(diff: string): { ops: FileOp[]; error?: string } {
     return { ops: [] };
   }
 
+  // D14 capture hook — gated on ATLAS_DEBUG_CAPTURE_DIFFS=true so it
+  // never runs in production. Writes the RAW diff string (pre-repair,
+  // pre-parse) to a temp file so we can replay the bytes exactly as
+  // the LLM produced them. Use this only when reproducing the
+  // apply-diff-multi-file-leak (D14) failure pattern on a live ritual.
+  captureRawDiffForDebug(diff);
+
   // LLM-generated diffs frequently mis-state the hunk-header line count
   // for /dev/null creates: `@@ -0,0 +1,52 @@` followed by 54 `+` lines.
   // parse-diff respects the declared count and silently truncates the
@@ -254,6 +261,38 @@ export async function applyFileOp(
 function byteLen(s: string): number {
   // Use Buffer for accurate UTF-8 byte length; fallback to char count.
   return typeof Buffer !== "undefined" ? Buffer.byteLength(s, "utf8") : s.length;
+}
+
+/**
+ * Debug-only: dump the raw diff string to a temp file so D14 (multi-file
+ * leak) can be reproduced from real LLM bytes. Gated on
+ * `ATLAS_DEBUG_CAPTURE_DIFFS=true`; a no-op otherwise. Failures are
+ * swallowed — capture must NEVER break the apply pipeline.
+ *
+ * Filename: `<os.tmpdir()>/atlas-diff-captures/<isoTimestamp>-<sha8>.diff`
+ * sha8 is the first 8 hex chars of sha256(diff) so identical diffs
+ * collide on disk (useful for debugging idempotency).
+ */
+function captureRawDiffForDebug(diff: string): void {
+  if (process.env.ATLAS_DEBUG_CAPTURE_DIFFS !== "true") return;
+  try {
+    // Lazy require so bundlers that target the browser don't choke.
+    const fs = require("node:fs") as typeof import("node:fs");
+    const path = require("node:path") as typeof import("node:path");
+    const os = require("node:os") as typeof import("node:os");
+    const crypto = require("node:crypto") as typeof import("node:crypto");
+    const dir = path.join(os.tmpdir(), "atlas-diff-captures");
+    fs.mkdirSync(dir, { recursive: true });
+    const sha = crypto.createHash("sha256").update(diff).digest("hex").slice(0, 8);
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const file = path.join(dir, `${ts}-${sha}.diff`);
+    fs.writeFileSync(file, diff, "utf8");
+    // Stderr marker for grep correlation with server logs (ritualId /
+    // projectId aren't in scope here; correlate by timestamp).
+    process.stderr.write(`[ATLAS_DEBUG_CAPTURE_DIFFS] wrote ${file} (${diff.length} bytes)\n`);
+  } catch {
+    // Capture is best-effort. Swallow.
+  }
 }
 
 export async function applyDiff(
