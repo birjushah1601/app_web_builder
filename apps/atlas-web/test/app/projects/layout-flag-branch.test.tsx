@@ -28,6 +28,18 @@ vi.mock("@/components/shell/RailShell", () => ({
   )
 }));
 
+// Mock the PersonaToggleClient — it calls useRouter() from next/navigation
+// which throws "invariant expected app router to be mounted" outside a
+// proper Next.js page context. This test only cares about layout-tree
+// shape, not the toggle internals (covered by its own component test).
+vi.mock("@/components/PersonaToggleClient", () => ({
+  PersonaToggleClient: ({ projectId, current }: { projectId: string; current: string }) => (
+    <span data-testid="persona-toggle-host-mock" data-project-id={projectId} data-current={current}>
+      persona toggle for {current}
+    </span>
+  )
+}));
+
 // Mock EventSourceProvider similarly.
 vi.mock("@/lib/events/EventSourceProvider", () => ({
   EventSourceProvider: ({

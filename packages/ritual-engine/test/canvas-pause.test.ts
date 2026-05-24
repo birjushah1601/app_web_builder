@@ -154,4 +154,99 @@ describe("CanvasPauseRegistry", () => {
       expect(reg.pendingCount()).toBe(0);
     });
   });
+
+  describe("triage-clarifications kind (Plan U slice 3)", () => {
+    it("waitForTriageClarifications resolves with the user's answers", async () => {
+      const reg = new CanvasPauseRegistry();
+      const promise = reg.waitForTriageClarifications({
+        ritualId: "r-u-1",
+        timeoutMs: 1000,
+        fallbackAnswers: {}
+      });
+      setTimeout(
+        () =>
+          reg.resolveTriageClarifications("r-u-1", {
+            q0: "Stripe",
+            q1: "Yes"
+          }),
+        5
+      );
+      const result = await promise;
+      expect(result.autoResolved).toBe(false);
+      expect(result.answers).toEqual({ q0: "Stripe", q1: "Yes" });
+    });
+
+    it("times out → resolves with fallbackAnswers + autoResolved=true", async () => {
+      vi.useFakeTimers();
+      const reg = new CanvasPauseRegistry();
+      const promise = reg.waitForTriageClarifications({
+        ritualId: "r-u-1",
+        timeoutMs: 100,
+        fallbackAnswers: { q0: "scope-default" }
+      });
+      vi.advanceTimersByTime(150);
+      const result = await promise;
+      expect(result.autoResolved).toBe(true);
+      expect(result.answers).toEqual({ q0: "scope-default" });
+      vi.useRealTimers();
+    });
+
+    it("resolveTriageClarifications with no waiter is a no-op (no throw)", () => {
+      const reg = new CanvasPauseRegistry();
+      expect(() => reg.resolveTriageClarifications("r-1", { q0: "x" })).not.toThrow();
+    });
+
+    it("double-resolve is safe (second resolve is no-op)", async () => {
+      const reg = new CanvasPauseRegistry();
+      const promise = reg.waitForTriageClarifications({
+        ritualId: "r-u-1",
+        timeoutMs: 1000,
+        fallbackAnswers: {}
+      });
+      reg.resolveTriageClarifications("r-u-1", { q0: "first" });
+      reg.resolveTriageClarifications("r-u-1", { q0: "second" });
+      const r = await promise;
+      expect(r.answers).toEqual({ q0: "first" });
+    });
+
+    it("resolveOption does NOT resolve a triage-clarifications waiter (kind isolation)", async () => {
+      const reg = new CanvasPauseRegistry();
+      const promise = reg.waitForTriageClarifications({
+        ritualId: "r-u-1",
+        timeoutMs: 1000,
+        fallbackAnswers: {}
+      });
+      reg.resolveOption("r-u-1", { directionId: "wrong-kind", tokens: {} });
+      expect(reg.pendingCount()).toBe(1);
+      reg.resolveTriageClarifications("r-u-1", { q0: "correct" });
+      const result = await promise;
+      expect(result.answers).toEqual({ q0: "correct" });
+    });
+
+    it("resolveTriageClarifications does NOT resolve a plan-approval waiter (kind isolation)", async () => {
+      const reg = new CanvasPauseRegistry();
+      const promise = reg.waitForPlanApproval({
+        ritualId: "r-u-1",
+        timeoutMs: 1000,
+        plan: [{ id: "s1", text: "x" }]
+      });
+      reg.resolveTriageClarifications("r-u-1", { q0: "x" });
+      expect(reg.pendingCount()).toBe(1);
+      reg.resolvePlanApproval("r-u-1", [{ id: "s1", text: "y" }]);
+      const result = await promise;
+      expect(result.approvedPlan[0]?.text).toBe("y");
+    });
+
+    it("dispose clears a pending triage-clarifications waiter without resolving", () => {
+      const reg = new CanvasPauseRegistry();
+      void reg.waitForTriageClarifications({
+        ritualId: "r-u-1",
+        timeoutMs: 1000,
+        fallbackAnswers: {}
+      });
+      expect(reg.pendingCount()).toBe(1);
+      reg.dispose("r-u-1");
+      expect(reg.pendingCount()).toBe(0);
+    });
+  });
 });

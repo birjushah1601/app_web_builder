@@ -41,6 +41,30 @@ interface WaitForPlanApprovalInput {
   plan: ReadonlyArray<PlanCheckpoint>;
 }
 
+/** Plan U slice 3 — triage clarification pause. The architect's pass-1
+ *  emits blocker questions (with optional widget kinds from Plan U slice
+ *  2); the engine pauses on this kind, the user answers via the form,
+ *  the Server Action calls resolveTriageClarifications, and the engine
+ *  resumes architect WITHOUT re-running pass-1 (it already has the
+ *  classifications from the first triage). */
+export interface TriageClarificationsResolution {
+  /** User's answers keyed by question id, or by index when the architect
+   *  didn't supply ids. The engine threads these into priorArtifact.
+   *  userAnswers so deepPlan can read them deterministically. */
+  answers: Readonly<Record<string, string>>;
+  autoResolved: boolean;
+}
+
+interface WaitForTriageClarificationsInput {
+  ritualId: string;
+  timeoutMs: number;
+  /** Auto-resolve payload — used when the user never clicks within
+   *  timeoutMs. Per Plan U: this leaves answers empty, signalling the
+   *  engine to fall back to scope-default behavior (treat unanswered
+   *  blockers as "use the architect's recommended defaults"). */
+  fallbackAnswers: Readonly<Record<string, string>>;
+}
+
 /** Discriminated union of pending waiter shapes. The `kind` discriminator
  *  lets a single `waiters` map host both pause types without losing
  *  type-safety at resolve/dispose time. */
@@ -53,6 +77,11 @@ type PendingWaiter =
   | {
       kind: "plan-approval";
       resolve: (r: PlanApprovalResolution) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  | {
+      kind: "triage-clarifications";
+      resolve: (r: TriageClarificationsResolution) => void;
       timer: ReturnType<typeof setTimeout>;
     };
 
@@ -124,6 +153,38 @@ export class CanvasPauseRegistry {
     clearTimeout(w.timer);
     this.waiters.delete(ritualId);
     w.resolve({ approvedPlan, autoApproved: false });
+  }
+
+  /** Plan U slice 3 — await the user's answers to the architect's
+   *  triage blocker questions. Mirrors waitForOption's lifecycle:
+   *  auto-resolves with empty answers on timeout (engine treats this
+   *  as "user disengaged; fall back to scope defaults"). */
+  waitForTriageClarifications(input: WaitForTriageClarificationsInput): Promise<TriageClarificationsResolution> {
+    return new Promise<TriageClarificationsResolution>((resolve) => {
+      const timer = setTimeout(() => {
+        const existing = this.waiters.get(input.ritualId);
+        if (existing && existing.kind === "triage-clarifications") {
+          this.waiters.delete(input.ritualId);
+          resolve({
+            answers: input.fallbackAnswers,
+            autoResolved: true
+          });
+        }
+      }, input.timeoutMs);
+      this.waiters.set(input.ritualId, { kind: "triage-clarifications", resolve, timer });
+    });
+  }
+
+  /** Plan U slice 3 — resolve a triage-clarifications waiter with the
+   *  user's answers. Same idempotency rules as resolveOption (second
+   *  call for the same ritualId no-ops, and a no-op when the pending
+   *  waiter is for a different kind). */
+  resolveTriageClarifications(ritualId: string, answers: Readonly<Record<string, string>>): void {
+    const w = this.waiters.get(ritualId);
+    if (!w || w.kind !== "triage-clarifications") return;
+    clearTimeout(w.timer);
+    this.waiters.delete(ritualId);
+    w.resolve({ answers, autoResolved: false });
   }
 
   /** Disposes any pending waiter for the ritual regardless of kind. */
