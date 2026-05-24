@@ -1,10 +1,21 @@
-// LEGACY SPEC — skipped 2026-05-23.
-// References UI primitives (intent-input, Start button, preview-iframe testid,
-// bootstrap-checkpoint-modal, etc.) that no longer exist after Plans S/T/UXO
-// replaced the canvas + form surface. Rewriting against today's PromptForm +
-// ChatPanel + canvas-v1 manifest is a per-spec task (~30-60 min each); tracked
-// for a follow-up plan. The smoke specs (prompt-first-smoke, prompt-morph,
-// smoke-public, ux-overhaul-smoke, plan-d/f/g) cover the current UI flow.
+// LEGACY SPEC — skipped 2026-05-24.
+//
+// Request-Changes button was part of the legacy Agree/Approve UI replaced
+// by Plan UXO. Verified 2026-05-24: no matches for "Request Changes",
+// "request-changes", "RequestChanges", or "changes-requested" in
+// apps/atlas-web/components (only legacy e2e specs still reference it).
+//
+// Today's flow is:
+//   - Plan U structured-triage (ATLAS_FF_STRUCTURED_TRIAGE) when the
+//     architect needs clarification — surfaced as `architect-needs-input`.
+//   - refineRitual (ATLAS_FF_MULTI_TURN) for follow-up turns on an
+//     already-applied build — surfaced through ChatPanel's textarea.
+//
+// Un-skip when: a "request changes" button is re-introduced on
+// architect/developer cards (it isn't planned), OR rewrite this spec to
+// cover the equivalent refineRitual multi-turn flow (send a second
+// "Describe your change…" message after the first apply, assert a second
+// architect-plan + developer-output pair lands).
 
 // apps/atlas-web/e2e/tests/diego-changes-requested.spec.ts
 import { expect } from "@playwright/test";

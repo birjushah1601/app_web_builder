@@ -1,10 +1,14 @@
-// LEGACY SPEC — skipped 2026-05-23.
-// References UI primitives (intent-input, Start button, preview-iframe testid,
-// bootstrap-checkpoint-modal, etc.) that no longer exist after Plans S/T/UXO
-// replaced the canvas + form surface. Rewriting against today's PromptForm +
-// ChatPanel + canvas-v1 manifest is a per-spec task (~30-60 min each); tracked
-// for a follow-up plan. The smoke specs (prompt-first-smoke, prompt-morph,
-// smoke-public, ux-overhaul-smoke, plan-d/f/g) cover the current UI flow.
+// LEGACY SPEC — skipped 2026-05-24.
+//
+// Bootstrap Checkpoint modal was removed from the app surface (verified
+// 2026-05-24 — no `BootstrapCheckpoint*` components anywhere in
+// apps/atlas-web/components, no `bootstrap-checkpoint-*` testids in the
+// current UI; only this spec and four other legacy specs still reference
+// the testid).
+//
+// Un-skip when: someone re-implements the per-project HIPAA/compliance
+// gate modal that intercepts a ritual before Visualize when the prompt
+// hits a regulated-domain keyword (healthcare, finance, etc.).
 
 // apps/atlas-web/e2e/tests/ama-bootstrap.spec.ts
 import { expect } from "@playwright/test";
