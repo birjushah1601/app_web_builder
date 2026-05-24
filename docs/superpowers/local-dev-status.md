@@ -1,6 +1,6 @@
 # Atlas local dev — what's wired today
 
-Quick reference for "what does the app actually do when I click Send?" Last updated **2026-05-20** with Plan L0 (build gate) merge + canvas ModeToggle always-visible fix + SSE forwarding additions for triage + build-gate lifecycle events.
+Quick reference for "what does the app actually do when I click Send?" Last updated **2026-05-24** — added Plan U (structured triage clarifications form), republished hono-bun/graphql-yoga/bun-cli E2B templates (3 of T.2.x now live), un-skipped plan-g E2E specs after rail-shell persistence bug self-healed, captured D15 build-gate flip-attempt findings (gate still hits the auto-fix loop on real prompts — D14 needs a deeper fix before flag can flip cleanly), added react-native-css-interop dep + .npmrc hoisted layout to atlas-expo-rn template (operator rebuild pending).
 
 ## End-to-end flow
 
