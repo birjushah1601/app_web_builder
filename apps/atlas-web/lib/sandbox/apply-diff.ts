@@ -275,24 +275,28 @@ function byteLen(s: string): number {
  */
 function captureRawDiffForDebug(diff: string): void {
   if (process.env.ATLAS_DEBUG_CAPTURE_DIFFS !== "true") return;
-  try {
-    // Lazy require so bundlers that target the browser don't choke.
-    const fs = require("node:fs") as typeof import("node:fs");
-    const path = require("node:path") as typeof import("node:path");
-    const os = require("node:os") as typeof import("node:os");
-    const crypto = require("node:crypto") as typeof import("node:crypto");
-    const dir = path.join(os.tmpdir(), "atlas-diff-captures");
-    fs.mkdirSync(dir, { recursive: true });
-    const sha = crypto.createHash("sha256").update(diff).digest("hex").slice(0, 8);
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    const file = path.join(dir, `${ts}-${sha}.diff`);
-    fs.writeFileSync(file, diff, "utf8");
-    // Stderr marker for grep correlation with server logs (ritualId /
-    // projectId aren't in scope here; correlate by timestamp).
-    process.stderr.write(`[ATLAS_DEBUG_CAPTURE_DIFFS] wrote ${file} (${diff.length} bytes)\n`);
-  } catch {
-    // Capture is best-effort. Swallow.
-  }
+  // Best-effort capture — runs in Server Component / Action context only;
+  // never reaches the browser bundler. Wrapped in an async IIFE so we
+  // can use ESM-style dynamic imports (next-lint forbids require()).
+  void (async () => {
+    try {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const os = await import("node:os");
+      const crypto = await import("node:crypto");
+      const dir = path.join(os.tmpdir(), "atlas-diff-captures");
+      fs.mkdirSync(dir, { recursive: true });
+      const sha = crypto.createHash("sha256").update(diff).digest("hex").slice(0, 8);
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const file = path.join(dir, `${ts}-${sha}.diff`);
+      fs.writeFileSync(file, diff, "utf8");
+      // Stderr marker for grep correlation with server logs (ritualId /
+      // projectId aren't in scope here; correlate by timestamp).
+      process.stderr.write(`[ATLAS_DEBUG_CAPTURE_DIFFS] wrote ${file} (${diff.length} bytes)\n`);
+    } catch {
+      // Capture is best-effort. Swallow.
+    }
+  })();
 }
 
 export async function applyDiff(
