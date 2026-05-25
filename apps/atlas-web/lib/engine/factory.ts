@@ -157,7 +157,26 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
         // concurrent tool-use requests. Set ATLAS_DEVELOPER_SEQUENTIAL=true
         // to enable; defaults off (preserves parallel for multi-provider).
         parallelMode: process.env.ATLAS_DEVELOPER_SEQUENTIAL === "true" ? "sequential" : "parallel",
-        targetTemplate: developerTargetTemplate
+        targetTemplate: developerTargetTemplate,
+        // Live streaming: forward each LLM content chunk to the broker as a
+        // `developer.candidate.delta` SSE event so the canvas UI can render
+        // the diff growing in real time. Only fires when the underlying
+        // provider's completeWithToolUseStreaming is wired (OpenAICompat),
+        // so OpenRouter / direct Anthropic paths silently skip and fall back
+        // to the buffered behaviour.
+        onCandidateDelta: (ritualId: string, candidate: "anthropic", chunk: string) => {
+          try {
+            getEventBroker().publish({
+              projectId,
+              ritualId,
+              type: "developer.candidate.delta",
+              payload: { candidate, chunk },
+              ts: Date.now()
+            });
+          } catch (err) {
+            console.error("[atlas-web] developer.candidate.delta publish failed", err);
+          }
+        }
       })
     );
 

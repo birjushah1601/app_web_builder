@@ -29,6 +29,14 @@ export interface DeveloperRoleOptions {
    *  "atlas-fastapi". atlas-web's engine wiring sets this from
    *  resolveTemplateForRitual({ artifactKind }). */
   targetTemplate?: string;
+  /** Live streaming: when wired, the anthropic pass invokes this callback
+   *  for each content chunk the LLM streams. The factory plugs in a closure
+   *  that forwards to the broker as `developer.candidate.delta` SSE events,
+   *  so the canvas UI can render the diff growing in real time. Optional —
+   *  when absent, the developer falls back to the buffered call (today's
+   *  behaviour). Currently fires for the Anthropic candidate only; the
+   *  Google candidate keeps its today-shape. */
+  onCandidateDelta?: (ritualId: string, candidate: "anthropic", chunk: string) => void;
 }
 
 export class DeveloperRole implements Role {
@@ -54,11 +62,15 @@ export class DeveloperRole implements Role {
     // priorArtifact still work — both passes treat null as "no prior context".
     const architectArtifact = inv.priorArtifact ?? null;
 
+    const onCandidateDelta = this.opts.onCandidateDelta;
     const runAnthropic = () => anthropicPass({
       llm: this.opts.anthropic, skills: this.opts.skills,
       userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
       model: this.opts.anthropicModel ?? DEVELOPER_ANTHROPIC_MODEL,
-      targetTemplate: this.opts.targetTemplate
+      targetTemplate: this.opts.targetTemplate,
+      ...(onCandidateDelta !== undefined
+        ? { onTokenDelta: (chunk: string) => onCandidateDelta(inv.ritualId, "anthropic", chunk) }
+        : {})
     }).then((output): { provider: "anthropic"; status: "ok"; output: DeveloperOutput } => ({ provider: "anthropic", status: "ok", output }))
       .catch((err: Error): { provider: "anthropic"; status: "error"; error: Error } => ({ provider: "anthropic", status: "error", error: err }));
 

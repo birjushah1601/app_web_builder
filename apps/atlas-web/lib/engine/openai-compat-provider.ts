@@ -219,6 +219,124 @@ export class OpenAICompatProvider implements LLMProvider {
     }
     return (await res.json()) as OpenAiChatResponse;
   }
+
+  /** Streaming variant of `completeWithToolUse`. POSTs with `stream: true`,
+   *  parses OpenAI-compat SSE chunks, and invokes `onDelta(chunk)` for each
+   *  content fragment as it arrives. Returns the final ToolUseResult after
+   *  the stream completes (parsed via extractJsonFromContent — the proxy
+   *  drops the `tools` array, so the model emits JSON in content rather
+   *  than via tool_calls; this is the same fallback path completeWithToolUse
+   *  takes today).
+   *
+   *  Used by role-developer's anthropic-pass when the engine wires a token
+   *  callback; the callback is forwarded to the broker as
+   *  `developer.candidate.delta` SSE events so the canvas UI can render the
+   *  diff as it grows. */
+  async completeWithToolUseStreaming(
+    messages: LLMMessage[],
+    options: ToolUseOptionsShape,
+    onDelta: (chunk: string) => void
+  ): Promise<ToolUseResultShape> {
+    // We mirror the non-streaming path's schema-injection — the proxy drops
+    // `tools` regardless of stream mode, so injecting the JSON Schema as a
+    // system message is the only way the model knows what shape to emit.
+    if (options.toolChoice.type !== "tool") {
+      throw new Error(
+        "OpenAICompatProvider.completeWithToolUseStreaming: only toolChoice.type='tool' is supported"
+      );
+    }
+    const augmentedMessages = prependSchemaInstruction(messages, options.tools, options.toolChoice.name);
+    const body: Record<string, unknown> = {
+      model: options.model,
+      max_tokens: options.maxTokens,
+      temperature: options.temperature,
+      stop: options.stopSequences,
+      stream: true,
+      messages: augmentedMessages
+    };
+
+    const res = await this.fetchFn(`${this.baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${this.apiKey}`,
+        "content-type": "application/json",
+        accept: "text/event-stream"
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok || !res.body) {
+      const text = res.body ? await res.text().catch(() => "") : "";
+      throw new OpenAICompatHttpError(res.status, text);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let accumulated = "";
+    let finishReason: string | undefined;
+    let usage: OpenAiChatResponse["usage"];
+    let modelEcho: string | undefined;
+    // SSE parser: split on \n, each `data: ` line is a JSON chunk; blank
+    // line ends an event; `data: [DONE]` terminates. Carry incomplete tail
+    // between read() calls via `buffer`.
+    outer: while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trimStart();
+        if (payload === "[DONE]") break outer;
+        if (payload === "") continue;
+        let chunk: {
+          model?: string;
+          choices?: Array<{
+            delta?: { content?: string };
+            finish_reason?: string | null;
+          }>;
+          usage?: OpenAiChatResponse["usage"];
+        };
+        try {
+          chunk = JSON.parse(payload);
+        } catch {
+          // Malformed chunk — skip silently rather than tear down the stream.
+          continue;
+        }
+        if (typeof chunk.model === "string" && modelEcho === undefined) modelEcho = chunk.model;
+        if (chunk.usage) usage = chunk.usage;
+        const choice = chunk.choices?.[0];
+        const delta = choice?.delta?.content;
+        if (typeof delta === "string" && delta.length > 0) {
+          accumulated += delta;
+          try {
+            onDelta(delta);
+          } catch {
+            // A throwing onDelta must not break the stream — log-only.
+          }
+        }
+        if (choice?.finish_reason) finishReason = choice.finish_reason;
+      }
+    }
+
+    const parsed = extractJsonFromContent(accumulated);
+    if (parsed === undefined) {
+      throw new Error(
+        `OpenAICompatProvider.completeWithToolUseStreaming: could not parse JSON from streamed content (length=${accumulated.length})`
+      );
+    }
+    return {
+      toolName: options.toolChoice.name,
+      input: parsed,
+      stopReason: mapStopReason(finishReason),
+      usage: {
+        inputTokens: usage?.prompt_tokens ?? 0,
+        outputTokens: usage?.completion_tokens ?? 0
+      }
+    };
+  }
 }
 
 /**

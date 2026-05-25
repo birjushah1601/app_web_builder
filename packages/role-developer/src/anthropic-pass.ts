@@ -27,6 +27,12 @@ export interface AnthropicPassInput {
   /** Plan T.1 — selects the per-template developer prompt fragment.
    *  Undefined → default template (atlas-next-ts-v2). */
   targetTemplate?: string;
+  /** Live streaming: when provided, the LLM provider's streaming variant
+   *  fires this callback for each content fragment as it arrives. Used by
+   *  the engine to forward deltas to the broker as developer.candidate.delta
+   *  SSE events so the canvas UI can render the diff growing in real time.
+   *  Optional — when absent, falls back to the non-streaming completion. */
+  onTokenDelta?: (chunk: string) => void;
 }
 
 export async function anthropicPass(input: AnthropicPassInput): Promise<DeveloperOutput> {
@@ -38,9 +44,12 @@ export async function anthropicPass(input: AnthropicPassInput): Promise<Develope
     { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },
     { role: "user", content: renderDeveloperUserTurn(input.userTurn, input.architectArtifact) }
   ];
-  const result = await (input.llm as unknown as {
-    completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
-  }).completeWithToolUse(messages, {
+  // When the caller wired an onTokenDelta callback AND the provider exposes
+  // the streaming variant, use it so each content chunk surfaces to the
+  // engine (and thence the broker → SSE → UI). Otherwise fall back to the
+  // existing buffered call. The streaming method on the provider is named
+  // `completeWithToolUseStreaming` and shares the same options shape.
+  const toolUseOptions = {
     model: input.model ?? DEVELOPER_ANTHROPIC_MODEL,
     // 8192 truncated mid-page on real "build a website" requests (page.tsx
     // ran out before the closing `}`, breaking Next.js parse). Sonnet supports
@@ -48,8 +57,19 @@ export async function anthropicPass(input: AnthropicPassInput): Promise<Develope
     // multi-file changes without hitting the limit.
     maxTokens: 32_000,
     tools: [{ name: "emit_developer_output", description: "Emit the diff + summary + tests", input_schema: DEVELOPER_TOOL_SCHEMA }],
-    toolChoice: { type: "tool", name: "emit_developer_output" }
-  });
+    toolChoice: { type: "tool" as const, name: "emit_developer_output" }
+  };
+  const llmAny = input.llm as unknown as {
+    completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+    completeWithToolUseStreaming?: (
+      m: LLMMessage[],
+      o: Record<string, unknown>,
+      cb: (chunk: string) => void
+    ) => Promise<{ toolName: string; input: unknown }>;
+  };
+  const result = input.onTokenDelta && typeof llmAny.completeWithToolUseStreaming === "function"
+    ? await llmAny.completeWithToolUseStreaming(messages, toolUseOptions, input.onTokenDelta)
+    : await llmAny.completeWithToolUse(messages, toolUseOptions);
   // Same defensive pattern as the architect's graphSlice fix in deep-plan.ts:
   // models against tools-stripping proxies sometimes omit the array fields.
   // Default both to [] when missing so DeveloperOutputSchema.parse succeeds.
