@@ -1257,6 +1257,37 @@ importers:
         specifier: 2.1.8
         version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
 
+  packages/workflow-engine:
+    dependencies:
+      '@atlas/conductor':
+        specifier: workspace:*
+        version: link:../conductor
+      '@atlas/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      '@atlas/ritual-engine':
+        specifier: workspace:*
+        version: link:../ritual-engine
+      '@atlas/spec-graph-data':
+        specifier: workspace:*
+        version: link:../spec-graph-data
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(@libsql/client-wasm@0.17.2)(@opentelemetry/api@1.9.0)(@types/pg@8.11.10)(pg@8.13.1)
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
+
 packages:
 
   '@adobe/css-tools@4.4.4':
