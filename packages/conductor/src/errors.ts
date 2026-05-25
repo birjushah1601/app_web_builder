@@ -1,5 +1,16 @@
 import type { RitualId } from "./dispatch-context.js";
 
+export class RitualAbortedError extends Error {
+  readonly ritualId: string;
+  readonly reason: string;
+  constructor(ritualId: string, reason: string) {
+    super(`ritual ${ritualId} aborted: ${reason}`);
+    this.name = "RitualAbortedError";
+    this.ritualId = ritualId;
+    this.reason = reason;
+  }
+}
+
 export class RitualEscalatedError extends Error {
   readonly ritualId: RitualId;
   readonly reason: string;

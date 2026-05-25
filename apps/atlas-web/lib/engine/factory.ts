@@ -368,9 +368,18 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   if (isFeatureEnabled("a11y-role"))           postDeveloperChain.push("accessibility");
   if (isFeatureEnabled("visual-quality-gate")) postDeveloperChain.push("visual-quality");
 
+  // Plan A: lazy ref so the conductor's isAborted callback can delegate to
+  // the engine even though the engine is constructed AFTER the conductor.
+  // The closure captures the variable; by the time any dispatch fires the
+  // engine will have been assigned. No circular reference — just a
+  // forward-declared mutable slot, the same pattern as broker-singleton.ts.
+  let engineRef: RitualEngine | undefined;
+
   const conductor = new Conductor({
     classifier: { classify: async () => ({ roleId: "architect", confidence: 0.9 }) },
     roles,
+    // Plan A: delegate abort checks to the engine instance via lazy ref.
+    isAborted: (id) => engineRef?.isAborted(id) ?? false,
     // Plan E.0: every Conductor checkpoint is now published to the
     // EventBroker (for live UI streaming) AND continues to flow to the
     // existing logging path. SpecEventRepo persistence lives on the
@@ -540,6 +549,10 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       }
     }
   });
+
+  // Plan A: wire the lazy ref so conductor's isAborted callback delegates
+  // to the now-constructed engine instance.
+  engineRef = engine;
 
   registry.set(projectId, engine);
   return engine;

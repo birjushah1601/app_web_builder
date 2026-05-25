@@ -1,4 +1,4 @@
-import { RitualEscalatedError } from "./errors.js";
+import { RitualAbortedError, RitualEscalatedError } from "./errors.js";
 import type { DispatchContext } from "./dispatch-context.js";
 import type { Role, RoleOutput } from "./role.js";
 import { DEFAULT_DISPATCH_RETRY, type DispatchRetryPolicy } from "./retry-policy.js";
@@ -33,6 +33,10 @@ export interface ConductorOptions {
   checkpointSink: CheckpointSink;
   sliceBuilder: SliceBuilder;
   sleep?: (ms: number) => Promise<void>;
+  /** Plan A: optional callback injected by RitualEngine.abort(). When
+   *  truthy, the conductor checks before each role attempt and throws
+   *  RitualAbortedError so the ritual unwinds cleanly without retrying. */
+  isAborted?: (ritualId: string) => boolean;
 }
 
 export interface DispatchResult {
@@ -65,6 +69,7 @@ export class Conductor {
   private readonly sink: CheckpointSink;
   private readonly sliceBuilder: SliceBuilder;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly isAbortedFn?: (ritualId: string) => boolean;
 
   constructor(opts: ConductorOptions) {
     this.classifier = opts.classifier;
@@ -72,6 +77,7 @@ export class Conductor {
     this.sink = opts.checkpointSink;
     this.sliceBuilder = opts.sliceBuilder;
     this.sleep = opts.sleep ?? defaultSleep;
+    this.isAbortedFn = opts.isAborted;
   }
 
   /** Plan SPU — true when the role registry has a role registered under `id`.
@@ -120,6 +126,12 @@ export class Conductor {
 
     let lastError: unknown;
     for (let attempt = 1; attempt <= policy.maxAttempts; attempt++) {
+      // Plan A: check abort flag before each attempt. If the ritual has been
+      // aborted, throw RitualAbortedError immediately so the engine unwinds
+      // cleanly without making another LLM call.
+      if (this.isAbortedFn?.(ctx.ritualId as string)) {
+        throw new RitualAbortedError(ctx.ritualId as string, "ritual aborted");
+      }
       // Emit BEFORE the role.run so the dev log shows which role is in
       // flight while the LLM call is pending. The conductor previously
       // logged nothing between dispatch.classified and role.run's return,

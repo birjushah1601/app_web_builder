@@ -219,6 +219,9 @@ export class RitualEngine {
   private readonly canvasPauseTimeoutMs: number;
   private readonly ritualMode: "fast" | "considered";
   private readonly rituals = new Map<string, RitualRecord>();
+  /** Plan A: ritualIds that have been aborted. Checked by isAborted() which
+   *  is injected into the Conductor so each role-attempt boundary unwinds. */
+  private readonly abortedRituals = new Set<string>();
 
   constructor(opts: RitualEngineOptions) {
     this.conductor = opts.conductor;
@@ -934,6 +937,22 @@ export class RitualEngine {
       }
     }
 
+    // Plan A: if abort() was called during this ritual's in-flight dispatches,
+    // mark the ritual as escalated and return early — no artifact_emitted
+    // transition, since the user explicitly cancelled.
+    if (this.abortedRituals.has(ritualId)) {
+      if (record.state !== "escalated") {
+        record.state = "escalated";
+        await this.emit({
+          type: "ritual.escalation_requested",
+          ritualId,
+          ts: new Date().toISOString(),
+          payload: { reason: "ritual-aborted", requestedBy: "engine.abort" }
+        });
+      }
+      return ritualId;
+    }
+
     // Plan I: if the post-developer chain escalated (gate failure), skip
     // the artifact_emitted transition — the ritual is already terminal
     // (state === "escalated"), and applyTransition would throw
@@ -1050,6 +1069,21 @@ export class RitualEngine {
    *  to prevent unbounded growth in long-running processes. Idempotent. */
   dispose(ritualId: string): void {
     this.rituals.delete(ritualId);
+  }
+
+  /** Plan A: mark a ritual as aborted. The next role-attempt boundary for this
+   *  ritualId will throw RitualAbortedError so the ritual unwinds cleanly.
+   *  Also disposes any pending canvas-pause waiter. Idempotent. */
+  async abort(ritualId: string, _reason: string): Promise<void> {
+    this.abortedRituals.add(ritualId);
+    this.canvasPauseRegistry?.dispose(ritualId);
+  }
+
+  /** Plan A: returns true when abort() has been called for this ritualId.
+   *  Injected into ConductorOptions.isAborted so the conductor can check
+   *  BEFORE each role attempt without coupling conductor ↔ engine. */
+  isAborted(ritualId: string): boolean {
+    return this.abortedRituals.has(ritualId);
   }
 
   private async transition(ritualId: string, tx: RitualTransition): Promise<void> {
