@@ -335,7 +335,7 @@ export class RitualEngine {
     }
     if (input.currentFiles !== undefined) dispatchOptions.currentFiles = input.currentFiles;
 
-    const result = await this.conductor.dispatch(
+    let result = await this.conductor.dispatch(
       {
         ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
         graphVersion: 0,
@@ -344,6 +344,89 @@ export class RitualEngine {
       },
       Object.keys(dispatchOptions).length > 0 ? dispatchOptions : undefined
     );
+
+    // Plan U slice 3b — architect pass-1 emits `architect.triage.needs_input`
+    // events when it identifies blocker ambiguities. Pause the ritual on the
+    // canvas-pause registry's triage-clarifications kind, then re-dispatch
+    // architect with the user's answers appended to userTurn so pass-1 now
+    // passes and pass-2 produces an artifact. Without this branch the ritual
+    // halts at pass-1 with no artifact.
+    const needsInputEvents = result.output.events.filter(
+      (e) => e.eventType === "architect.triage.needs_input"
+    );
+    if (needsInputEvents.length > 0 && this.canvasPauseRegistry) {
+      const pass1Events = result.output.events;
+      const questions = needsInputEvents.map((e, idx) => {
+        const p = e.payload as {
+          question?: string;
+          reason?: string;
+          widgetKind?: "yes-no" | "single-select" | "text";
+          options?: string[];
+        };
+        return {
+          id: `q${idx}`,
+          question: p.question ?? "",
+          ...(p.reason !== undefined ? { reason: p.reason } : {}),
+          ...(p.widgetKind !== undefined ? { widgetKind: p.widgetKind } : {}),
+          ...(p.options !== undefined ? { options: p.options } : {})
+        };
+      });
+
+      await this.emit({
+        type: "ritual.triage.awaiting_clarification",
+        ritualId,
+        ts: new Date().toISOString(),
+        payload: { questions }
+      });
+
+      const resolution = await this.canvasPauseRegistry.waitForTriageClarifications({
+        ritualId,
+        timeoutMs: this.canvasPauseTimeoutMs,
+        fallbackAnswers: {}
+      });
+
+      await this.emit({
+        type: "ritual.triage.clarification_resolved",
+        ritualId,
+        ts: new Date().toISOString(),
+        payload: { answers: { ...resolution.answers }, autoResolved: resolution.autoResolved }
+      });
+
+      // Augment userTurn with the user's answers in a stable "Q → A" block
+      // so the LLM triage call on the second dispatch sees them inline with
+      // the original prompt. The architect role itself doesn't need to know
+      // about clarifications — triage just sees a richer userTurn and now
+      // returns passed=true.
+      const clarBlock = questions
+        .map((q) => {
+          const a = resolution.answers[q.id]?.trim();
+          return `- ${q.question} → ${a && a.length > 0 ? a : "(use sensible defaults)"}`;
+        })
+        .join("\n");
+      const augmentedUserTurn = `${input.userTurn}\n\n--- USER CLARIFICATIONS ---\n${clarBlock}`;
+
+      const result2 = await this.conductor.dispatch(
+        {
+          ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+          graphVersion: 0,
+          userTurn: augmentedUserTurn,
+          projectId: input.projectId
+        },
+        Object.keys(dispatchOptions).length > 0 ? dispatchOptions : undefined
+      );
+
+      // Replace result with the second dispatch's output for the canonical
+      // artifact/event lookup, but merge pass-1 events first so the timeline
+      // carries both passes (the SSE-listening UI relies on this for the
+      // before/after view of the architect's reasoning).
+      result = {
+        ...result2,
+        output: {
+          ...result2.output,
+          events: [...pass1Events, ...result2.output.events]
+        }
+      };
+    }
 
     // Pull the artifact from the role's pass2.completed event (D.2 contract)
     const completed = result.output.events.find((e) => e.eventType.endsWith(".pass2.completed"));

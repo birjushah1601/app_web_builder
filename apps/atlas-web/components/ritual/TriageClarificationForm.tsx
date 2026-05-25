@@ -36,8 +36,17 @@ export interface TriageQuestionInput {
 
 export interface TriageClarificationFormProps {
   questions: ReadonlyArray<TriageQuestionInput>;
-  /** Called with the formatted multi-line summary the user submitted. */
-  onSubmit: (formatted: string) => void | Promise<void>;
+  /** Called with the formatted multi-line summary the user submitted.
+   *  Used by ChatPanel which threads the formatted text as a NEW userTurn
+   *  via the existing action/refineAction pipeline. */
+  onSubmit?: (formatted: string) => void | Promise<void>;
+  /** Plan U slice 3b — called with the per-question answers as a
+   *  Record<string, string> keyed by `q${index}`. Used by the live
+   *  TriageClarificationsLive component which resolves the engine's
+   *  paused ritual via submitClarificationAnswers. When provided, this
+   *  callback fires INSTEAD of `onSubmit` (callers wire one or the
+   *  other, not both). */
+  onSubmitStructured?: (answers: Record<string, string>) => void | Promise<void>;
   /** When true, the submit button shows a busy state. Caller-controlled so the
    *  same flag that disables the textarea also disables this form. */
   pending?: boolean;
@@ -151,6 +160,7 @@ function resolveQuestion(q: TriageQuestionInput): ResolvedQuestion {
 export function TriageClarificationForm({
   questions,
   onSubmit,
+  onSubmitStructured,
   pending = false
 }: TriageClarificationFormProps) {
   const resolved = React.useMemo(() => questions.map(resolveQuestion), [questions]);
@@ -175,8 +185,21 @@ export function TriageClarificationForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (pending) return;
-    const formatted = formatAnswers(resolved, answers);
-    void onSubmit(formatted);
+    if (onSubmitStructured) {
+      // Plan U slice 3b path — pass structured answers keyed by `q${index}`
+      // so the engine's resolveTriageClarifications call can thread them
+      // into the second architect dispatch verbatim.
+      const structured: Record<string, string> = {};
+      for (let i = 0; i < resolved.length; i++) {
+        structured[`q${i}`] = (answers[i] ?? "").trim();
+      }
+      void onSubmitStructured(structured);
+      return;
+    }
+    if (onSubmit) {
+      const formatted = formatAnswers(resolved, answers);
+      void onSubmit(formatted);
+    }
   }
 
   // Every required-ish question (every question, in this v1) must have an

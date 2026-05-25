@@ -91,6 +91,19 @@ export type RitualEventType =
   // without this event the canvas keeps showing the architect-pending
   // spinner because no role.completed/failed terminator arrives.
   | "architect.triage.needs_input"
+  // Plan U slice 3b — engine-level pause lifecycle for triage clarifications.
+  // The engine emits `awaiting_clarification` when it begins awaiting the
+  // user's answers and `clarification_resolved` when the pause resolves
+  // (user submitted answers or the pause timed out). Live SSE consumers
+  // render the clarification form on `awaiting_clarification` and dismiss
+  // it on `clarification_resolved`.
+  | "ritual.triage.awaiting_clarification"
+  | "ritual.triage.clarification_resolved"
+  // Live token streaming from the developer's Anthropic candidate (via the
+  // local Claude Code proxy). Payload: `{candidate: "anthropic", chunk: string}`.
+  // A live-listener client component accumulates chunks and renders the
+  // diff as it grows — the actual sandbox apply still waits for completion.
+  | "developer.candidate.delta"
   // Plan L0 — Build gate. Fired by BuildGateRole; surfaces as its own row
   // on the rail timeline alongside security/a11y/visual-quality.
   | "build-gate.started"

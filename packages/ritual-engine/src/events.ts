@@ -255,6 +255,36 @@ const DesignerReviseCompletedSchema = z.object({
   payload: z.unknown()
 });
 
+// Plan U slice 3b — triage clarification pause lifecycle. Emitted by the
+// engine when architect pass-1 returns blocker questions; the engine pauses
+// `_runRitual` on the canvas-pause registry's `triage-clarifications` kind
+// and resumes when the user submits answers (or on timeout).
+const RitualTriageAwaitingClarificationSchema = z.object({
+  type: z.literal("ritual.triage.awaiting_clarification"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({
+    questions: z.array(
+      z.object({
+        id: z.string(),
+        question: z.string(),
+        reason: z.string().optional(),
+        widgetKind: z.enum(["yes-no", "single-select", "text"]).optional(),
+        options: z.array(z.string()).optional()
+      })
+    )
+  })
+});
+const RitualTriageClarificationResolvedSchema = z.object({
+  type: z.literal("ritual.triage.clarification_resolved"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({
+    answers: z.record(z.string()),
+    autoResolved: z.boolean()
+  })
+});
+
 // Plan SPU — AssetGenerator role lifecycle. started/completed/failed land
 // on the rail timeline as their own row once the broker mapping ships.
 const AssetGenStartedSchema = z.object({
@@ -310,7 +340,10 @@ export const RitualEventSchema = z.discriminatedUnion("type", [
   DesignerReviseCompletedSchema,
   AssetGenStartedSchema,
   AssetGenCompletedSchema,
-  AssetGenFailedSchema
+  AssetGenFailedSchema,
+  // Plan U slice 3b — triage clarification pause lifecycle.
+  RitualTriageAwaitingClarificationSchema,
+  RitualTriageClarificationResolvedSchema
 ]);
 export type RitualEvent = z.infer<typeof RitualEventSchema>;
 
