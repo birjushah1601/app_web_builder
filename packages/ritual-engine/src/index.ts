@@ -14,3 +14,7 @@ export {
   type PlanCheckpoint,
   type PlanApprovalResolution
 } from "./canvas-pause.js";
+// Plan A: re-export RitualAbortedError so consumers see one canonical name.
+// Lives in @atlas/conductor (where it's thrown) but the engine's abort() API
+// surfaces it to callers, so we expose it from this barrel as a convenience.
+export { RitualAbortedError } from "@atlas/conductor";
