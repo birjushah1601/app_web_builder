@@ -24,13 +24,3 @@ export class PersonaGateError extends RitualEngineError {
   }
 }
 
-export class RitualAbortedError extends RitualEngineError {
-  readonly ritualId: string;
-  readonly reason: string;
-  constructor(ritualId: string, reason: string) {
-    super(`ritual ${ritualId} aborted: ${reason}`);
-    this.name = "RitualAbortedError";
-    this.ritualId = ritualId;
-    this.reason = reason;
-  }
-}
