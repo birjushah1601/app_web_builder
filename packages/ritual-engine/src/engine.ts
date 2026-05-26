@@ -239,6 +239,13 @@ export class RitualEngine {
     this.ritualMode = opts.ritualMode ?? "considered";
   }
 
+  /** Plan A follow-up F6 — expose the Conductor so callers (e.g. factory.ts)
+   *  can call registerRole() to add roles after construction without resorting
+   *  to (as any) casts. */
+  getConductor(): Conductor {
+    return this.conductor;
+  }
+
   async start(input: StartInput): Promise<string> {
     return this._runRitual({ ...input });
   }

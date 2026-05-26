@@ -87,6 +87,14 @@ export class Conductor {
     return this.roles.has(id);
   }
 
+  /** Plan A follow-up F6 — public role registration to replace direct .roles.set()
+   *  access. Used by atlas-web's factory to plug in workflow-planner + future
+   *  workflow roles after the Conductor has been constructed. Idempotent on
+   *  the same id — last write wins, matching the existing constructor behavior. */
+  registerRole(id: string, role: Role): void {
+    this.roles.set(id, role);
+  }
+
   async dispatch(ctx: DispatchContext, options: DispatchOptions = {}): Promise<DispatchResult> {
     const policy = options.retry ?? DEFAULT_DISPATCH_RETRY;
     // forceRoleId bypasses the classifier (used when chaining roles in a

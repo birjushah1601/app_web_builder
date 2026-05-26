@@ -601,19 +601,12 @@ export const getWorkflowEngine = cache(async (projectId: string): Promise<Workfl
   // but is the same Map object at runtime; Plan B adds a proper API).
   const ritualEngine = await getRitualEngine(projectId);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const conductorAny = (ritualEngine as any).conductor as { roles?: Map<string, Role> } | undefined;
-  if (conductorAny?.roles) {
-    conductorAny.roles.set(
-      "workflow-planner",
-      new StubWorkflowPlannerRole() as unknown as Role
-    );
-  } else {
-    console.warn(
-      "[atlas-web] getWorkflowEngine: could not register workflow-planner role on Conductor " +
-      "— ritualEngine.conductor.roles not accessible. workflowEngine.start() may fail."
-    );
-  }
+  // Plan A follow-up F6: use the public getConductor().registerRole() API
+  // instead of the previous (ritualEngine as any).conductor.roles.set() cast.
+  ritualEngine.getConductor().registerRole(
+    "workflow-planner",
+    new StubWorkflowPlannerRole() as unknown as Role
+  );
 
   // WorkflowEngine only calls .start(), .getRitual(), and .abort() on
   // ritualEngine — all three are present on RitualEngine. The cast satisfies
