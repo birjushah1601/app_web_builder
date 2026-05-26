@@ -107,7 +107,8 @@ describe("listFlagStates", () => {
       "stripe-payments": true,
       "structured-triage": false,
       "video-kling": false,
-      "visual-quality-gate": false
+      "visual-quality-gate": false,
+      "workflow": false
     });
   });
 });
