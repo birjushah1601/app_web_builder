@@ -1,6 +1,6 @@
-import { RitualAbortedError, RitualEscalatedError } from "./errors.js";
+import { RitualAbortedError, RitualEscalatedError, RoleEvalEscalation, type EvalVerdict } from "./errors.js";
 import type { DispatchContext } from "./dispatch-context.js";
-import type { Role, RoleOutput } from "./role.js";
+import type { Role, RoleOutput, EvalFeedback } from "./role.js";
 import { DEFAULT_DISPATCH_RETRY, type DispatchRetryPolicy } from "./retry-policy.js";
 
 export interface ClassifierResult {
@@ -27,6 +27,12 @@ export interface SliceBuilder {
   (ctx: DispatchContext): { bytes: string; hash: string };
 }
 
+/** Minimal VerdictSink interface — structurally compatible with @atlas/eval-runtime's
+ *  VerdictSink. Defined here to avoid a circular workspace dependency. */
+export interface VerdictSink {
+  write(verdict: EvalVerdict): Promise<void>;
+}
+
 export interface ConductorOptions {
   classifier: Classifier;
   roles: Map<string, Role>;
@@ -37,6 +43,13 @@ export interface ConductorOptions {
    *  truthy, the conductor checks before each role attempt and throws
    *  RitualAbortedError so the ritual unwinds cleanly without retrying. */
   isAborted?: (ritualId: string) => boolean;
+  /** Eval gate: when provided, verdicts are persisted via this sink and the
+   *  eval gate activates for roles that have a rubric. When absent, eval is
+   *  disabled (back-compat — no change to dispatch behaviour). */
+  verdictSink?: VerdictSink;
+  /** LLM provider for judge calls. Required when verdictSink is provided and
+   *  roles have rubrics with judge steps. */
+  llm?: unknown;
 }
 
 export interface DispatchResult {
@@ -59,9 +72,18 @@ export interface DispatchOptions {
    *  its plan builds on the current tree rather than recreating from scratch.
    *  Optional; conductor doesn't interpret the shape. */
   currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
+  /** User ID for eval verdict persistence. Threaded into Verdict.userId.
+   *  If absent, falls back to the placeholder "(unknown)" so the NOT NULL
+   *  constraint in eval_verdicts is satisfied. */
+  userId?: string;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Number of quality retry attempts allowed by the eval gate. */
+const EVAL_QUALITY_BUDGET = 2;
+/** Pass threshold for judge dimensions (score must be >= this to pass). */
+const JUDGE_PASS_THRESHOLD = 6;
 
 export class Conductor {
   private readonly classifier: Classifier;
@@ -70,6 +92,8 @@ export class Conductor {
   private readonly sliceBuilder: SliceBuilder;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly isAbortedFn?: (ritualId: string) => boolean;
+  private readonly verdictSink?: VerdictSink;
+  private readonly llm?: unknown;
 
   constructor(opts: ConductorOptions) {
     this.classifier = opts.classifier;
@@ -78,6 +102,8 @@ export class Conductor {
     this.sliceBuilder = opts.sliceBuilder;
     this.sleep = opts.sleep ?? defaultSleep;
     this.isAbortedFn = opts.isAborted;
+    this.verdictSink = opts.verdictSink;
+    this.llm = opts.llm;
   }
 
   /** Plan SPU — true when the role registry has a role registered under `id`.
@@ -111,7 +137,7 @@ export class Conductor {
     }
 
     const slice = this.sliceBuilder(ctx);
-    const invocation: import("./role.js").RoleInvocation = {
+    const baseInvocation: import("./role.js").RoleInvocation = {
       ritualId: ctx.ritualId as string,
       intent: classification.roleId,
       graphSlice: slice,
@@ -121,9 +147,127 @@ export class Conductor {
     // exactOptionalPropertyTypes — only set currentFiles when actually provided
     // so downstream `=== undefined` checks behave consistently.
     if (options.currentFiles !== undefined) {
-      invocation.currentFiles = options.currentFiles;
+      baseInvocation.currentFiles = options.currentFiles;
     }
 
+    // Eval gate: when verdictSink is set and role has a rubric, wrap the
+    // transient-retry dispatch in a quality-retry loop (max EVAL_QUALITY_BUDGET
+    // attempts). Absent verdictSink or absent rubric → skip gate entirely
+    // (back-compat: zero change to existing dispatch behaviour).
+    if (this.verdictSink && role.rubric) {
+      return this.dispatchWithEvalGate(ctx, role, baseInvocation, policy, options);
+    }
+
+    return this.runWithTransientRetries(ctx, role, baseInvocation, policy);
+  }
+
+  /** Quality-retry loop wrapping the transient-retry dispatch. Only called when
+   *  verdictSink + role.rubric are both present. */
+  private async dispatchWithEvalGate(
+    ctx: DispatchContext,
+    role: Role,
+    baseInvocation: import("./role.js").RoleInvocation,
+    policy: DispatchRetryPolicy,
+    options: DispatchOptions
+  ): Promise<DispatchResult> {
+    const rubric = role.rubric!;
+    const userId = options.userId ?? "(unknown)";
+    const collectedVerdicts: EvalVerdict[] = [];
+
+    let evalFeedback: EvalFeedback | undefined = undefined;
+
+    for (let qualityAttempt = 1; qualityAttempt <= EVAL_QUALITY_BUDGET; qualityAttempt++) {
+      // Build per-quality-attempt invocation with the feedback from previous failure.
+      const invocation: import("./role.js").RoleInvocation = { ...baseInvocation };
+      if (evalFeedback !== undefined) {
+        invocation.evalFeedback = evalFeedback;
+      }
+
+      // Run the role (with transient retries for network/parse errors).
+      const result = await this.runWithTransientRetries(ctx, role, invocation, policy);
+
+      // --- Structural check ---
+      const structuralResult = rubric.structural(result.output, invocation);
+      const structuralVerdict = buildStructuralVerdict(structuralResult, qualityAttempt, role, invocation, userId, rubric, evalFeedback, ctx.projectId);
+      collectedVerdicts.push(structuralVerdict);
+      await this.verdictSink!.write(structuralVerdict);
+
+      if (!structuralResult.passed) {
+        const canRetry = qualityAttempt < EVAL_QUALITY_BUDGET;
+        if (canRetry) {
+          // Build feedback for next attempt and continue.
+          evalFeedback = buildStructuralEvalFeedback(structuralResult);
+          await this.emit({
+            eventType: "role.eval_retry",
+            ctx,
+            payload: { roleId: role.id, qualityAttempt, layer: "structural", reason: "structural_failed" }
+          });
+          continue;
+        }
+        // Second failure — escalate.
+        await this.emit({
+          eventType: "role.eval_escalated",
+          ctx,
+          payload: { roleId: role.id, qualityAttempts: qualityAttempt, layer: "structural" }
+        });
+        throw new RoleEvalEscalation({
+          ritualId: ctx.ritualId as string,
+          roleId: role.id,
+          layer: "structural",
+          verdicts: collectedVerdicts,
+          attempts: qualityAttempt
+        });
+      }
+
+      // Structural passed — run judge (fail-fast: skip judge when structural fails).
+      const judgeResult = await rubric.judge(result.output, invocation, this.llm);
+      const judgeVerdict = buildJudgeVerdict(judgeResult, qualityAttempt, role, invocation, userId, rubric, evalFeedback, ctx.projectId);
+      collectedVerdicts.push(judgeVerdict);
+      await this.verdictSink!.write(judgeVerdict);
+
+      if (!judgeResult.passed) {
+        const canRetry = qualityAttempt < EVAL_QUALITY_BUDGET && judgeResult.fixableBy === "retry";
+        if (canRetry) {
+          evalFeedback = buildJudgeEvalFeedback(judgeResult);
+          await this.emit({
+            eventType: "role.eval_retry",
+            ctx,
+            payload: { roleId: role.id, qualityAttempt, layer: "judge", fixableBy: judgeResult.fixableBy }
+          });
+          continue;
+        }
+        // Not retryable (fixableBy=escalate) or exhausted budget.
+        await this.emit({
+          eventType: "role.eval_escalated",
+          ctx,
+          payload: { roleId: role.id, qualityAttempts: qualityAttempt, layer: "judge" }
+        });
+        throw new RoleEvalEscalation({
+          ritualId: ctx.ritualId as string,
+          roleId: role.id,
+          layer: "judge",
+          verdicts: collectedVerdicts,
+          attempts: qualityAttempt
+        });
+      }
+
+      // Both structural and judge passed.
+      return result;
+    }
+
+    // Unreachable (loop always returns or throws), but TypeScript needs a return.
+    /* istanbul ignore next */
+    throw new Error("eval gate: exhausted quality budget without decision");
+  }
+
+  /** The existing transient-retry loop, extracted to a private method so the
+   *  eval gate can call it per quality attempt. */
+  private async runWithTransientRetries(
+    ctx: DispatchContext,
+    role: Role,
+    invocation: import("./role.js").RoleInvocation,
+    policy: DispatchRetryPolicy
+  ): Promise<DispatchResult> {
     // Per-attempt LLM timeout. Without this a stuck OpenRouter call (e.g.
     // Llama 3.3 cold-start, provider hanging) blocks the Server Action
     // forever and the user sees "stuck on architecture" with zero feedback.
@@ -201,4 +345,103 @@ export class Conductor {
       ts: new Date().toISOString()
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Eval gate private helpers — pure functions that assemble Verdict shapes from
+// rubric outputs. Defined outside the class for easier unit testing.
+// ---------------------------------------------------------------------------
+
+function buildStructuralVerdict(
+  structural: { passed: boolean; failures?: Array<{ check: string; reason: string }> },
+  attempt: number,
+  role: Role,
+  inv: import("./role.js").RoleInvocation,
+  userId: string,
+  rubric: import("./role.js").RoleRubric,
+  feedbackUsed: EvalFeedback | undefined,
+  projectId: string
+): EvalVerdict {
+  return {
+    ritualId: inv.ritualId,
+    roleId: role.id,
+    projectId,
+    userId,
+    attempt,
+    layer: "structural",
+    passed: structural.passed,
+    failures: structural.failures,
+    feedbackUsed: feedbackUsed as unknown,
+    rubricVersion: rubric.version
+  };
+}
+
+function buildJudgeVerdict(
+  judge: {
+    passed: boolean;
+    score: number;
+    dimensions: Array<{ name: string; score: number; rationale: string }>;
+    fixableBy: "retry" | "escalate";
+    feedback: string;
+  },
+  attempt: number,
+  role: Role,
+  inv: import("./role.js").RoleInvocation,
+  userId: string,
+  rubric: import("./role.js").RoleRubric,
+  feedbackUsed: EvalFeedback | undefined,
+  projectId: string
+): EvalVerdict {
+  return {
+    ritualId: inv.ritualId,
+    roleId: role.id,
+    projectId,
+    userId,
+    attempt,
+    layer: "judge",
+    passed: judge.passed,
+    score: judge.score,
+    dimensions: judge.dimensions,
+    fixableBy: judge.fixableBy,
+    feedbackUsed: feedbackUsed as unknown,
+    rubricVersion: rubric.version,
+    judgeModel: rubric.judgeModel
+  };
+}
+
+/** Build EvalFeedback from a failed structural check. Inlined to avoid
+ *  importing @atlas/eval-runtime (which already depends on @atlas/conductor). */
+function buildStructuralEvalFeedback(
+  result: { passed: boolean; failures?: Array<{ check: string; reason: string }> }
+): EvalFeedback {
+  if (result.passed || !result.failures?.length) {
+    throw new Error("buildStructuralEvalFeedback called on passed result");
+  }
+  const lines = result.failures.map((f) => `- ${f.check}: ${f.reason}`);
+  return {
+    source: "structural",
+    promptFragment: `## Previous-attempt feedback\nYour previous output failed these structural checks:\n${lines.join("\n")}\nAddress each point. Do not repeat the same gap.`,
+    failures: result.failures
+  };
+}
+
+/** Build EvalFeedback from a failed judge result. Inlined to avoid importing
+ *  @atlas/eval-runtime (which already depends on @atlas/conductor). */
+function buildJudgeEvalFeedback(
+  result: {
+    passed: boolean;
+    score: number;
+    dimensions: Array<{ name: string; score: number; rationale: string }>;
+    fixableBy: "retry" | "escalate";
+    feedback: string;
+  }
+): EvalFeedback {
+  const failed = result.dimensions.filter((d) => d.score < JUDGE_PASS_THRESHOLD);
+  const lines = failed.map((d) => `- ${d.name} (${d.score}/10): ${d.rationale}`);
+  const tail = result.feedback ? `\n\nJudge guidance: ${result.feedback}` : "";
+  return {
+    source: "judge",
+    promptFragment: `## Previous-attempt feedback\nYour previous output failed these quality dimensions:\n${lines.join("\n")}${tail}\nAddress each dimension. Do not repeat the same gap.`,
+    dimensions: failed
+  };
 }
