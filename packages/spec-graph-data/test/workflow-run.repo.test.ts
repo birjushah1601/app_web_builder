@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { type Database, createDatabase } from "../src/client.js";
 import { WorkflowRunRepo } from "../src/repo/workflow-run.repo.js";
-import { truncateAllTables, uniqueProjectId } from "./helpers.js";
+import { truncateAllTables, seedProject } from "./helpers.js";
 
 const TEST_PROJECT_ID = "00000000-0000-0000-0000-000000000099";
 
@@ -34,7 +34,7 @@ describe("WorkflowRunRepo.insert", () => {
   });
 
   it("returns the inserted row with a uuid id", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     const row = await repo.insert(makeInput(projectId));
     expect(row.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -64,7 +64,7 @@ describe("WorkflowRunRepo.findById", () => {
   });
 
   it("returns the row when it exists", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     const inserted = await repo.insert(makeInput(projectId));
     const found = await repo.findById(inserted.id);
     expect(found).toBeDefined();
@@ -96,7 +96,7 @@ describe("WorkflowRunRepo.listOpenForProject", () => {
   });
 
   it("returns running and awaiting_approval runs, not others", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     await repo.insert(makeInput(projectId, { status: "planning" }));
     await repo.insert(makeInput(projectId, { status: "running" }));
     await repo.insert(makeInput(projectId, { status: "awaiting_approval" }));
@@ -108,8 +108,8 @@ describe("WorkflowRunRepo.listOpenForProject", () => {
   });
 
   it("does not return runs for other projects", async () => {
-    const projectA = uniqueProjectId();
-    const projectB = uniqueProjectId();
+    const projectA = await seedProject(db);
+    const projectB = await seedProject(db);
     await repo.insert(makeInput(projectA, { status: "running" }));
     await repo.insert(makeInput(projectB, { status: "running" }));
 
@@ -119,7 +119,7 @@ describe("WorkflowRunRepo.listOpenForProject", () => {
   });
 
   it("returns empty array when no open runs", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     await repo.insert(makeInput(projectId, { status: "done" }));
     const open = await repo.listOpenForProject(projectId);
     expect(open).toEqual([]);
@@ -144,7 +144,7 @@ describe("WorkflowRunRepo.updateStatus", () => {
   });
 
   it("updates the status of the row", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     const inserted = await repo.insert(makeInput(projectId, { status: "planning" }));
 
     await repo.updateStatus(inserted.id, "running");
@@ -154,7 +154,7 @@ describe("WorkflowRunRepo.updateStatus", () => {
   });
 
   it("does not affect other rows", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     const a = await repo.insert(makeInput(projectId, { status: "planning" }));
     const b = await repo.insert(makeInput(projectId, { status: "planning" }));
 

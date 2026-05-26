@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { type Database, createDatabase } from "../src/client.js";
 import { WorkflowRunRepo } from "../src/repo/workflow-run.repo.js";
 import { WorkflowUsageRepo } from "../src/repo/workflow-usage.repo.js";
-import { truncateAllTables, uniqueProjectId } from "./helpers.js";
+import { truncateAllTables, seedProject } from "./helpers.js";
 import type { NewWorkflowUsageRow } from "../src/schema/workflow-usage.js";
 
 function makeRun(projectId: string) {
@@ -52,7 +52,7 @@ describe("WorkflowUsageRepo.append", () => {
   });
 
   it("inserts a usage event and returns it", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     const row = await repo.append(makeUsage(run.id, "n-1"));
     expect(row.workflowRunId).toBe(run.id);
     expect(row.nodeId).toBe("n-1");
@@ -83,7 +83,7 @@ describe("WorkflowUsageRepo.sumForRun", () => {
   });
 
   it("sums tokens and cost across multiple events", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.append(makeUsage(run.id, "n-1", { inputTokens: 100, outputTokens: 50, costUsd: "0.0010" }));
     await repo.append(makeUsage(run.id, "n-1", { inputTokens: 200, outputTokens: 75, costUsd: "0.0020" }));
     await repo.append(makeUsage(run.id, "n-2", { inputTokens: 50, outputTokens: 25, costUsd: "0.0005" }));
@@ -95,7 +95,7 @@ describe("WorkflowUsageRepo.sumForRun", () => {
   });
 
   it("returns zeros when no events exist for the run", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     const sum = await repo.sumForRun(run.id);
     expect(sum.inputTokens).toBe(0);
     expect(sum.outputTokens).toBe(0);
@@ -103,7 +103,7 @@ describe("WorkflowUsageRepo.sumForRun", () => {
   });
 
   it("does not include events from another run", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     const runA = await runRepo.insert(makeRun(projectId));
     const runB = await runRepo.insert(makeRun(projectId));
     await repo.append(makeUsage(runA.id, "n-1", { inputTokens: 1000, outputTokens: 500, costUsd: "0.1000" }));
@@ -116,7 +116,7 @@ describe("WorkflowUsageRepo.sumForRun", () => {
   });
 
   it("returns numbers (not strings) for all fields", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.append(makeUsage(run.id, "n-1"));
     const sum = await repo.sumForRun(run.id);
     expect(typeof sum.inputTokens).toBe("number");

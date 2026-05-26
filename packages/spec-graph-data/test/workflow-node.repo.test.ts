@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { type Database, createDatabase } from "../src/client.js";
 import { WorkflowRunRepo } from "../src/repo/workflow-run.repo.js";
 import { WorkflowNodeRepo } from "../src/repo/workflow-node.repo.js";
-import { truncateAllTables, uniqueProjectId } from "./helpers.js";
+import { truncateAllTables, seedProject } from "./helpers.js";
 import type { NewWorkflowNodeRow } from "../src/schema/workflow-nodes.js";
 
 function makeRun(projectId: string) {
@@ -49,7 +49,7 @@ describe("WorkflowNodeRepo.insertMany", () => {
   });
 
   it("inserts multiple nodes and returns them all", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     const rows = await repo.insertMany([
       makeNode(run.id, "node-1"),
       makeNode(run.id, "node-2")
@@ -84,14 +84,14 @@ describe("WorkflowNodeRepo.findByRunId", () => {
   });
 
   it("returns all nodes for a run", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.insertMany([makeNode(run.id, "n-a"), makeNode(run.id, "n-b")]);
     const found = await repo.findByRunId(run.id);
     expect(found).toHaveLength(2);
   });
 
   it("does not return nodes from another run", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     const runA = await runRepo.insert(makeRun(projectId));
     const runB = await runRepo.insert(makeRun(projectId));
     await repo.insertMany([makeNode(runA.id, "n-1")]);
@@ -102,7 +102,7 @@ describe("WorkflowNodeRepo.findByRunId", () => {
   });
 
   it("returns empty array when run has no nodes", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     const found = await repo.findByRunId(run.id);
     expect(found).toEqual([]);
   });
@@ -128,7 +128,7 @@ describe("WorkflowNodeRepo.findOne", () => {
   });
 
   it("returns the specific node", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.insertMany([makeNode(run.id, "n-x"), makeNode(run.id, "n-y")]);
     const found = await repo.findOne(run.id, "n-x");
     expect(found).toBeDefined();
@@ -136,7 +136,7 @@ describe("WorkflowNodeRepo.findOne", () => {
   });
 
   it("returns undefined for unknown node id", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     const found = await repo.findOne(run.id, "no-such-node");
     expect(found).toBeUndefined();
   });
@@ -162,7 +162,7 @@ describe("WorkflowNodeRepo.updateStatus", () => {
   });
 
   it("updates the status field", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.insertMany([makeNode(run.id, "n-1")]);
     await repo.updateStatus(run.id, "n-1", "running");
     const updated = await repo.findOne(run.id, "n-1");
@@ -170,7 +170,7 @@ describe("WorkflowNodeRepo.updateStatus", () => {
   });
 
   it("sets optional fields when opts provided", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.insertMany([makeNode(run.id, "n-1")]);
     const startedAt = new Date("2026-01-01T00:00:00Z");
     const completedAt = new Date("2026-01-01T01:00:00Z");
@@ -188,7 +188,7 @@ describe("WorkflowNodeRepo.updateStatus", () => {
   });
 
   it("sets failure when provided", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.insertMany([makeNode(run.id, "n-1")]);
     const failure = { code: "TIMEOUT", message: "Timed out" };
     await repo.updateStatus(run.id, "n-1", "failed", { failure });
@@ -198,7 +198,7 @@ describe("WorkflowNodeRepo.updateStatus", () => {
   });
 
   it("does not affect sibling nodes", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.insertMany([makeNode(run.id, "n-1"), makeNode(run.id, "n-2")]);
     await repo.updateStatus(run.id, "n-1", "running");
     const n2 = await repo.findOne(run.id, "n-2");
@@ -226,7 +226,7 @@ describe("WorkflowNodeRepo.setArtifact", () => {
   });
 
   it("writes artifact and schemaVersion to the node", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.insertMany([makeNode(run.id, "n-1")]);
     const artifact = { schemaVersion: "1", kind: "spec-graph", payload: { nodes: [] } };
     await repo.setArtifact(run.id, "n-1", artifact, "1");
@@ -256,7 +256,7 @@ describe("WorkflowNodeRepo.updatePolicy", () => {
   });
 
   it("updates the policy JSONB field", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.insertMany([makeNode(run.id, "n-1")]);
     const newPolicy = { approval: "required", reviewer: "human" };
     await repo.updatePolicy(run.id, "n-1", newPolicy);

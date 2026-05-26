@@ -1,10 +1,11 @@
 import { integer, jsonb, pgTable, text, timestamp, uuid, index } from "drizzle-orm/pg-core";
+import { projects } from "./projects.js";
 
 export const workflowRuns = pgTable(
   "workflow_runs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    projectId: uuid("project_id").notNull(),
+    projectId: uuid("project_id").notNull().references(() => projects.projectId, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     prompt: text("prompt").notNull(),
     status: text("status").notNull(),

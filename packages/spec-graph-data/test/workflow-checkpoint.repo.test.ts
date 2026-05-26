@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { type Database, createDatabase } from "../src/client.js";
 import { WorkflowRunRepo } from "../src/repo/workflow-run.repo.js";
 import { WorkflowCheckpointRepo } from "../src/repo/workflow-checkpoint.repo.js";
-import { truncateAllTables, uniqueProjectId } from "./helpers.js";
+import { truncateAllTables, seedProject } from "./helpers.js";
 import type { NewWorkflowCheckpointRow } from "../src/schema/workflow-node-checkpoints.js";
 
 function makeRun(projectId: string) {
@@ -49,7 +49,7 @@ describe("WorkflowCheckpointRepo.append", () => {
   });
 
   it("inserts a checkpoint and returns it with a uuid id", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     const cp = await repo.append(makeCheckpoint(run.id, "n-1"));
     expect(cp.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     expect(cp.workflowRunId).toBe(run.id);
@@ -79,7 +79,7 @@ describe("WorkflowCheckpointRepo.listForNode", () => {
   });
 
   it("returns checkpoints for a specific node in chronological order", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.append(makeCheckpoint(run.id, "n-1", { kind: "started", payload: { step: 1 } }));
     await repo.append(makeCheckpoint(run.id, "n-1", { kind: "progress", payload: { step: 2 } }));
     await repo.append(makeCheckpoint(run.id, "n-1", { kind: "done", payload: { step: 3 } }));
@@ -90,7 +90,7 @@ describe("WorkflowCheckpointRepo.listForNode", () => {
   });
 
   it("does not include checkpoints from other nodes", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.append(makeCheckpoint(run.id, "n-1"));
     await repo.append(makeCheckpoint(run.id, "n-2"));
 
@@ -100,7 +100,7 @@ describe("WorkflowCheckpointRepo.listForNode", () => {
   });
 
   it("returns empty array when node has no checkpoints", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     const list = await repo.listForNode(run.id, "n-none");
     expect(list).toEqual([]);
   });
@@ -126,7 +126,7 @@ describe("WorkflowCheckpointRepo.listForRun", () => {
   });
 
   it("returns all checkpoints across all nodes for a run", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     await repo.append(makeCheckpoint(run.id, "n-1", { kind: "started", payload: {} }));
     await repo.append(makeCheckpoint(run.id, "n-2", { kind: "started", payload: {} }));
     await repo.append(makeCheckpoint(run.id, "n-1", { kind: "done", payload: {} }));
@@ -136,7 +136,7 @@ describe("WorkflowCheckpointRepo.listForRun", () => {
   });
 
   it("does not return checkpoints from another run", async () => {
-    const projectId = uniqueProjectId();
+    const projectId = await seedProject(db);
     const runA = await runRepo.insert(makeRun(projectId));
     const runB = await runRepo.insert(makeRun(projectId));
     await repo.append(makeCheckpoint(runA.id, "n-1"));
@@ -148,7 +148,7 @@ describe("WorkflowCheckpointRepo.listForRun", () => {
   });
 
   it("returns empty array when run has no checkpoints", async () => {
-    const run = await runRepo.insert(makeRun(uniqueProjectId()));
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
     const list = await repo.listForRun(run.id);
     expect(list).toEqual([]);
   });
