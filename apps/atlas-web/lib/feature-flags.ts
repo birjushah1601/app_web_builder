@@ -54,7 +54,11 @@ export type FeatureFlag =
   // infers a widget kind per question (yes-no / single-select / free text)
   // and posts the formatted answers back through the normal action/refineAction
   // chain. Engine + architect prompts unchanged in this slice.
-  | "structured-triage";
+  | "structured-triage"
+  // Plan A — Workflow engine. Flag-gates all 9 workflow Server Actions so
+  // the engine can be deployed dark and enabled per-deploy without a code
+  // change. Set ATLAS_FF_WORKFLOW=true to enable.
+  | "workflow";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -156,7 +160,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan Architect Schema Refinement — gating the 3-pass schema-architect flow.
   "schema-architect-3pass": "ATLAS_FF_SCHEMA_ARCHITECT_3PASS",
   // Plan U — structured triage form (ChatPanel widget; no engine change).
-  "structured-triage": "ATLAS_FF_STRUCTURED_TRIAGE"
+  "structured-triage": "ATLAS_FF_STRUCTURED_TRIAGE",
+  // Plan A — Workflow engine. Standard ATLAS_FF_* convention.
+  "workflow": "ATLAS_FF_WORKFLOW"
 };
 
 export interface FeatureFlagSource {
@@ -267,6 +273,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "sandbox-prewarm": isFeatureEnabled("sandbox-prewarm", source),
     "schema-architect": isFeatureEnabled("schema-architect", source),
     "schema-architect-3pass": isFeatureEnabled("schema-architect-3pass", source),
-    "structured-triage": isFeatureEnabled("structured-triage", source)
+    "structured-triage": isFeatureEnabled("structured-triage", source),
+    "workflow": isFeatureEnabled("workflow", source)
   };
 }

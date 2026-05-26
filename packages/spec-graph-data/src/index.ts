@@ -41,3 +41,10 @@ export {
   type ProjectRecord,
   type CreateProjectInput
 } from "./repo/projects-repo.js";
+
+// Plan A — Workflow engine repos. Exported so atlas-web's getWorkflowEngine
+// factory can import them without sub-path imports (package.json only exports ".").
+export { WorkflowRunRepo } from "./repo/workflow-run.repo.js";
+export { WorkflowNodeRepo } from "./repo/workflow-node.repo.js";
+export { WorkflowCheckpointRepo } from "./repo/workflow-checkpoint.repo.js";
+export { WorkflowUsageRepo } from "./repo/workflow-usage.repo.js";

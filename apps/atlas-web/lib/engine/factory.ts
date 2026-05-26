@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { Conductor, type Role } from "@atlas/conductor";
 import { RitualEngine } from "@atlas/ritual-engine";
+import { WorkflowEngine } from "@atlas/workflow-engine";
 import { ClerkPersonaPreferences } from "./persona-prefs";
 import { SpecEventsSink } from "./event-sink";
 import { OpenAICompatProvider } from "./openai-compat-provider";
@@ -553,6 +554,79 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   // Plan A: wire the lazy ref so conductor's isAborted callback delegates
   // to the now-constructed engine instance.
   engineRef = engine;
+
+  registry.set(projectId, engine);
+  return engine;
+});
+
+// ---------------------------------------------------------------------------
+// WorkflowEngine factory — per-process singleton (same pattern as RitualEngine)
+// ---------------------------------------------------------------------------
+
+const WF_ENGINE_KEY = "__atlas_workflow_engines__";
+type WithWfEngines = { [WF_ENGINE_KEY]?: Map<string, WorkflowEngine> };
+
+function getWorkflowEngineRegistry(): Map<string, WorkflowEngine> {
+  const g = globalThis as unknown as WithWfEngines;
+  if (!g[WF_ENGINE_KEY]) g[WF_ENGINE_KEY] = new Map();
+  return g[WF_ENGINE_KEY];
+}
+
+/** Lazy + per-process cached WorkflowEngine. Mirrors getRitualEngine pattern:
+ *  React cache() for per-request dedup, globalThis registry for cross-request
+ *  in-memory state. Registers StubWorkflowPlannerRole in the Conductor so
+ *  workflowEngine.start() can dispatch the planning ritual. */
+export const getWorkflowEngine = cache(async (projectId: string): Promise<WorkflowEngine> => {
+  const registry = getWorkflowEngineRegistry();
+  const cached = registry.get(projectId);
+  if (cached) return cached;
+
+  const { Pool } = await import("pg");
+  const { WorkflowRunRepo, WorkflowNodeRepo, WorkflowCheckpointRepo } = await import(
+    "@atlas/spec-graph-data"
+  );
+  const { StubWorkflowPlannerRole } = await import("@atlas/workflow-engine");
+
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+  const runRepo = new WorkflowRunRepo(pool);
+  const nodeRepo = new WorkflowNodeRepo(pool);
+  const checkpointRepo = new WorkflowCheckpointRepo(pool);
+
+  // Obtain the ritual engine (which already has roles wired + Conductor
+  // constructed). We need to register the workflow-planner role on the
+  // *same* Conductor the ritual engine holds. We do this by getting the
+  // ritual engine and then mutating the Conductor's roles Map via a
+  // cast-through-any (Plan A pragmatic shortcut — the field is private in TS
+  // but is the same Map object at runtime; Plan B adds a proper API).
+  const ritualEngine = await getRitualEngine(projectId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const conductorAny = (ritualEngine as any).conductor as { roles?: Map<string, Role> } | undefined;
+  if (conductorAny?.roles) {
+    conductorAny.roles.set(
+      "workflow-planner",
+      new StubWorkflowPlannerRole() as unknown as Role
+    );
+  } else {
+    console.warn(
+      "[atlas-web] getWorkflowEngine: could not register workflow-planner role on Conductor " +
+      "— ritualEngine.conductor.roles not accessible. workflowEngine.start() may fail."
+    );
+  }
+
+  // WorkflowEngine only calls .start(), .getRitual(), and .abort() on
+  // ritualEngine — all three are present on RitualEngine. The cast satisfies
+  // the IRitualEngine interface contract.
+  const engine = new WorkflowEngine({
+    ritualEngine: ritualEngine as import("@atlas/workflow-engine").IRitualEngine,
+    runRepo: runRepo as import("@atlas/workflow-engine").IWorkflowRunRepo,
+    nodeRepo: nodeRepo as import("@atlas/workflow-engine").IWorkflowNodeRepo,
+    // WorkflowCheckpointRepo.append returns the inserted row; IWorkflowCheckpointRepo
+    // declares append as returning Promise<void>. Both contracts are satisfied at
+    // runtime (callers don't use the return value). Cast through unknown to satisfy TS.
+    checkpointRepo: checkpointRepo as unknown as import("@atlas/workflow-engine").IWorkflowCheckpointRepo
+  });
 
   registry.set(projectId, engine);
   return engine;
