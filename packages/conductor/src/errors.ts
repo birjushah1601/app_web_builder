@@ -1,5 +1,15 @@
 import type { RitualId } from "./dispatch-context.js";
 
+/** Minimal Verdict shape needed by RoleEvalEscalation. Structurally compatible
+ *  with @atlas/eval-runtime's Verdict — conductor avoids importing eval-runtime
+ *  directly to prevent a circular workspace dependency (eval-runtime → conductor). */
+export interface EvalVerdict {
+  layer: "structural" | "judge" | "workflow";
+  passed: boolean;
+  dimensions?: ReadonlyArray<{ name: string; score: number; rationale: string }>;
+  [key: string]: unknown;
+}
+
 export class RitualAbortedError extends Error {
   readonly ritualId: string;
   readonly reason: string;
@@ -33,5 +43,33 @@ export class RitualEscalatedError extends Error {
       // Standard Error.cause for callers that walk it programmatically.
       (this as Error & { cause?: unknown }).cause = lastError;
     }
+  }
+}
+
+export class RoleEvalEscalation extends Error {
+  readonly ritualId: string;
+  readonly roleId: string;
+  readonly layer: "structural" | "judge";
+  readonly verdicts: EvalVerdict[];
+  readonly attempts: number;
+
+  constructor(input: {
+    ritualId: string;
+    roleId: string;
+    layer: "structural" | "judge";
+    verdicts: EvalVerdict[];
+    attempts: number;
+  }) {
+    const dims = input.verdicts[input.verdicts.length - 1]?.dimensions
+      ?.filter((d) => d.score < 6)
+      .map((d) => `${d.name}=${d.score}/10`)
+      .join(", ");
+    super(`role ${input.roleId} failed ${input.layer} eval after ${input.attempts} attempts${dims ? ` (${dims})` : ""}`);
+    this.name = "RoleEvalEscalation";
+    this.ritualId = input.ritualId;
+    this.roleId = input.roleId;
+    this.layer = input.layer;
+    this.verdicts = input.verdicts;
+    this.attempts = input.attempts;
   }
 }

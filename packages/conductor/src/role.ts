@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+/** Minimal EvalFeedback shape threaded by the conductor's eval gate into the
+ *  next quality attempt. Structurally compatible with @atlas/eval-runtime's
+ *  EvalFeedback — conductor avoids importing eval-runtime directly to prevent
+ *  a circular workspace dependency (eval-runtime → conductor → eval-runtime). */
+export interface EvalFeedback {
+  source: "structural" | "judge";
+  promptFragment: string;
+  failures?: ReadonlyArray<{ check: string; reason: string }>;
+  dimensions?: ReadonlyArray<{ name: string; score: number; rationale: string }>;
+}
+
 export const RoleEventSchema = z.object({
   eventType: z.string(),
   payload: z.record(z.string(), z.unknown())
@@ -34,11 +45,35 @@ export interface RoleInvocation {
    *  Designer reads it for visual conditioning. Conductor + engine pass
    *  this through verbatim — they do not interpret the shape. */
   referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
+  /** Eval gate: feedback from the previous quality attempt's failed eval.
+   *  Undefined on the first attempt; populated by the conductor when a
+   *  structural or judge eval fails and `shouldRetry` allows a second attempt.
+   *  Roles thread this into their prompts to self-correct. */
+  evalFeedback?: EvalFeedback;
+}
+
+/** Minimal rubric shape expected by the conductor's eval gate.
+ *  Structurally compatible with @atlas/eval-runtime's Rubric<TOutput>. */
+export interface RoleRubric {
+  readonly roleId: string;
+  readonly version: string;
+  readonly judgeModel?: string;
+  structural(output: unknown, inv: RoleInvocation): { passed: boolean; failures?: Array<{ check: string; reason: string }> };
+  judge(output: unknown, inv: RoleInvocation, llm: unknown): Promise<{
+    passed: boolean;
+    score: number;
+    dimensions: Array<{ name: string; score: number; rationale: string }>;
+    fixableBy: "retry" | "escalate";
+    feedback: string;
+  }>;
 }
 
 export interface Role {
   readonly id: string;
   run(inv: RoleInvocation): Promise<RoleOutput>;
+  /** Optional eval rubric. When present and conductor has verdictSink + llm,
+   *  the eval gate activates — structural + judge checks wrap each dispatch. */
+  readonly rubric?: RoleRubric;
 }
 
 // Stub used in tests and for initial end-to-end smoke. Real roles land in D.2–D.5.

@@ -29,6 +29,7 @@
     "zod": "3.23.8"
   },
   "devDependencies": {
+    "@atlas/eval-runtime": "workspace:*",
     "@types/node": "22.9.0",
     "typescript": "5.6.3",
     "vitest": "2.1.8"
