@@ -1,0 +1,27 @@
+{
+  "id": "c9d0e1f2-a3b4-4c5d-6e7f-8a9b0c1d2e3f",
+  "roleId": "developer",
+  "rubricVersion": "developer@1.0.0",
+  "inputs": {
+    "userTurn": "Build a hero section",
+    "priorArtifact": {
+      "scope": "new-app",
+      "canvasManifest": {
+        "artifactKind": "frontend-app"
+      }
+    }
+  },
+  "output": {
+    "diff": "diff --git a/app/page.tsx b/app/page.tsx\nnew file mode 100644\nindex 0000000..abc1234\n--- /dev/null\n+++ b/app/page.tsx\n@@ -0,0 +1,15 @@\n+import HeroSection from './components/HeroSection';\n+\n+export default function Page() {\n+  return (\n+    <main className=\"min-h-screen\">\n+      <HeroSection />\n+    </main>\n+  );\n+}\ndiff --git a/app/components/HeroSection.tsx b/app/components/HeroSection.tsx\nnew file mode 100644\nindex 0000000..def5678\n--- /dev/null\n+++ b/app/components/HeroSection.tsx\n@@ -0,0 +1,12 @@\n+export default function HeroSection() {\n+  return (\n+    <section className=\"bg-amber-900 text-white py-24 text-center\">\n+      <h1 className=\"text-5xl font-bold mb-4\">Welcome to Brew House</h1>\n+      <div className=\"flex flex-col items-center gap-4\">\n+        {items.map((item) => (",
+    "summary": "Added hero section and page wiring for coffee shop landing page",
+    "testsAdded": [],
+    "filesModified": ["app/page.tsx", "app/components/HeroSection.tsx"]
+  },
+  "expected": {
+    "passed": false,
+    "requiredDimensions": [
+      { "name": "no_truncation", "minScore": 6 }
+    ]
+  },
+  "notes": "judge: no_truncation"
+}

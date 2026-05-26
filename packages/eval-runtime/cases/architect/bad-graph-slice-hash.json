@@ -1,0 +1,34 @@
+{
+  "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+  "roleId": "architect",
+  "rubricVersion": "architect@1.0.0",
+  "inputs": {
+    "userTurn": "Build a Next.js landing page for a coffee shop"
+  },
+  "output": {
+    "scope": "new-app",
+    "specGraph": {
+      "nodes": [{ "id": "n1", "kind": "page", "label": "Landing Page" }],
+      "edges": []
+    },
+    "runnablePlan": {
+      "tasks": [
+        { "id": "t1", "title": "Scaffold app", "file": "app/page.tsx" }
+      ]
+    },
+    "graphSlice": {
+      "bytes": "{\"nodes\":[],\"edges\":[]}",
+      "hash": "not-a-sha256"
+    },
+    "canvasManifest": {
+      "artifactKind": "frontend-app",
+      "modes": [
+        { "id": "preview", "label": "Preview", "icon": "eye" }
+      ]
+    }
+  },
+  "expected": {
+    "passed": false
+  },
+  "notes": "structural failure: graph_slice_hash"
+}

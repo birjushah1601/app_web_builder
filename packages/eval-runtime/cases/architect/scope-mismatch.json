@@ -1,0 +1,39 @@
+{
+  "id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b",
+  "roleId": "architect",
+  "rubricVersion": "architect@1.0.0",
+  "inputs": {
+    "userTurn": "Build a FastAPI backend for a billing system"
+  },
+  "output": {
+    "scope": "new-app",
+    "specGraph": {
+      "nodes": [{ "id": "n1", "kind": "page", "label": "Landing Page" }],
+      "edges": []
+    },
+    "runnablePlan": {
+      "tasks": [
+        { "id": "t1", "title": "Scaffold Next.js app", "file": "app/page.tsx" },
+        { "id": "t2", "title": "Create hero section", "file": "app/components/Hero.tsx" }
+      ]
+    },
+    "graphSlice": {
+      "bytes": "{\"nodes\":[],\"edges\":[]}",
+      "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "canvasManifest": {
+      "artifactKind": "frontend-app",
+      "modes": [
+        { "id": "preview", "label": "Preview", "icon": "eye" },
+        { "id": "code", "label": "Code", "icon": "code" }
+      ]
+    }
+  },
+  "expected": {
+    "passed": false,
+    "requiredDimensions": [
+      { "name": "scope_match", "minScore": 6 }
+    ]
+  },
+  "notes": "judge failure: scope_match — prompt asks backend but artifact says frontend"
+}

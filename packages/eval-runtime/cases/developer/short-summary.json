@@ -1,0 +1,24 @@
+{
+  "id": "d0e1f2a3-b4c5-4d6e-7f8a-9b0c1d2e3f4a",
+  "roleId": "developer",
+  "rubricVersion": "developer@1.0.0",
+  "inputs": {
+    "userTurn": "Build a hero section",
+    "priorArtifact": {
+      "scope": "new-app",
+      "canvasManifest": {
+        "artifactKind": "frontend-app"
+      }
+    }
+  },
+  "output": {
+    "diff": "diff --git a/app/page.tsx b/app/page.tsx\nnew file mode 100644\nindex 0000000..abc1234\n--- /dev/null\n+++ b/app/page.tsx\n@@ -0,0 +1,8 @@\n+import HeroSection from './components/HeroSection';\n+\n+export default function Page() {\n+  return (\n+    <main className=\"min-h-screen\">\n+      <HeroSection />\n+    </main>\n+  );\n+}",
+    "summary": "ok",
+    "testsAdded": [],
+    "filesModified": ["app/page.tsx"]
+  },
+  "expected": {
+    "passed": false
+  },
+  "notes": "structural: summary_meaningful"
+}

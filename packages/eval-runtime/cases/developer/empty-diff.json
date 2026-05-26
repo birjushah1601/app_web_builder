@@ -1,0 +1,24 @@
+{
+  "id": "a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d",
+  "roleId": "developer",
+  "rubricVersion": "developer@1.0.0",
+  "inputs": {
+    "userTurn": "Build a hero section",
+    "priorArtifact": {
+      "scope": "new-app",
+      "canvasManifest": {
+        "artifactKind": "frontend-app"
+      }
+    }
+  },
+  "output": {
+    "diff": "",
+    "summary": "No changes were made to the codebase",
+    "testsAdded": [],
+    "filesModified": ["app/page.tsx"]
+  },
+  "expected": {
+    "passed": false
+  },
+  "notes": "structural: diff_present"
+}

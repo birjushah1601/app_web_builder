@@ -1,0 +1,48 @@
+{
+  "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+  "roleId": "architect",
+  "rubricVersion": "architect@1.0.0",
+  "inputs": {
+    "userTurn": "Build a Next.js landing page for a coffee shop"
+  },
+  "output": {
+    "scope": "new-app",
+    "specGraph": {
+      "nodes": [
+        { "id": "n1", "kind": "page", "label": "Landing Page" },
+        { "id": "n2", "kind": "component", "label": "HeroSection" },
+        { "id": "n3", "kind": "component", "label": "MenuSection" },
+        { "id": "n4", "kind": "component", "label": "ContactSection" }
+      ],
+      "edges": [
+        { "from": "n1", "to": "n2" },
+        { "from": "n1", "to": "n3" },
+        { "from": "n1", "to": "n4" }
+      ]
+    },
+    "runnablePlan": {
+      "tasks": [
+        { "id": "t1", "title": "Scaffold Next.js app with App Router", "file": "app/layout.tsx" },
+        { "id": "t2", "title": "Create HeroSection component with coffee imagery", "file": "app/components/HeroSection.tsx" },
+        { "id": "t3", "title": "Create MenuSection with sample items", "file": "app/components/MenuSection.tsx" },
+        { "id": "t4", "title": "Create ContactSection with address + hours", "file": "app/components/ContactSection.tsx" },
+        { "id": "t5", "title": "Wire landing page layout", "file": "app/page.tsx" }
+      ]
+    },
+    "graphSlice": {
+      "bytes": "{\"nodes\":[],\"edges\":[]}",
+      "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "canvasManifest": {
+      "artifactKind": "frontend-app",
+      "modes": [
+        { "id": "preview", "label": "Preview", "icon": "eye" },
+        { "id": "code", "label": "Code", "icon": "code" }
+      ]
+    }
+  },
+  "expected": {
+    "passed": true
+  },
+  "notes": "happy path — new-app with full plan"
+}

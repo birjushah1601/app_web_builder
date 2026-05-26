@@ -1,0 +1,24 @@
+{
+  "id": "f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c",
+  "roleId": "developer",
+  "rubricVersion": "developer@1.0.0",
+  "inputs": {
+    "userTurn": "Build a hero section",
+    "priorArtifact": {
+      "scope": "new-app",
+      "canvasManifest": {
+        "artifactKind": "frontend-app"
+      }
+    }
+  },
+  "output": {
+    "diff": "diff --git a/app/page.tsx b/app/page.tsx\nnew file mode 100644\nindex 0000000..abc1234\n--- /dev/null\n+++ b/app/page.tsx\n@@ -0,0 +1,28 @@\n+import HeroSection from './components/HeroSection';\n+\n+export default function Page() {\n+  return (\n+    <main className=\"min-h-screen\">\n+      <HeroSection />\n+    </main>\n+  );\n+}\ndiff --git a/app/components/HeroSection.tsx b/app/components/HeroSection.tsx\nnew file mode 100644\nindex 0000000..def5678\n--- /dev/null\n+++ b/app/components/HeroSection.tsx\n@@ -0,0 +1,20 @@\n+export default function HeroSection() {\n+  return (\n+    <section className=\"bg-amber-900 text-white py-24 px-8 text-center\">\n+      <h1 className=\"text-5xl font-bold mb-4\">Welcome to Brew House</h1>\n+      <p className=\"text-xl text-amber-200 mb-8\">\n+        Premium single-origin coffee, roasted fresh daily.\n+      </p>\n+      <a\n+        href=\"#menu\"\n+        className=\"bg-white text-amber-900 font-semibold px-8 py-3 rounded-full hover:bg-amber-100 transition\"\n+      >\n+        Explore Our Menu\n+      </a>\n+    </section>\n+  );\n+}",
+    "summary": "Added hero section component with heading, tagline, and CTA button for coffee shop landing page",
+    "testsAdded": [],
+    "filesModified": ["app/page.tsx", "app/components/HeroSection.tsx"]
+  },
+  "expected": {
+    "passed": true
+  },
+  "notes": "happy path"
+}
