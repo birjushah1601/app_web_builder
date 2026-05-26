@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Conductor } from "@atlas/conductor";
+import { RoleEvalEscalation } from "@atlas/conductor";
 import type { EventSink, EditClass, RitualEvent } from "./events.js";
 
 // Mirror of @atlas/canvas-runtime's ArtifactKindSchema enum. Inlined here to
@@ -345,15 +346,38 @@ export class RitualEngine {
     }
     if (input.currentFiles !== undefined) dispatchOptions.currentFiles = input.currentFiles;
 
-    let result = await this.conductor.dispatch(
-      {
-        ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
-        graphVersion: 0,
-        userTurn: input.userTurn,
-        projectId: input.projectId
-      },
-      Object.keys(dispatchOptions).length > 0 ? dispatchOptions : undefined
-    );
+    let result: Awaited<ReturnType<typeof this.conductor.dispatch>>;
+    try {
+      result = await this.conductor.dispatch(
+        {
+          ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+          graphVersion: 0,
+          userTurn: input.userTurn,
+          projectId: input.projectId
+        },
+        Object.keys(dispatchOptions).length > 0 ? dispatchOptions : undefined
+      );
+    } catch (err) {
+      if (err instanceof RoleEvalEscalation) {
+        // Rubric failed after exhausting the quality retry budget. Surface
+        // the verdict set to SSE subscribers so the UI can render an
+        // EvalFailedCard; mark the ritual escalated and short-circuit.
+        await this.emit({
+          type: "role.eval_escalated",
+          ritualId,
+          ts: new Date().toISOString(),
+          payload: {
+            roleId: err.roleId,
+            layer: err.layer,
+            attempts: err.attempts,
+            verdicts: err.verdicts
+          }
+        });
+        initialRecord.state = "escalated";
+        return ritualId;
+      }
+      throw err;
+    }
 
     // Plan U slice 3b — architect pass-1 emits `architect.triage.needs_input`
     // events when it identifies blocker ambiguities. Pause the ritual on the

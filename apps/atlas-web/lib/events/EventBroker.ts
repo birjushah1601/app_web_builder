@@ -126,7 +126,11 @@ export type RitualEventType =
   | "schema_architect.critique.completed"
   | "schema_architect.revise.started"
   | "schema_architect.revise.completed"
-  | "schema.direction.selected";
+  | "schema.direction.selected"
+  // Plan Evals v1 — per-role eval escalation. Emitted by ritual-engine when
+  // the Conductor throws RoleEvalEscalation (rubric failed after exhausting
+  // retry budget). Payload: { roleId, layer, attempts, verdicts }.
+  | "role.eval_escalated";
 
 /** A published event. The broker assigns `id` on publish; it is opaque to
  *  clients (they echo it back via Last-Event-ID for resume). Format today

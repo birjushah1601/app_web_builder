@@ -52,7 +52,9 @@ describe("EventBroker types (Plan E.0 contract)", () => {
       | "schema_architect.proposal.skipped"
       | "schema_architect.critique.started" | "schema_architect.critique.completed"
       | "schema_architect.revise.started" | "schema_architect.revise.completed"
-      | "schema.direction.selected";
+      | "schema.direction.selected"
+      // Plan Evals v1: per-role eval escalation event.
+      | "role.eval_escalated";
     expectTypeOf<RitualEventType>().toEqualTypeOf<Expected>();
   });
 

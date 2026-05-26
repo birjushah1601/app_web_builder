@@ -255,6 +255,22 @@ const DesignerReviseCompletedSchema = z.object({
   payload: z.unknown()
 });
 
+// Plan Evals v1 — per-role eval escalation. Emitted by the engine when the
+// Conductor throws RoleEvalEscalation (rubric failed after exhausting the
+// quality retry budget). Payload carries the full verdict set so UI consumers
+// (EvalFailedCard) can surface per-dimension scores + feedback to the user.
+const RoleEvalEscalatedSchema = z.object({
+  type: z.literal("role.eval_escalated"),
+  ritualId: z.string(),
+  ts: z.string(),
+  payload: z.object({
+    roleId: z.string(),
+    layer: z.enum(["structural", "judge"]),
+    attempts: z.number().int().nonnegative(),
+    verdicts: z.array(z.unknown())
+  })
+});
+
 // Plan U slice 3b — triage clarification pause lifecycle. Emitted by the
 // engine when architect pass-1 returns blocker questions; the engine pauses
 // `_runRitual` on the canvas-pause registry's `triage-clarifications` kind
@@ -343,7 +359,9 @@ export const RitualEventSchema = z.discriminatedUnion("type", [
   AssetGenFailedSchema,
   // Plan U slice 3b — triage clarification pause lifecycle.
   RitualTriageAwaitingClarificationSchema,
-  RitualTriageClarificationResolvedSchema
+  RitualTriageClarificationResolvedSchema,
+  // Plan Evals v1 — per-role eval escalation event.
+  RoleEvalEscalatedSchema
 ]);
 export type RitualEvent = z.infer<typeof RitualEventSchema>;
 
