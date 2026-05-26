@@ -15,24 +15,50 @@ export const NodePolicySchema = z.object({
 });
 export type NodePolicy = z.infer<typeof NodePolicySchema>;
 
-// Minimal DependencyProfile placeholder. Plan B fleshes out the per-provider
-// fields. Plan A only requires the schema to round-trip; values can be empty.
+// Full DependencyProfile v1 schema (Plan B). All concerns are optional;
+// schemaVersion is a required literal "1".
 export const DependencyProfileSchema = z.object({
   schemaVersion: z.literal("1"),
   auth: z.object({
-    provider: z.enum(["keycloak", "clerk", "better-auth", "lucia", "none"]),
+    provider: z.enum(["keycloak", "clerk", "better-auth", "lucia", "auth-js", "none"]),
     config: z.record(z.unknown()).optional()
   }).optional(),
   db: z.object({
-    provider: z.enum(["postgres", "neon", "supabase"]),
+    provider: z.enum(["postgres", "neon", "supabase", "none"]),
     connectionStringEnvVar: z.string()
   }).optional(),
   storage: z.object({
-    provider: z.enum(["minio", "s3"]),
+    provider: z.enum(["minio", "s3", "none"]),
     bucketEnvVar: z.string()
+  }).optional(),
+  email: z.object({
+    provider: z.enum(["mailpit", "postal", "resend", "postmark", "none"]),
+    apiKeyEnvVar: z.string().optional()
+  }).optional(),
+  jobs: z.object({
+    provider: z.enum(["bullmq", "inngest", "trigger-dev", "none"]),
+    redisUrlEnvVar: z.string().optional()
+  }).optional(),
+  payments: z.object({
+    provider: z.enum(["lago", "stripe", "none"])
+  }).optional(),
+  search: z.object({
+    provider: z.enum(["meilisearch", "typesense", "algolia", "none"]),
+    apiKeyEnvVar: z.string().optional()
+  }).optional(),
+  errorTracking: z.object({
+    provider: z.enum(["glitchtip", "sentry", "none"]),
+    dsnEnvVar: z.string().optional()
+  }).optional(),
+  analytics: z.object({
+    provider: z.enum(["posthog", "plausible", "ga", "mixpanel", "none"]),
+    apiKeyEnvVar: z.string().optional()
+  }).optional(),
+  featureFlags: z.object({
+    provider: z.enum(["unleash", "launchdarkly", "none"]),
+    urlEnvVar: z.string().optional()
   }).optional()
-  // Plan B extends with email, jobs, payments, search, errorTracking, analytics, featureFlags
-}).passthrough();
+});
 export type DependencyProfile = z.infer<typeof DependencyProfileSchema>;
 
 export const ArtifactRefSchema = z.object({
