@@ -666,4 +666,81 @@ describe("F5 — retryNode resets blocked descendants", () => {
     expect(bNode!.status).toBe("done");
     expect(dNode!.status).toBe("done");
   });
+
+  // ---------------------------------------------------------------------------
+  // Plan C: broker emit tests
+  // ---------------------------------------------------------------------------
+
+  describe("broker emit — workflow.run/node.status_changed", () => {
+    function makeStubBroker() {
+      const published: Array<{ type: string; payload: Record<string, unknown> }> = [];
+      return {
+        published,
+        async publish(event: { projectId: string; ritualId: string; type: string; payload: Record<string, unknown>; ts: number }) {
+          published.push({ type: event.type, payload: event.payload });
+          return event;
+        }
+      };
+    }
+
+    it("emits workflow.run.status_changed(awaiting_approval) when start() completes", async () => {
+      const broker = makeStubBroker();
+      const runRepo = makeRunRepo();
+      const nodeRepo = makeNodeRepo();
+      const ritualEngine = makeRitualEngine();
+      const engine = new WorkflowEngine({ ritualEngine, runRepo, nodeRepo, broker });
+
+      const runId = await engine.start(defaultInput);
+      // Allow any fire-and-forget promises to flush
+      await new Promise((r) => setTimeout(r, 0));
+
+      const runEvents = broker.published.filter((e) => e.type === "workflow.run.status_changed");
+      expect(runEvents.length).toBeGreaterThanOrEqual(1);
+      const approval = runEvents.find((e) => e.payload.status === "awaiting_approval");
+      expect(approval).toBeDefined();
+      expect(approval!.payload.workflowRunId).toBe(runId);
+    });
+
+    it("emits workflow.run.status_changed(running) and workflow.node.status_changed(done) after approvePlan()", async () => {
+      const broker = makeStubBroker();
+      const runRepo = makeRunRepo();
+      const nodeRepo = makeNodeRepo();
+      const ritualEngine = makeRitualEngine();
+      const engine = new WorkflowEngine({ ritualEngine, runRepo, nodeRepo, broker });
+
+      const runId = await engine.start(defaultInput);
+      broker.published.length = 0; // reset to isolate approve-phase events
+
+      await engine.approvePlan(runId);
+      await engine._waitForScheduler(runId);
+      await new Promise((r) => setTimeout(r, 0));
+
+      const runEvents = broker.published.filter((e) => e.type === "workflow.run.status_changed");
+      const nodeEvents = broker.published.filter((e) => e.type === "workflow.node.status_changed");
+
+      expect(runEvents.some((e) => e.payload.status === "running")).toBe(true);
+      expect(nodeEvents.length).toBeGreaterThanOrEqual(1);
+      expect(nodeEvents.every((e) => e.payload.workflowRunId === runId)).toBe(true);
+    });
+
+    it("emits workflow.run.status_changed(aborted) when abort() is called", async () => {
+      const broker = makeStubBroker();
+      const runRepo = makeRunRepo();
+      const nodeRepo = makeNodeRepo();
+      const ritualEngine = makeRitualEngine();
+      const engine = new WorkflowEngine({ ritualEngine, runRepo, nodeRepo, broker });
+
+      const runId = await engine.start(defaultInput);
+      broker.published.length = 0;
+
+      await engine.abort(runId, "test-abort");
+      await new Promise((r) => setTimeout(r, 0));
+
+      const abortEvent = broker.published.find(
+        (e) => e.type === "workflow.run.status_changed" && e.payload.status === "aborted"
+      );
+      expect(abortEvent).toBeDefined();
+      expect(abortEvent!.payload.workflowRunId).toBe(runId);
+    });
+  });
 });

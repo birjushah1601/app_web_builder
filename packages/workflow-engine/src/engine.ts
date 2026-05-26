@@ -6,6 +6,21 @@ import type {
   DependencyProfile,
   NodePolicy
 } from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Minimal EventBroker interface — only what the engine needs for emitting
+// workflow status events. Keeps the engine free of atlas-web imports.
+// ---------------------------------------------------------------------------
+
+export interface IEventBrokerForEngine {
+  publish(event: {
+    projectId: string;
+    ritualId: string;
+    type: string;
+    payload: Record<string, unknown>;
+    ts: number;
+  }): Promise<unknown>;
+}
 import {
   WorkflowNodeSchema,
   DependencyProfileSchema
@@ -142,6 +157,10 @@ export interface WorkflowEngineOptions {
   checkpointRepo?: IWorkflowCheckpointRepo;
   /** F3: optional CheckpointRecorder wired to the project's broker */
   checkpointRecorder?: ICheckpointRecorder;
+  /** Plan C: optional broker for emitting workflow.run/node.status_changed SSE
+   *  events. When absent (tests that don't need SSE), status updates still
+   *  persist to the repo — only broker publishing is skipped. */
+  broker?: IEventBrokerForEngine;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +188,56 @@ export class WorkflowEngine {
    */
   _waitForScheduler(workflowRunId: string): Promise<void> {
     return this.runningSchedulers.get(workflowRunId) ?? Promise.resolve();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plan C: SSE emit helpers
+  // Fire-and-forget — a broker publish failure must never crash the engine.
+  // ---------------------------------------------------------------------------
+
+  private emitRunStatus(
+    projectId: string,
+    workflowRunId: string,
+    status: string
+  ): void {
+    const { broker } = this.opts;
+    if (!broker) return;
+    void broker.publish({
+      projectId,
+      ritualId: workflowRunId,
+      type: "workflow.run.status_changed",
+      payload: { workflowRunId, status },
+      ts: Date.now()
+    }).catch((err) => {
+      console.error("[workflow-engine] broker emit (run status) failed:", err);
+    });
+  }
+
+  private emitNodeStatus(
+    projectId: string,
+    workflowRunId: string,
+    nodeId: string,
+    status: string,
+    extras?: { ritualId?: string; artifact?: unknown; failure?: unknown }
+  ): void {
+    const { broker } = this.opts;
+    if (!broker) return;
+    void broker.publish({
+      projectId,
+      ritualId: workflowRunId,
+      type: "workflow.node.status_changed",
+      payload: {
+        workflowRunId,
+        nodeId,
+        status,
+        ...(extras?.ritualId !== undefined && { ritualId: extras.ritualId }),
+        ...(extras?.artifact !== undefined && { artifact: extras.artifact }),
+        ...(extras?.failure !== undefined && { failure: extras.failure })
+      },
+      ts: Date.now()
+    }).catch((err) => {
+      console.error("[workflow-engine] broker emit (node status) failed:", err);
+    });
   }
 
   /**
@@ -232,6 +301,7 @@ export class WorkflowEngine {
 
     // 5b. Flip status to awaiting_approval
     await runRepo.updateStatus(runId, "awaiting_approval");
+    this.emitRunStatus(input.projectId, runId, "awaiting_approval");
 
     return runId;
   }
@@ -264,6 +334,7 @@ export class WorkflowEngine {
 
     // Flip to running
     await runRepo.updateStatus(workflowRunId, "running");
+    this.emitRunStatus(runRow.projectId, workflowRunId, "running");
 
     // Build snapshot
     const snapshot = await this.buildSnapshot(workflowRunId);
@@ -279,6 +350,11 @@ export class WorkflowEngine {
             ...(update.ritualId && { ritualId: update.ritualId }),
             ...(update.failure && { failure: update.failure })
           });
+          this.emitNodeStatus(runRow.projectId, workflowRunId, nodeId, update.status, {
+            ritualId: update.ritualId,
+            artifact: update.artifact,
+            failure: update.failure
+          });
         }
         if (update.artifact !== undefined) {
           await nodeRepo.setArtifact(workflowRunId, nodeId, update.artifact, "1");
@@ -286,6 +362,7 @@ export class WorkflowEngine {
       },
       persistWorkflowStatus: async (status) => {
         await runRepo.updateStatus(workflowRunId, status);
+        this.emitRunStatus(runRow.projectId, workflowRunId, status);
       }
     });
 
@@ -319,6 +396,7 @@ export class WorkflowEngine {
 
     // Reset node to pending
     await nodeRepo.updateStatus(workflowRunId, nodeId, "pending");
+    this.emitNodeStatus(runRow.projectId, workflowRunId, nodeId, "pending");
 
     // F5: Reset transitively-blocked descendants.
     // BFS from the retried node following dependsOn edges in reverse,
@@ -342,11 +420,13 @@ export class WorkflowEngine {
     for (const bid of unblockSet) {
       if (bid !== nodeId) {
         await nodeRepo.updateStatus(workflowRunId, bid, "pending");
+        this.emitNodeStatus(runRow.projectId, workflowRunId, bid, "pending");
       }
     }
 
     // Ensure workflow is running
     await runRepo.updateStatus(workflowRunId, "running");
+    this.emitRunStatus(runRow.projectId, workflowRunId, "running");
 
     // Re-build snapshot and run scheduler
     const snapshot = await this.buildSnapshot(workflowRunId);
@@ -361,6 +441,11 @@ export class WorkflowEngine {
             ...(update.ritualId && { ritualId: update.ritualId }),
             ...(update.failure && { failure: update.failure })
           });
+          this.emitNodeStatus(runRow.projectId, workflowRunId, nId, update.status, {
+            ritualId: update.ritualId,
+            artifact: update.artifact,
+            failure: update.failure
+          });
         }
         if (update.artifact !== undefined) {
           await nodeRepo.setArtifact(workflowRunId, nId, update.artifact, "1");
@@ -368,6 +453,7 @@ export class WorkflowEngine {
       },
       persistWorkflowStatus: async (status) => {
         await runRepo.updateStatus(workflowRunId, status);
+        this.emitRunStatus(runRow.projectId, workflowRunId, status);
       }
     });
 
@@ -399,6 +485,7 @@ export class WorkflowEngine {
     );
 
     await runRepo.updateStatus(workflowRunId, "aborted");
+    this.emitRunStatus(runRow.projectId, workflowRunId, "aborted");
   }
 
   /**

@@ -130,7 +130,14 @@ export type RitualEventType =
   // Plan Evals v1 — per-role eval escalation. Emitted by ritual-engine when
   // the Conductor throws RoleEvalEscalation (rubric failed after exhausting
   // retry budget). Payload: { roleId, layer, attempts, verdicts }.
-  | "role.eval_escalated";
+  | "role.eval_escalated"
+  // Plan C — Workflow graph view. Emitted by WorkflowEngine on every status
+  // transition so WorkflowGraphClient can update the live snapshot via SSE
+  // without polling. workflow.run.status_changed payload: { workflowRunId,
+  // status }; workflow.node.status_changed payload: { workflowRunId, nodeId,
+  // status, ritualId?, artifact?, failure? }.
+  | "workflow.run.status_changed"
+  | "workflow.node.status_changed";
 
 /** A published event. The broker assigns `id` on publish; it is opaque to
  *  clients (they echo it back via Last-Event-ID for resume). Format today

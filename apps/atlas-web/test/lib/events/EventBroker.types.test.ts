@@ -54,7 +54,10 @@ describe("EventBroker types (Plan E.0 contract)", () => {
       | "schema_architect.revise.started" | "schema_architect.revise.completed"
       | "schema.direction.selected"
       // Plan Evals v1: per-role eval escalation event.
-      | "role.eval_escalated";
+      | "role.eval_escalated"
+      // Plan C: workflow graph view — run + node status transitions.
+      | "workflow.run.status_changed"
+      | "workflow.node.status_changed";
     expectTypeOf<RitualEventType>().toEqualTypeOf<Expected>();
   });
 
