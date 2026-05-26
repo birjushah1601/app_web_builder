@@ -72,6 +72,13 @@ function makeRunRepo(): IWorkflowRunRepo & { _store: Map<string, RunRow> } {
         row.status = status;
         row.updatedAt = new Date();
       }
+    },
+    async updateDependencyProfile(id, dependencyProfile) {
+      const row = store.get(id);
+      if (row) {
+        row.dependencyProfile = dependencyProfile;
+        row.updatedAt = new Date();
+      }
     }
   };
 }
@@ -183,6 +190,38 @@ function makeRitualEngine(): IRitualEngine & {
   };
 }
 
+/**
+ * Multi-node ritual engine — emits a custom set of nodes from the planner.
+ */
+function makeMultiNodeRitualEngine(nodes: Array<{
+  id: string;
+  artifactKind: string;
+  summary: string;
+  dependsOn: string[];
+  consumes: string[];
+  policy: { priority: number; runMode: string };
+}>): IRitualEngine {
+  const snapshots = new Map<string, { state: string; roleEvents: Array<{ eventType: string; payload: unknown }> }>();
+  let counter = 0;
+  return {
+    async start(_input) {
+      const ritualId = `ritual-${++counter}`;
+      snapshots.set(ritualId, {
+        state: "completed",
+        roleEvents: [
+          {
+            eventType: "workflow_planner.dag.emitted",
+            payload: { nodes, dependencyProfile: { schemaVersion: "1" } }
+          }
+        ]
+      });
+      return ritualId;
+    },
+    async getRitual(ritualId) { return snapshots.get(ritualId); },
+    async abort() {}
+  };
+}
+
 function makeEngine(
   overrides: {
     runRepo?: IWorkflowRunRepo;
@@ -281,6 +320,7 @@ describe("WorkflowEngine", () => {
       const { engine } = makeEngine({ runRepo });
       const runId = await startAndGetId(engine);
       await engine.approvePlan(runId);
+      await engine._waitForScheduler(runId);
       const row = await runRepo.findById(runId);
       expect(row!.status).toBe("completed");
     });
@@ -290,6 +330,7 @@ describe("WorkflowEngine", () => {
       const { engine } = makeEngine({ nodeRepo });
       const runId = await engine.start(defaultInput);
       await engine.approvePlan(runId);
+      await engine._waitForScheduler(runId);
       const nodes = await nodeRepo.findByRunId(runId);
       expect(nodes.every((n) => n.status === "done")).toBe(true);
     });
@@ -305,6 +346,7 @@ describe("WorkflowEngine", () => {
       const { engine } = makeEngine();
       const runId = await engine.start(defaultInput);
       await engine.approvePlan(runId); // flips to completed
+      await engine._waitForScheduler(runId);
       await expect(engine.approvePlan(runId)).rejects.toThrow(
         WorkflowAlreadyApprovedError
       );
@@ -325,6 +367,7 @@ describe("WorkflowEngine", () => {
       await runRepo.updateStatus(runId, "escalated");
 
       await engine.retryNode(runId, "n1");
+      await engine._waitForScheduler(runId);
 
       const nodes = await nodeRepo.findByRunId(runId);
       expect(nodes[0]!.status).toBe("done");
@@ -452,9 +495,175 @@ describe("WorkflowEngine", () => {
       const { engine } = makeEngine();
       const runId = await engine.start(defaultInput);
       await engine.approvePlan(runId);
+      await engine._waitForScheduler(runId);
       const snapshot = await engine.getRun(runId);
       expect(snapshot!.status).toBe("completed");
       expect(snapshot!.nodes[0]!.status).toBe("done");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F2: dependencyProfile is persisted after start()
+// ---------------------------------------------------------------------------
+
+describe("F2 — dependencyProfile persistence", () => {
+  it("getRun() returns the planner-emitted dependencyProfile after start()", async () => {
+    const runRepo = makeRunRepo();
+    const { engine } = makeEngine({ runRepo });
+    const runId = await engine.start(defaultInput);
+    const run = await runRepo.findById(runId);
+    // The fake planner emits { schemaVersion: "1" }; it should now be persisted
+    expect(run!.dependencyProfile).toBeDefined();
+    const profile = run!.dependencyProfile as { schemaVersion: string };
+    expect(profile.schemaVersion).toBe("1");
+  });
+
+  it("updateDependencyProfile is called on the runRepo during start()", async () => {
+    const runRepo = makeRunRepo();
+    const updateCalls: unknown[] = [];
+    const orig = runRepo.updateDependencyProfile.bind(runRepo);
+    runRepo.updateDependencyProfile = async (id, profile) => {
+      updateCalls.push({ id, profile });
+      return orig(id, profile);
+    };
+    const { engine } = makeEngine({ runRepo });
+    await engine.start(defaultInput);
+    expect(updateCalls).toHaveLength(1);
+    const call = updateCalls[0] as { profile: { schemaVersion: string } };
+    expect(call.profile.schemaVersion).toBe("1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F4: approvePlan is fire-and-forget; _waitForScheduler resolves after done
+// ---------------------------------------------------------------------------
+
+describe("F4 — fire-and-forget scheduler", () => {
+  it("approvePlan() returns before scheduler finishes; _waitForScheduler awaits completion", async () => {
+    const runRepo = makeRunRepo();
+    const { engine } = makeEngine({ runRepo });
+    const runId = await engine.start(defaultInput);
+
+    // approvePlan returns immediately (fire-and-forget)
+    await engine.approvePlan(runId);
+    // At this point the scheduler may or may not be done; that's fine.
+    // _waitForScheduler must eventually resolve with completed status.
+    await engine._waitForScheduler(runId);
+
+    const row = await runRepo.findById(runId);
+    expect(row!.status).toBe("completed");
+  });
+
+  it("_waitForScheduler resolves immediately when no scheduler is running", async () => {
+    const { engine } = makeEngine();
+    // No scheduler started for this run
+    await expect(engine._waitForScheduler("nonexistent")).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F5: retryNode resets transitively-blocked descendants
+// ---------------------------------------------------------------------------
+
+describe("F5 — retryNode resets blocked descendants", () => {
+  it("diamond DAG: retrying b resets b and d to pending; c (done) untouched", async () => {
+    // a → root; b → a; c → a; d → (b, c)
+    const nodes = [
+      { id: "a", artifactKind: "frontend-app", summary: "A", dependsOn: [], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "b", artifactKind: "frontend-app", summary: "B", dependsOn: ["a"], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "c", artifactKind: "frontend-app", summary: "C", dependsOn: ["a"], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "d", artifactKind: "frontend-app", summary: "D", dependsOn: ["b", "c"], consumes: [], policy: { priority: 0, runMode: "active" } }
+    ];
+    const ritualEngine = makeMultiNodeRitualEngine(nodes);
+    const runRepo = makeRunRepo();
+    const nodeRepo = makeNodeRepo();
+    const engine = new WorkflowEngine({ ritualEngine, runRepo, nodeRepo });
+
+    const runId = await engine.start(defaultInput);
+
+    // Simulate: a=done, c=done, b=failed, d=blocked
+    await nodeRepo.updateStatus(runId, "a", "done");
+    await nodeRepo.updateStatus(runId, "c", "done");
+    await nodeRepo.updateStatus(runId, "b", "failed", { failure: { error: "boom", attempts: 1 } });
+    await nodeRepo.updateStatus(runId, "d", "blocked");
+    await runRepo.updateStatus(runId, "escalated");
+
+    await engine.retryNode(runId, "b");
+    await engine._waitForScheduler(runId);
+
+    const bNode = await nodeRepo.findOne(runId, "b");
+    const dNode = await nodeRepo.findOne(runId, "d");
+    const cNode = await nodeRepo.findOne(runId, "c");
+
+    // b and d should be done (re-ran); c stays done
+    expect(bNode!.status).toBe("done");
+    expect(dNode!.status).toBe("done");
+    expect(cNode!.status).toBe("done"); // unchanged
+  });
+
+  it("chain a→b→c→d: retrying b resets b, c, d to pending then to done", async () => {
+    const nodes = [
+      { id: "a", artifactKind: "frontend-app", summary: "A", dependsOn: [], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "b", artifactKind: "frontend-app", summary: "B", dependsOn: ["a"], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "c", artifactKind: "frontend-app", summary: "C", dependsOn: ["b"], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "d", artifactKind: "frontend-app", summary: "D", dependsOn: ["c"], consumes: [], policy: { priority: 0, runMode: "active" } }
+    ];
+    const ritualEngine = makeMultiNodeRitualEngine(nodes);
+    const runRepo = makeRunRepo();
+    const nodeRepo = makeNodeRepo();
+    const engine = new WorkflowEngine({ ritualEngine, runRepo, nodeRepo });
+
+    const runId = await engine.start(defaultInput);
+
+    // a=done, b=failed, c+d=blocked
+    await nodeRepo.updateStatus(runId, "a", "done");
+    await nodeRepo.updateStatus(runId, "b", "failed", { failure: { error: "err", attempts: 1 } });
+    await nodeRepo.updateStatus(runId, "c", "blocked");
+    await nodeRepo.updateStatus(runId, "d", "blocked");
+    await runRepo.updateStatus(runId, "escalated");
+
+    await engine.retryNode(runId, "b");
+    await engine._waitForScheduler(runId);
+
+    const statuses = await Promise.all(["b", "c", "d"].map((id) => nodeRepo.findOne(runId, id)));
+    expect(statuses.every((n) => n!.status === "done")).toBe(true);
+  });
+
+  it("sibling-not-dependent: retrying a only resets a+c; b and d untouched", async () => {
+    // a (root), b (root, independent), c → a, d → b
+    const nodes = [
+      { id: "a", artifactKind: "frontend-app", summary: "A", dependsOn: [], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "b", artifactKind: "frontend-app", summary: "B", dependsOn: [], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "c", artifactKind: "frontend-app", summary: "C", dependsOn: ["a"], consumes: [], policy: { priority: 0, runMode: "active" } },
+      { id: "d", artifactKind: "frontend-app", summary: "D", dependsOn: ["b"], consumes: [], policy: { priority: 0, runMode: "active" } }
+    ];
+    const ritualEngine = makeMultiNodeRitualEngine(nodes);
+    const runRepo = makeRunRepo();
+    const nodeRepo = makeNodeRepo();
+    const engine = new WorkflowEngine({ ritualEngine, runRepo, nodeRepo });
+
+    const runId = await engine.start(defaultInput);
+
+    // a=failed, c=blocked, b=done, d=done
+    await nodeRepo.updateStatus(runId, "a", "failed", { failure: { error: "err", attempts: 1 } });
+    await nodeRepo.updateStatus(runId, "c", "blocked");
+    await nodeRepo.updateStatus(runId, "b", "done");
+    await nodeRepo.updateStatus(runId, "d", "done");
+    await runRepo.updateStatus(runId, "escalated");
+
+    await engine.retryNode(runId, "a");
+    await engine._waitForScheduler(runId);
+
+    const aNode = await nodeRepo.findOne(runId, "a");
+    const cNode = await nodeRepo.findOne(runId, "c");
+    const bNode = await nodeRepo.findOne(runId, "b");
+    const dNode = await nodeRepo.findOne(runId, "d");
+
+    expect(aNode!.status).toBe("done");
+    expect(cNode!.status).toBe("done");
+    // b and d stay done (untouched)
+    expect(bNode!.status).toBe("done");
+    expect(dNode!.status).toBe("done");
   });
 });

@@ -33,13 +33,43 @@ const DB_URL =
   process.env.DATABASE_URL ??
   "postgres://atlas:atlas@localhost:5440/atlas_dev";
 
+
+
 const db = createDatabase(DB_URL, { max: 5 });
 const { pool } = db;
+
+const TEST_PROJECT_ID_FOR_SETUP = "00000000-0000-0000-0000-000000000099";
 
 async function truncateWorkflowTables(): Promise<void> {
   await pool.query(
     "TRUNCATE workflow_runs, workflow_nodes, workflow_node_checkpoints, workflow_usage RESTART IDENTITY CASCADE"
   );
+  // F1 added a FK: workflow_runs.project_id → projects(project_id).
+  // projects itself has a FK to spec_graphs.project_id.
+  // spec_graphs has RLS: the tenant policy allows inserts only when
+  // app.project_id (set via set_config) matches the row's project_id.
+  // Use withProjectContext (same pattern as spec-graph-data tests) to satisfy RLS.
+  const { withProjectContext } = await import("../../spec-graph-data/src/tenant.js");
+  try {
+    await withProjectContext(pool, TEST_PROJECT_ID_FOR_SETUP, async (client) => {
+      await client.query(
+        `INSERT INTO spec_graphs (project_id, schema_version, graph_data, created_at, updated_at)
+         VALUES ($1, 1, '{}', NOW(), NOW())
+         ON CONFLICT (project_id) DO NOTHING`,
+        [TEST_PROJECT_ID_FOR_SETUP]
+      );
+      // projects table has no RLS — insert within the same transaction
+      await client.query(
+        `INSERT INTO projects (project_id, user_id, name, created_at, updated_at)
+         VALUES ($1, 'user-integration-test', 'integration-test-project', NOW(), NOW())
+         ON CONFLICT (project_id) DO NOTHING`,
+        [TEST_PROJECT_ID_FOR_SETUP]
+      );
+    });
+  } catch (err) {
+    // If the project row already exists from a previous test run, silently ignore
+    console.warn("[integration-test] FK setup warning:", (err as Error).message);
+  }
 }
 
 afterAll(async () => {
@@ -159,6 +189,7 @@ describe("Scenario 1: 2-node DAG plan/approve/run flow", () => {
 
     // approvePlan() → running → scheduler executes → completed
     await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
 
     // Verify DB: workflow=completed
     const runAfterApprove = await runRepo.findById(runId);
@@ -243,6 +274,7 @@ describe("Scenario 2: 3-node DAG with failure", () => {
 
     // Approve to run node-a to completion
     await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
 
     // Verify node-a done
     const nodesAfter = await nodeRepo.findByRunId(runId);
@@ -265,6 +297,7 @@ describe("Scenario 2: 3-node DAG with failure", () => {
 
     // retryNode() → resets to pending, re-runs scheduler → done
     await engine.retryNode(runId, "node-a");
+    await engine._waitForScheduler(runId);
 
     const runAfterRetry = await runRepo.findById(runId);
     expect(runAfterRetry!.status).toBe("completed");
@@ -438,6 +471,7 @@ describe("Smoke: 1-node happy path", () => {
     expect(runId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 
     await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
 
     const run = await runRepo.findById(runId);
     expect(run!.status).toBe("completed");
@@ -471,6 +505,7 @@ describe("Smoke: 1-node happy path", () => {
       prompt: "Snapshot integrity check"
     });
     await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
 
     const snapshot = await engine.getRun(runId);
     expect(snapshot).toBeDefined();

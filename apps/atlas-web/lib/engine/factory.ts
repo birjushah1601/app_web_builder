@@ -585,13 +585,51 @@ export const getWorkflowEngine = cache(async (projectId: string): Promise<Workfl
   const { WorkflowRunRepo, WorkflowNodeRepo, WorkflowCheckpointRepo } = await import(
     "@atlas/spec-graph-data"
   );
-  const { StubWorkflowPlannerRole } = await import("@atlas/workflow-engine");
+  const { StubWorkflowPlannerRole, CheckpointRecorder } = await import("@atlas/workflow-engine");
+  const { getEventBroker } = await import("@/lib/events/broker-singleton");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   const runRepo = new WorkflowRunRepo(pool);
   const nodeRepo = new WorkflowNodeRepo(pool);
   const checkpointRepo = new WorkflowCheckpointRepo(pool);
+
+  // F3: construct a CheckpointRecorder wired to the project's broker.
+  // The recorder's onEvent is subscribed to the broker so that any broker
+  // event for this project is routed to the correct workflow node checkpoint.
+  // registerRitualForNode is called from makeLaunchRitual each time a node starts.
+  // WorkflowCheckpointRepo.append returns the inserted row; CheckpointWriter
+  // declares append as returning Promise<void>. Cast through unknown to match
+  // the constructor's contract — runtime behavior is unaffected (the recorder
+  // never reads the return value).
+  const checkpointRecorder = new CheckpointRecorder(
+    checkpointRepo as unknown as ConstructorParameters<typeof CheckpointRecorder>[0],
+    new Map()
+  );
+  // Subscribe to the broker for this project's events using a background async loop.
+  // The AbortController is intentionally never aborted — we want this subscription
+  // to live for the process lifetime (same as the WorkflowEngine singleton).
+  const checkpointBrokerAbort = new AbortController();
+  (async () => {
+    try {
+      const stream = getEventBroker().subscribe(projectId, { signal: checkpointBrokerAbort.signal });
+      for await (const event of stream) {
+        void checkpointRecorder.onEvent({
+          type: event.type,
+          ritualId: event.ritualId,
+          payload: event.payload as Record<string, unknown> | undefined,
+          ritualEventId: (event as { ritualEventId?: string }).ritualEventId
+        }).catch((err) => {
+          console.error("[workflow-engine] CheckpointRecorder.onEvent failed:", err);
+        });
+      }
+    } catch (err) {
+      if ((err as { name?: string })?.name !== "AbortError") {
+        console.error("[workflow-engine] checkpoint broker subscription error:", err);
+      }
+    }
+  })();
+  void checkpointBrokerAbort; // held for potential future cleanup
 
   // Obtain the ritual engine (which already has roles wired + Conductor
   // constructed). We need to register the workflow-planner role on the
@@ -618,7 +656,9 @@ export const getWorkflowEngine = cache(async (projectId: string): Promise<Workfl
     // WorkflowCheckpointRepo.append returns the inserted row; IWorkflowCheckpointRepo
     // declares append as returning Promise<void>. Both contracts are satisfied at
     // runtime (callers don't use the return value). Cast through unknown to satisfy TS.
-    checkpointRepo: checkpointRepo as unknown as import("@atlas/workflow-engine").IWorkflowCheckpointRepo
+    checkpointRepo: checkpointRepo as unknown as import("@atlas/workflow-engine").IWorkflowCheckpointRepo,
+    // F3: wire the recorder so registerRitualForNode is called on each node launch
+    checkpointRecorder: checkpointRecorder as import("@atlas/workflow-engine").ICheckpointRecorder
   });
 
   registry.set(projectId, engine);

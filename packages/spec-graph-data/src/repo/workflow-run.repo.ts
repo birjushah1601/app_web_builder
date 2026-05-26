@@ -50,4 +50,11 @@ export class WorkflowRunRepo {
       .set({ status, updatedAt: new Date() })
       .where(eq(workflowRuns.id, id));
   }
+
+  async updateDependencyProfile(id: string, dependencyProfile: unknown): Promise<void> {
+    await this.db
+      .update(workflowRuns)
+      .set({ dependencyProfile: dependencyProfile as WorkflowRunRow["dependencyProfile"], updatedAt: new Date() })
+      .where(eq(workflowRuns.id, id));
+  }
 }

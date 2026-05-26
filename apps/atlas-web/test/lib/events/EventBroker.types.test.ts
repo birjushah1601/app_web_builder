@@ -37,6 +37,11 @@ describe("EventBroker types (Plan E.0 contract)", () => {
       | "asset.gen.started" | "asset.gen.completed" | "asset.gen.failed"
       // Architect triage clarifying-question pause.
       | "architect.triage.needs_input"
+      // Plan U slice 3b: triage-pause lifecycle + developer streaming.
+      | "ritual.triage.awaiting_clarification"
+      | "ritual.triage.clarification_resolved"
+      | "developer.candidate.delta"
+      | "developer.completed"
       // Plan L0: build-gate lifecycle.
       | "build-gate.started" | "build-gate.passed" | "build-gate.failed" | "build-gate.completed"
       // Plan Schema-Canvas + Schema-Architect (2026-05-21) — three-pass

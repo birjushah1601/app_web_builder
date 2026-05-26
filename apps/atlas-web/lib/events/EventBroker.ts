@@ -104,6 +104,10 @@ export type RitualEventType =
   // A live-listener client component accumulates chunks and renders the
   // diff as it grows — the actual sandbox apply still waits for completion.
   | "developer.candidate.delta"
+  // Developer role's final result event (winner picked from anthropic +
+  // google candidates). The DeveloperStreamLive client component dismisses
+  // itself when this lands so the final diff renders in ChatPanel instead.
+  | "developer.completed"
   // Plan L0 — Build gate. Fired by BuildGateRole; surfaces as its own row
   // on the rail timeline alongside security/a11y/visual-quality.
   | "build-gate.started"

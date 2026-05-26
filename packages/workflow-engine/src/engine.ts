@@ -37,6 +37,7 @@ export interface IWorkflowRunRepo {
   }): Promise<{ id: string; status: string; createdAt: Date | string; updatedAt: Date | string }>;
   findById(id: string): Promise<{ id: string; projectId: string; userId: string; prompt: string; status: string; dependencyProfile: unknown; concurrencyCap?: number | null; createdAt: Date | string; updatedAt: Date | string } | undefined>;
   updateStatus(id: string, status: string): Promise<void>;
+  updateDependencyProfile(id: string, dependencyProfile: unknown): Promise<void>;
 }
 
 export interface IWorkflowNodeRepo {
@@ -89,6 +90,15 @@ export interface IWorkflowCheckpointRepo {
   }): Promise<void>;
 }
 
+/**
+ * Minimal interface for a CheckpointRecorder — only what the engine needs.
+ * The full CheckpointRecorder class from checkpoints.ts satisfies this.
+ */
+export interface ICheckpointRecorder {
+  registerRitualForNode(ritualId: string, workflowRunId: string, nodeId: string): void;
+  onEvent(event: { type: string; ritualId: string; payload?: unknown; ritualEventId?: string }): Promise<void>;
+}
+
 // ---------------------------------------------------------------------------
 // Minimal RitualEngine interface (subset used by WorkflowEngine).
 // ---------------------------------------------------------------------------
@@ -130,6 +140,8 @@ export interface WorkflowEngineOptions {
   runRepo: IWorkflowRunRepo;
   nodeRepo: IWorkflowNodeRepo;
   checkpointRepo?: IWorkflowCheckpointRepo;
+  /** F3: optional CheckpointRecorder wired to the project's broker */
+  checkpointRecorder?: ICheckpointRecorder;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,8 +151,24 @@ export interface WorkflowEngineOptions {
 export class WorkflowEngine {
   private readonly opts: WorkflowEngineOptions;
 
+  /**
+   * F4: tracks in-flight scheduler promises so tests can await completion
+   * without blocking the HTTP response in production.
+   * Key = workflowRunId.
+   */
+  private readonly runningSchedulers = new Map<string, Promise<void>>();
+
   constructor(opts: WorkflowEngineOptions) {
     this.opts = opts;
+  }
+
+  /**
+   * Test-only helper (underscore prefix = internal API).
+   * Returns the in-flight scheduler promise for a given run, or
+   * resolves immediately if no scheduler is currently running.
+   */
+  _waitForScheduler(workflowRunId: string): Promise<void> {
+    return this.runningSchedulers.get(workflowRunId) ?? Promise.resolve();
   }
 
   /**
@@ -199,14 +227,10 @@ export class WorkflowEngine {
       await nodeRepo.insertMany(nodeRows);
     }
 
-    // Store dependencyProfile back into run (update status + dep profile)
-    // We encode it by updating the status to awaiting_approval; dep profile
-    // is already set in the insert above using the planner's output.
-    // For Plan A, we re-use updateStatus to flip. A future migration might add
-    // a dedicated updateDependencyProfile method.
-    void dependencyProfile; // acknowledged; Plan B persists it separately
+    // 5a. Persist the planner's dependencyProfile (F2)
+    await runRepo.updateDependencyProfile(runId, dependencyProfile);
 
-    // 5. Flip status to awaiting_approval
+    // 5b. Flip status to awaiting_approval
     await runRepo.updateStatus(runId, "awaiting_approval");
 
     return runId;
@@ -265,7 +289,16 @@ export class WorkflowEngine {
       }
     });
 
-    await scheduler.execute();
+    // F4: fire-and-forget so approvePlan() returns immediately in production.
+    // The scheduler persists its own terminal status via persistWorkflowStatus.
+    // Tests should await engine._waitForScheduler(workflowRunId) to assert final state.
+    const schedulerPromise = scheduler.execute().catch((err) => {
+      console.error("[workflow-engine] scheduler failed:", err);
+    });
+    this.runningSchedulers.set(workflowRunId, schedulerPromise);
+    void schedulerPromise.finally(() => {
+      this.runningSchedulers.delete(workflowRunId);
+    });
   }
 
   /**
@@ -286,6 +319,32 @@ export class WorkflowEngine {
 
     // Reset node to pending
     await nodeRepo.updateStatus(workflowRunId, nodeId, "pending");
+
+    // F5: Reset transitively-blocked descendants.
+    // BFS from the retried node following dependsOn edges in reverse,
+    // collecting any node whose status is currently "blocked".
+    const allNodes = await nodeRepo.findByRunId(workflowRunId);
+    const unblockSet = new Set<string>([nodeId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const n of allNodes) {
+        if (unblockSet.has(n.id)) continue;
+        if (n.status !== "blocked") continue;
+        const deps = Array.isArray(n.dependsOn) ? (n.dependsOn as string[]) : [];
+        if (deps.some((d) => unblockSet.has(d))) {
+          unblockSet.add(n.id);
+          changed = true;
+        }
+      }
+    }
+    // Reset all blocked descendants (not the retried node itself — already done)
+    for (const bid of unblockSet) {
+      if (bid !== nodeId) {
+        await nodeRepo.updateStatus(workflowRunId, bid, "pending");
+      }
+    }
+
     // Ensure workflow is running
     await runRepo.updateStatus(workflowRunId, "running");
 
@@ -312,7 +371,14 @@ export class WorkflowEngine {
       }
     });
 
-    await scheduler.execute();
+    // F4: fire-and-forget for retryNode too
+    const retrySchedulerPromise = scheduler.execute().catch((err) => {
+      console.error("[workflow-engine] retry scheduler failed:", err);
+    });
+    this.runningSchedulers.set(workflowRunId, retrySchedulerPromise);
+    void retrySchedulerPromise.finally(() => {
+      this.runningSchedulers.delete(workflowRunId);
+    });
   }
 
   /**
@@ -405,12 +471,18 @@ export class WorkflowEngine {
   /**
    * Plan A: stub launchRitual — returns a fake ritualId immediately.
    * Plan B: wire to ritualEngine.start() with real roles.
+   * F3: calls checkpointRecorder.registerRitualForNode when a recorder is present.
    */
   private makeLaunchRitual(workflowRunId: string) {
+    const recorder = this.opts.checkpointRecorder;
     return async (node: WorkflowNode, _run: WorkflowRunSnapshot): Promise<string> => {
-      void workflowRunId;
       // Stub: return a deterministic fake ritualId for the node
-      return `stub-ritual-${node.id}`;
+      const ritualId = `stub-ritual-${node.id}`;
+      // F3: register the mapping so the recorder can route broker events to checkpoints
+      if (recorder) {
+        recorder.registerRitualForNode(ritualId, workflowRunId, node.id);
+      }
+      return ritualId;
     };
   }
 
