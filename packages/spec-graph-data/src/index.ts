@@ -48,3 +48,4 @@ export { WorkflowRunRepo } from "./repo/workflow-run.repo.js";
 export { WorkflowNodeRepo } from "./repo/workflow-node.repo.js";
 export { WorkflowCheckpointRepo } from "./repo/workflow-checkpoint.repo.js";
 export { WorkflowUsageRepo } from "./repo/workflow-usage.repo.js";
+export { EvalVerdictRepo } from "./repo/eval-verdict.repo.js";
