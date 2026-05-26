@@ -640,7 +640,8 @@ export const getWorkflowEngine = cache(async (projectId: string): Promise<Workfl
   const { WorkflowRunRepo, WorkflowNodeRepo, WorkflowCheckpointRepo } = await import(
     "@atlas/spec-graph-data"
   );
-  const { StubWorkflowPlannerRole, CheckpointRecorder } = await import("@atlas/workflow-engine");
+  const { CheckpointRecorder } = await import("@atlas/workflow-engine");
+  const { WorkflowPlannerRole } = await import("@atlas/role-workflow-planner");
   const { getEventBroker } = await import("@/lib/events/broker-singleton");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -694,12 +695,32 @@ export const getWorkflowEngine = cache(async (projectId: string): Promise<Workfl
   // but is the same Map object at runtime; Plan B adds a proper API).
   const ritualEngine = await getRitualEngine(projectId);
 
-  // Plan A follow-up F6: use the public getConductor().registerRole() API
-  // instead of the previous (ritualEngine as any).conductor.roles.set() cast.
-  ritualEngine.getConductor().registerRole(
-    "workflow-planner",
-    new StubWorkflowPlannerRole() as unknown as Role
-  );
+  // Plan B: use the real WorkflowPlannerRole (replaces Plan A's StubWorkflowPlannerRole).
+  // Build a minimal LLM provider using the same env-var precedence as getRitualEngine.
+  // We don't import the full getRitualEngine LLM because that's scoped to the ritual
+  // engine closure; instead we replicate the two-branch check (proxy vs Anthropic).
+  {
+    type LlmProvider = import("@atlas/llm-provider").LLMProvider;
+    let wfLlm: LlmProvider | undefined;
+    if (process.env.ATLAS_LLM_BASE_URL) {
+      wfLlm = new OpenAICompatProvider({
+        baseUrl: process.env.ATLAS_LLM_BASE_URL,
+        apiKey: process.env.ATLAS_LLM_API_KEY ?? "sk-no-auth"
+      });
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      const { default: Anthropic } = await import("@anthropic-ai/sdk");
+      const { AnthropicProvider, createProviderMetrics } = await import("@atlas/llm-provider");
+      const { Registry } = await import("prom-client");
+      const sdk = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      wfLlm = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
+    }
+    if (wfLlm) {
+      ritualEngine.getConductor().registerRole(
+        "workflow-planner",
+        new WorkflowPlannerRole({ llm: wfLlm }) as unknown as Role
+      );
+    }
+  }
 
   // WorkflowEngine only calls .start(), .getRitual(), and .abort() on
   // ritualEngine — all three are present on RitualEngine. The cast satisfies

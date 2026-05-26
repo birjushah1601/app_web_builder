@@ -62,7 +62,14 @@ export type FeatureFlag =
   // Plan Evals v1 — eval-runtime rubric gate + VerdictSink persistence.
   // When on, the Conductor's eval gate activates for roles that have a
   // rubric; verdicts are written to eval_verdicts via EvalVerdictRepo.
-  | "evals";
+  | "evals"
+  // Plan B — Workflow picker UI (picker checklist for workflow kind selection).
+  // UI lands in Plan C; flag is wired here for server-side checks.
+  | "workflow-picker"
+  // Plan B — Workflow kinds CSV allow-list. isFeatureEnabled returns true when
+  // ATLAS_FF_WORKFLOW_KINDS is set (non-empty); the CSV value is read by
+  // readKindsAllowList() in startBuild.ts.
+  | "workflow-kinds";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -168,7 +175,11 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan A — Workflow engine. Standard ATLAS_FF_* convention.
   "workflow": "ATLAS_FF_WORKFLOW",
   // Plan Evals v1 — rubric gate + VerdictSink persistence. Standard ATLAS_FF_* convention.
-  "evals": "ATLAS_FF_EVALS"
+  "evals": "ATLAS_FF_EVALS",
+  // Plan B — Workflow picker UI.
+  "workflow-picker": "ATLAS_FF_WORKFLOW_PICKER",
+  // Plan B — Workflow kinds CSV allow-list flag.
+  "workflow-kinds": "ATLAS_FF_WORKFLOW_KINDS"
 };
 
 export interface FeatureFlagSource {
@@ -281,6 +292,8 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "schema-architect-3pass": isFeatureEnabled("schema-architect-3pass", source),
     "structured-triage": isFeatureEnabled("structured-triage", source),
     "workflow": isFeatureEnabled("workflow", source),
-    "evals": isFeatureEnabled("evals", source)
+    "evals": isFeatureEnabled("evals", source),
+    "workflow-picker": isFeatureEnabled("workflow-picker", source),
+    "workflow-kinds": isFeatureEnabled("workflow-kinds", source)
   };
 }

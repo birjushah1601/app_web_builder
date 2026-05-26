@@ -109,7 +109,9 @@ describe("listFlagStates", () => {
       "structured-triage": false,
       "video-kling": false,
       "visual-quality-gate": false,
-      "workflow": false
+      "workflow": false,
+      "workflow-kinds": false,
+      "workflow-picker": false
     });
   });
 });

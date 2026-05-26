@@ -64,6 +64,9 @@ importers:
       '@atlas/role-security':
         specifier: workspace:*
         version: link:../../packages/role-security
+      '@atlas/role-workflow-planner':
+        specifier: workspace:*
+        version: link:../../packages/role-workflow-planner
       '@atlas/run-dashboard':
         specifier: workspace:*
         version: link:../../packages/run-dashboard
@@ -326,6 +329,9 @@ importers:
         specifier: 3.23.8
         version: 3.23.8
     devDependencies:
+      '@atlas/eval-runtime':
+        specifier: workspace:*
+        version: link:../eval-runtime
       '@types/node':
         specifier: 22.9.0
         version: 22.9.0
@@ -415,6 +421,43 @@ importers:
         version: 5.6.3
       vitest:
         specifier: ^2.1.8
+        version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
+
+  packages/eval-runtime:
+    dependencies:
+      '@atlas/conductor':
+        specifier: workspace:*
+        version: link:../conductor
+      '@atlas/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      '@atlas/role-architect':
+        specifier: workspace:*
+        version: link:../role-architect
+      '@atlas/role-developer':
+        specifier: workspace:*
+        version: link:../role-developer
+      '@atlas/spec-graph-data':
+        specifier: workspace:*
+        version: link:../spec-graph-data
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.8
         version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
 
   packages/gate-build:
@@ -687,6 +730,9 @@ importers:
       '@atlas/conductor':
         specifier: workspace:*
         version: link:../conductor
+      '@atlas/eval-runtime':
+        specifier: workspace:*
+        version: link:../eval-runtime
       '@atlas/llm-provider':
         specifier: workspace:*
         version: link:../llm-provider
@@ -802,6 +848,9 @@ importers:
       '@atlas/conductor':
         specifier: workspace:*
         version: link:../conductor
+      '@atlas/eval-runtime':
+        specifier: workspace:*
+        version: link:../eval-runtime
       '@atlas/llm-provider':
         specifier: workspace:*
         version: link:../llm-provider
@@ -932,6 +981,34 @@ importers:
       '@atlas/spec-graph-schema':
         specifier: workspace:*
         version: link:../spec-graph-schema
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@types/node':
+        specifier: 22.9.0
+        version: 22.9.0
+      prom-client:
+        specifier: ^15.1.0
+        version: 15.1.3
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@22.9.0)(jsdom@25.0.1)
+
+  packages/role-workflow-planner:
+    dependencies:
+      '@atlas/conductor':
+        specifier: workspace:*
+        version: link:../conductor
+      '@atlas/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
+      '@atlas/workflow-engine':
+        specifier: workspace:*
+        version: link:../workflow-engine
       zod:
         specifier: 3.23.8
         version: 3.23.8
