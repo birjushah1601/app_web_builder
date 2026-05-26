@@ -58,7 +58,11 @@ export type FeatureFlag =
   // Plan A — Workflow engine. Flag-gates all 9 workflow Server Actions so
   // the engine can be deployed dark and enabled per-deploy without a code
   // change. Set ATLAS_FF_WORKFLOW=true to enable.
-  | "workflow";
+  | "workflow"
+  // Plan Evals v1 — eval-runtime rubric gate + VerdictSink persistence.
+  // When on, the Conductor's eval gate activates for roles that have a
+  // rubric; verdicts are written to eval_verdicts via EvalVerdictRepo.
+  | "evals";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -162,7 +166,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan U — structured triage form (ChatPanel widget; no engine change).
   "structured-triage": "ATLAS_FF_STRUCTURED_TRIAGE",
   // Plan A — Workflow engine. Standard ATLAS_FF_* convention.
-  "workflow": "ATLAS_FF_WORKFLOW"
+  "workflow": "ATLAS_FF_WORKFLOW",
+  // Plan Evals v1 — rubric gate + VerdictSink persistence. Standard ATLAS_FF_* convention.
+  "evals": "ATLAS_FF_EVALS"
 };
 
 export interface FeatureFlagSource {
@@ -274,6 +280,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "schema-architect": isFeatureEnabled("schema-architect", source),
     "schema-architect-3pass": isFeatureEnabled("schema-architect-3pass", source),
     "structured-triage": isFeatureEnabled("structured-triage", source),
-    "workflow": isFeatureEnabled("workflow", source)
+    "workflow": isFeatureEnabled("workflow", source),
+    "evals": isFeatureEnabled("evals", source)
   };
 }

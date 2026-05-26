@@ -86,6 +86,7 @@ describe("listFlagStates", () => {
       "editable-plan": false,
       "editor-layout-v2": false,
       "element-sliders": false,
+      "evals": false,
       "figma-importer": false,
       "hero-ai-image": false,
       "hero-unsplash": false,

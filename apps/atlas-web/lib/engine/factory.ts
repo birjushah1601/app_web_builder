@@ -358,6 +358,56 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
     }
   }
 
+  // Plan Evals v1: when ATLAS_FF_EVALS=true, wire a VerdictSink adapter that
+  // persists each verdict via EvalVerdictRepo. The adapter is a thin inline
+  // object so no new class is needed — EvalVerdictRepo is constructed per
+  // write call to stay stateless (pg Pool handles connection reuse). When
+  // the flag is off, verdictSink stays undefined and the Conductor's eval
+  // gate is inactive (back-compat).
+  const evalsEnabled = isFeatureEnabled("evals");
+  // EvalVerdict is the minimal shape the Conductor's VerdictSink contract
+  // uses (defined in @atlas/conductor/errors). The real Verdict from
+  // @atlas/eval-runtime is a superset; the write() callback casts through
+  // unknown so we can access the richer fields (score, rubricVersion, etc.)
+  // that EvalVerdictRepo.insert() requires but EvalVerdict doesn't declare.
+  const verdictSink: import("@atlas/conductor").VerdictSink | undefined = evalsEnabled
+    ? {
+        async write(verdict: import("@atlas/conductor").EvalVerdict) {
+          const { EvalVerdictRepo } = await import("@atlas/spec-graph-data");
+          const repo = new EvalVerdictRepo(pool);
+          // The Conductor always passes a full Verdict (from eval-runtime) here
+          // even though the local type is the minimal EvalVerdict shape. Cast
+          // through unknown to access the richer fields without importing
+          // eval-runtime (which is not a direct dep of atlas-web).
+          const v = verdict as Record<string, unknown>;
+          await repo.insert({
+            ritualId: v["ritualId"] as string,
+            roleId: v["roleId"] as string,
+            ...(v["workflowRunId"] ? { workflowRunId: v["workflowRunId"] as string } : {}),
+            ...(v["workflowNodeId"] ? { workflowNodeId: v["workflowNodeId"] as string } : {}),
+            projectId: v["projectId"] as string,
+            userId: (v["userId"] as string | undefined) ?? "(unknown)",
+            attempt: v["attempt"] as number,
+            layer: v["layer"] as string,
+            passed: v["passed"] as boolean,
+            ...(v["score"] !== undefined ? { score: String(v["score"]) } : {}),
+            dimensions: (v["dimensions"] as unknown[] | undefined) ?? null,
+            failures: (v["failures"] as unknown[] | undefined) ?? null,
+            ...(v["fixableBy"] ? { fixableBy: v["fixableBy"] as string } : {}),
+            feedbackUsed: (v["feedbackUsed"] as Record<string, unknown> | undefined) ?? null,
+            ...(v["userTurn"] ? { userTurn: v["userTurn"] as string } : {}),
+            ...(v["priorArtifactHash"] ? { priorArtifactHash: v["priorArtifactHash"] as string } : {}),
+            ...(v["outputHash"] ? { outputHash: v["outputHash"] as string } : {}),
+            rubricVersion: (v["rubricVersion"] as string | undefined) ?? "unknown",
+            ...(v["judgeModel"] ? { judgeModel: v["judgeModel"] as string } : {}),
+            ...(v["judgeInputTokens"] !== undefined ? { judgeInputTokens: v["judgeInputTokens"] as number } : {}),
+            ...(v["judgeOutputTokens"] !== undefined ? { judgeOutputTokens: v["judgeOutputTokens"] as number } : {}),
+            ...(v["judgeCostUsd"] !== undefined ? { judgeCostUsd: String(v["judgeCostUsd"]) } : {})
+          });
+        }
+      }
+    : undefined;
+
   // Plan I + S.5: build the postDeveloperChain from the per-role flags.
   // Order is fixed: security first (more critical — secret-leak blocks the
   // whole branch), then accessibility (advisory-grade), then visual-quality
@@ -421,7 +471,12 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
         }
       }
     },
-    sliceBuilder: () => ({ bytes: "{}", hash: "sha256:" + "0".repeat(64) })
+    sliceBuilder: () => ({ bytes: "{}", hash: "sha256:" + "0".repeat(64) }),
+    // Plan Evals v1: wire verdict persistence + LLM for judge calls.
+    // Both are optional — when evals flag is off, Conductor's eval gate
+    // stays inactive and existing dispatch behaviour is unchanged.
+    ...(verdictSink ? { verdictSink } : {}),
+    ...(llm ? { llm } : {})
   });
 
   // Plan H: when ATLAS_RITUAL_HYDRATION is on, the engine gets a hydrator
@@ -811,6 +866,11 @@ function mapCheckpointToBrokerEvent(
     case "schema_architect.revise.started":     return { type: "schema_architect.revise.started",     payload };
     case "schema_architect.revise.completed":   return { type: "schema_architect.revise.completed",   payload };
     case "schema.direction.selected":           return { type: "schema.direction.selected",           payload };
+
+    // Plan Evals v1 — per-role eval escalation. Engine catches
+    // RoleEvalEscalation and emits this event; forward it so the SSE
+    // stream surfaces it to EvalFailedCard (Task 15).
+    case "role.eval_escalated":     return { type: "role.eval_escalated",     payload };
 
     default:                        return null;
   }
