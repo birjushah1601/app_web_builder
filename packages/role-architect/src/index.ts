@@ -7,3 +7,4 @@ export { buildArchitectUserTurn } from "./deep-plan.js";
 export { assembleArchitectPrompt } from "./assemble-prompt.js";
 export { ArchitectRole } from "./role.js";
 export type { ArchitectRoleOptions } from "./role.js";
+export { architectRubric } from "./rubric.js";

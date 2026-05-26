@@ -6,6 +6,7 @@ import { ArtifactKindSchema, type ArtifactKind } from "@atlas/canvas-runtime";
 import { deepPlan, ARCHITECT_DEEP_PLAN_MODEL } from "./deep-plan.js";
 import { triage, ARCHITECT_TRIAGE_MODEL } from "./triage.js";
 import type { AmbiguityReport, ArchitectOutput } from "./types.js";
+import { architectRubric } from "./rubric.js";
 
 export interface ArchitectRoleOptions {
   llm: LLMProvider;
@@ -16,6 +17,7 @@ export interface ArchitectRoleOptions {
 
 export class ArchitectRole implements Role {
   readonly id = "architect";
+  readonly rubric = architectRubric;
   private readonly llm: LLMProvider;
   private readonly skills: SkillRegistry;
   private readonly triageModel: string;
@@ -107,10 +109,14 @@ export class ArchitectRole implements Role {
     }
 
     events.push({ eventType: "architect.pass2.started", payload: { scope: report.scope } });
+    const evalFeedbackPrompt = inv.evalFeedback?.promptFragment ?? "";
+    const effectiveUserTurn = evalFeedbackPrompt
+      ? `${evalFeedbackPrompt}\n\n---\n\n${inv.userTurn}`
+      : inv.userTurn;
     let artifact: ArchitectOutput;
     try {
       artifact = await deepPlan({
-        userTurn: inv.userTurn,
+        userTurn: effectiveUserTurn,
         graphSlice: inv.graphSlice,
         ambiguity: report,
         skills: this.skills,
