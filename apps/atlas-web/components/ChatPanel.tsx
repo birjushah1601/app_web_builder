@@ -7,6 +7,7 @@ import { RefinementInputBar } from "@/components/RefinementInputBar";
 import { ReferenceDropZone, type ReferenceImage } from "@/components/prompt/ReferenceDropZone";
 import { SelectionChip } from "@/components/canvas/SelectionChip";
 import { TriageClarificationForm } from "@/components/ritual/TriageClarificationForm";
+import { EvalFailedCard, type EvalVerdict } from "@/components/ritual/EvalFailedCard";
 
 export interface RoleEvent {
   eventType: string;
@@ -236,6 +237,11 @@ export function ChatPanel({
               } : undefined}
               structuredTriageEnabled={structuredTriageEnabled}
               pending={pending}
+              onRestart={() => {
+                // "Edit prompt & restart": clear the textarea so the user
+                // can type a fresh prompt and resubmit from scratch.
+                setText("");
+              }}
               onClarify={async (formatted: string) => {
                 // Plan U — drive a normal send() with the form's formatted
                 // answers as the userTurn. The existing routing rules apply
@@ -299,7 +305,8 @@ function ArchitectOutput({
   onRefine,
   structuredTriageEnabled,
   pending,
-  onClarify
+  onClarify,
+  onRestart
 }: {
   result: StartRitualResult;
   projectId: string;
@@ -310,6 +317,9 @@ function ArchitectOutput({
   structuredTriageEnabled?: boolean;
   pending?: boolean;
   onClarify?: (formatted: string) => Promise<void>;
+  /** Plan evals-v1 Task 15 — called when the user picks "Edit prompt & restart"
+   *  on the EvalFailedCard. Clears the textarea so they can start fresh. */
+  onRestart?: () => void;
 }) {
   const blockingQuestions = result.roleEvents.filter(
     (e) => e.eventType === "architect.triage.needs_input"
@@ -394,6 +404,31 @@ function ArchitectOutput({
 
       {result.securityReport && <SecurityReportPanel report={result.securityReport} />}
       {result.accessibilityReport && <AccessibilityReportPanel report={result.accessibilityReport} />}
+
+      {/* Plan evals-v1 Task 15: render the red eval-failed card when the conductor
+       *  escalated a role eval. The event payload matches the EvalVerdict shape. */}
+      {(() => {
+        const escalated = result.roleEvents.find(
+          (e) => e.eventType === "role.eval_escalated"
+        );
+        if (!escalated) return null;
+        const p = escalated.payload as {
+          roleId: string;
+          layer: "structural" | "judge";
+          attempts: number;
+          verdicts: EvalVerdict[];
+        };
+        return (
+          <EvalFailedCard
+            roleId={p.roleId}
+            layer={p.layer}
+            attempts={p.attempts}
+            verdicts={p.verdicts}
+            onRetryWithEdits={onRefine ? (prefill) => void onRefine(prefill) : undefined}
+            onRestart={onRestart}
+          />
+        );
+      })()}
 
       {/* Plan K: render the refinement input bar under each ritual's developer
        *  output so the user can iterate. flagEnabled gates visibility; onRefine
