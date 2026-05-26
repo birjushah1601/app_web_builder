@@ -7,6 +7,7 @@ import { reviewerVote, DEVELOPER_REVIEWER_MODEL } from "./reviewer-vote.js";
 import { BothProvidersFailedError } from "./errors.js";
 import type { DeveloperOutput } from "./types.js";
 import { renderFocusedRefineUserTurn, FOCUSED_REFINE_SYSTEM_PROMPT } from "./render-focused-refine.js";
+import { developerRubric } from "./rubric.js";
 
 export interface DeveloperRoleOptions {
   anthropic: LLMProvider;
@@ -41,6 +42,7 @@ export interface DeveloperRoleOptions {
 
 export class DeveloperRole implements Role {
   readonly id = "developer";
+  readonly rubric = developerRubric;
   private readonly opts: DeveloperRoleOptions;
   constructor(opts: DeveloperRoleOptions) { this.opts = opts; }
 
@@ -62,10 +64,16 @@ export class DeveloperRole implements Role {
     // priorArtifact still work — both passes treat null as "no prior context".
     const architectArtifact = inv.priorArtifact ?? null;
 
+    // Thread evalFeedback into both passes when present.
+    const evalFeedbackPrompt = inv.evalFeedback?.promptFragment ?? "";
+    const effectiveUserTurn = evalFeedbackPrompt
+      ? `${evalFeedbackPrompt}\n\n---\n\n${inv.userTurn}`
+      : inv.userTurn;
+
     const onCandidateDelta = this.opts.onCandidateDelta;
     const runAnthropic = () => anthropicPass({
       llm: this.opts.anthropic, skills: this.opts.skills,
-      userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
+      userTurn: effectiveUserTurn, architectArtifact, graphSlice: inv.graphSlice,
       model: this.opts.anthropicModel ?? DEVELOPER_ANTHROPIC_MODEL,
       targetTemplate: this.opts.targetTemplate,
       ...(onCandidateDelta !== undefined
@@ -76,7 +84,7 @@ export class DeveloperRole implements Role {
 
     const runGoogle = () => googlePass({
       llm: this.opts.google, skills: this.opts.skills,
-      userTurn: inv.userTurn, architectArtifact, graphSlice: inv.graphSlice,
+      userTurn: effectiveUserTurn, architectArtifact, graphSlice: inv.graphSlice,
       model: this.opts.googleModel ?? DEVELOPER_GOOGLE_MODEL,
       targetTemplate: this.opts.targetTemplate
     }).then((output): { provider: "google"; status: "ok"; output: DeveloperOutput } => ({ provider: "google", status: "ok", output }))

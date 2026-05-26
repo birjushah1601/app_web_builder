@@ -1,4 +1,5 @@
 export { DeveloperRole, type DeveloperRoleOptions } from "./role.js";
+export { developerRubric } from "./rubric.js";
 export { DeveloperOutputSchema, ReviewerVoteSchema, type DeveloperOutput, type ReviewerVote, type DeveloperInvocation } from "./types.js";
 export { assembleDeveloperPrompt } from "./assemble-prompt.js";
 export { anthropicPass, DEVELOPER_ANTHROPIC_MODEL, type AnthropicPassInput } from "./anthropic-pass.js";
