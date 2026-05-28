@@ -28,14 +28,21 @@ export interface UseCanvasManifestResult {
 
 const EVENT_TYPE = "architect.canvas_manifest.emitted";
 
-export function useCanvasManifest(_projectId: string): UseCanvasManifestResult {
+export function useCanvasManifest(
+  _projectId: string,
+  ritualId?: string
+): UseCanvasManifestResult {
   const { events } = useEventStream();
 
   const manifest = useMemo<CanvasManifest | undefined>(() => {
-    // Walk newest-first; the latest emitted manifest wins.
+    // Walk newest-first; the latest emitted manifest wins. When ritualId
+    // is provided (workflow drill-in), only consider events for that
+    // specific ritual — otherwise any newer ritual on the project would
+    // bleed into the per-node view.
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
       if (!e || e.type !== EVENT_TYPE) continue;
+      if (ritualId !== undefined && e.ritualId !== ritualId) continue;
       try {
         const payload = e.payload as { manifest?: unknown } | undefined;
         const candidate = payload?.manifest;
@@ -53,7 +60,7 @@ export function useCanvasManifest(_projectId: string): UseCanvasManifestResult {
       }
     }
     return undefined;
-  }, [events]);
+  }, [events, ritualId]);
 
   return { manifest };
 }

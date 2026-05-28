@@ -86,4 +86,26 @@ describe("useDesignerProposal", () => {
     const { result } = renderHook(() => useDesignerProposal("p-1"));
     expect(result.current).toEqual({ ritualId: null, proposal: null });
   });
+
+  it("filters by ritualId when provided (workflow drill-in)", () => {
+    reset();
+    pushEvent("canvas.options.requested", { proposal: PROPOSAL_A }, "r-1");
+    pushEvent("canvas.options.requested", { proposal: PROPOSAL_B }, "r-2");
+
+    // No filter: newest wins → PROPOSAL_B / r-2
+    const { result: noFilter } = renderHook(() => useDesignerProposal("p-1"));
+    expect(noFilter.current.ritualId).toBe("r-2");
+
+    // Filter to r-1: we want PROPOSAL_A even though r-2 came later
+    const { result: filtered } = renderHook(() => useDesignerProposal("p-1", "r-1"));
+    expect(filtered.current.ritualId).toBe("r-1");
+    expect(filtered.current.proposal).toEqual(PROPOSAL_A);
+  });
+
+  it("returns null pair when ritualId filter matches no events", () => {
+    reset();
+    pushEvent("canvas.options.requested", { proposal: PROPOSAL_A }, "r-1");
+    const { result } = renderHook(() => useDesignerProposal("p-1", "r-unknown"));
+    expect(result.current).toEqual({ ritualId: null, proposal: null });
+  });
 });

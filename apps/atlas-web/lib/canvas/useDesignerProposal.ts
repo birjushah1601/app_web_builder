@@ -27,13 +27,19 @@ export type UseDesignerProposalResult =
 
 const EVENT_TYPE = "canvas.options.requested";
 
-export function useDesignerProposal(_projectId: string): UseDesignerProposalResult {
+export function useDesignerProposal(
+  _projectId: string,
+  ritualId?: string
+): UseDesignerProposalResult {
   const { events } = useEventStream();
 
   return useMemo<UseDesignerProposalResult>(() => {
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
       if (!e || e.type !== EVENT_TYPE) continue;
+      // When ritualId is provided (workflow drill-in), only surface
+      // proposals for that specific ritual.
+      if (ritualId !== undefined && e.ritualId !== ritualId) continue;
       try {
         const payload = e.payload as { proposal?: unknown } | undefined;
         const candidate = payload?.proposal;
@@ -53,5 +59,5 @@ export function useDesignerProposal(_projectId: string): UseDesignerProposalResu
       }
     }
     return { ritualId: null, proposal: null };
-  }, [events]);
+  }, [events, ritualId]);
 }

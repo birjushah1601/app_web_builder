@@ -79,4 +79,25 @@ describe("useCanvasManifest", () => {
     const { result } = renderHook(() => useCanvasManifest("p-1"));
     expect(result.current.manifest).toBeUndefined();
   });
+
+  it("filters by ritualId when provided (workflow drill-in)", () => {
+    reset();
+    pushEvent("architect.canvas_manifest.emitted", { manifest: MANIFEST_A }, "r-1");
+    pushEvent("architect.canvas_manifest.emitted", { manifest: MANIFEST_B }, "r-2");
+
+    // No filter: latest wins → MANIFEST_B
+    const { result: noFilter } = renderHook(() => useCanvasManifest("p-1"));
+    expect(noFilter.current.manifest).toEqual(MANIFEST_B);
+
+    // Filter to r-1: even though r-2 emitted later, we want r-1's manifest
+    const { result: filtered } = renderHook(() => useCanvasManifest("p-1", "r-1"));
+    expect(filtered.current.manifest).toEqual(MANIFEST_A);
+  });
+
+  it("returns undefined when ritualId filter matches no events", () => {
+    reset();
+    pushEvent("architect.canvas_manifest.emitted", { manifest: MANIFEST_A }, "r-1");
+    const { result } = renderHook(() => useCanvasManifest("p-1", "r-unknown"));
+    expect(result.current.manifest).toBeUndefined();
+  });
 });

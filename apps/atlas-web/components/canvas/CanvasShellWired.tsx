@@ -51,6 +51,12 @@ export interface CanvasShellWiredProps {
   /** Test seam — overrides the manifest hook for stories / unit tests
    *  that don't want to mount the SSE provider. */
   manifestOverride?: CanvasManifest | undefined;
+  /** Plan C drill-in — when set, both useCanvasManifest and
+   *  useDesignerProposal filter their SSE event walks to this ritualId
+   *  so the per-node workflow view doesn't render a sibling node's
+   *  manifest/proposal. Omitted on the regular canvas page (latest-wins
+   *  default still applies). */
+  ritualIdOverride?: string;
 }
 
 export function CanvasShellWired({
@@ -63,10 +69,11 @@ export function CanvasShellWired({
   elementSlidersEnabled,
   inlineEditEnabled,
   onSelectDirection,
-  manifestOverride
+  manifestOverride,
+  ritualIdOverride
 }: CanvasShellWiredProps) {
-  const { manifest: liveManifest } = useCanvasManifest(projectId);
-  const proposalState = useDesignerProposal(projectId);
+  const { manifest: liveManifest } = useCanvasManifest(projectId, ritualIdOverride);
+  const proposalState = useDesignerProposal(projectId, ritualIdOverride);
 
   const manifest = manifestOverride ?? liveManifest;
   const selectAction = onSelectDirection ?? selectDesignDirection;
