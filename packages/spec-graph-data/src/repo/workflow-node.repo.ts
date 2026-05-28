@@ -78,4 +78,11 @@ export class WorkflowNodeRepo {
       .set({ policy })
       .where(and(eq(workflowNodes.workflowRunId, runId), eq(workflowNodes.id, nodeId)));
   }
+
+  async updateSummary(runId: string, nodeId: string, summary: string): Promise<void> {
+    await this.db
+      .update(workflowNodes)
+      .set({ summary })
+      .where(and(eq(workflowNodes.workflowRunId, runId), eq(workflowNodes.id, nodeId)));
+  }
 }

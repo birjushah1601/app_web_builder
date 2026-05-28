@@ -93,6 +93,7 @@ export interface IWorkflowNodeRepo {
   }): Promise<void>;
   setArtifact(runId: string, nodeId: string, artifact: unknown, schemaVersion: string): Promise<void>;
   updatePolicy(runId: string, nodeId: string, policy: unknown): Promise<void>;
+  updateSummary(runId: string, nodeId: string, summary: string): Promise<void>;
 }
 
 export interface IWorkflowCheckpointRepo {
@@ -148,6 +149,7 @@ export interface StartWorkflowInput {
 export interface PlanEdit {
   nodeId: string;
   policy?: Partial<NodePolicy>;
+  summary?: string;
 }
 
 export interface WorkflowEngineOptions {
@@ -328,6 +330,9 @@ export class WorkflowEngine {
           const existing = nodeRow as { policy?: unknown };
           const merged = { ...(existing.policy as object ?? {}), ...edit.policy };
           await nodeRepo.updatePolicy(workflowRunId, edit.nodeId, merged);
+        }
+        if (edit.summary !== undefined) {
+          await nodeRepo.updateSummary(workflowRunId, edit.nodeId, edit.summary);
         }
       }
     }

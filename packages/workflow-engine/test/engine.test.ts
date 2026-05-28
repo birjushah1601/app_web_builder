@@ -126,6 +126,10 @@ function makeNodeRepo(): IWorkflowNodeRepo & { _store: Map<string, NodeRow> } {
     async updatePolicy(runId, nodeId, policy) {
       const row = store.get(key(runId, nodeId));
       if (row) row.policy = policy;
+    },
+    async updateSummary(runId, nodeId, summary) {
+      const row = store.get(key(runId, nodeId));
+      if (row) row.summary = summary;
     }
   };
 }
@@ -350,6 +354,23 @@ describe("WorkflowEngine", () => {
       await expect(engine.approvePlan(runId)).rejects.toThrow(
         WorkflowAlreadyApprovedError
       );
+    });
+
+    it("applies policy + summary edits before running", async () => {
+      const nodeRepo = makeNodeRepo();
+      const { engine } = makeEngine({ nodeRepo });
+      const runId = await engine.start(defaultInput);
+
+      await engine.approvePlan(runId, [
+        { nodeId: "n1", policy: { priority: 7 }, summary: "Renamed summary" }
+      ]);
+      await engine._waitForScheduler(runId);
+
+      const nodes = await nodeRepo.findByRunId(runId);
+      const n1 = nodes.find((n) => n.id === "n1")!;
+      expect(n1.summary).toBe("Renamed summary");
+      const policy = n1.policy as { priority: number };
+      expect(policy.priority).toBe(7);
     });
   });
 
