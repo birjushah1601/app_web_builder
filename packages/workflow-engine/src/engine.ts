@@ -563,19 +563,56 @@ export class WorkflowEngine {
   }
 
   /**
-   * Plan A: stub launchRitual — returns a fake ritualId immediately.
-   * Plan B: wire to ritualEngine.start() with real roles.
-   * F3: calls checkpointRecorder.registerRitualForNode when a recorder is present.
+   * Plan D Task 8.5: real launchRitual — calls ritualEngine.start() with a
+   * priorArtifact merged from each upstream node's persisted artifact (per
+   * node.consumes) plus the run's dependencyProfile. Returns the real
+   * ritualId from the ritual engine.
+   *
+   * F3: also calls checkpointRecorder.registerRitualForNode when a recorder
+   * is present, so broker events from the new ritual route to checkpoints.
    */
   private makeLaunchRitual(workflowRunId: string) {
-    const recorder = this.opts.checkpointRecorder;
-    return async (node: WorkflowNode, _run: WorkflowRunSnapshot): Promise<string> => {
-      // Stub: return a deterministic fake ritualId for the node
-      const ritualId = `stub-ritual-${node.id}`;
-      // F3: register the mapping so the recorder can route broker events to checkpoints
+    const { ritualEngine, nodeRepo, checkpointRecorder: recorder } = this.opts;
+    return async (node: WorkflowNode, run: WorkflowRunSnapshot): Promise<string> => {
+      // 1. Gather upstream artifacts from declared consumes.
+      const allRows = await nodeRepo.findByRunId(workflowRunId);
+      const byId = new Map(allRows.map((r) => [r.id, r] as const));
+      const upstream: Record<string, unknown> = {};
+      for (const upstreamId of node.consumes) {
+        const upstreamRow = byId.get(upstreamId);
+        if (
+          upstreamRow &&
+          upstreamRow.artifact !== undefined &&
+          upstreamRow.artifact !== null
+        ) {
+          upstream[upstreamId] = upstreamRow.artifact;
+        }
+        // If an upstream finished without persisting an artifact (e.g. a role
+        // that doesn't emit one yet), we omit it. Downstream roles see
+        // priorArtifact.upstream[id] === undefined and decide what to do.
+      }
+
+      // 2. Build priorArtifact for the downstream ritual. Plan D ships the
+      //    minimum shape per docs/superpowers/specs/2026-05-29-plan-d-...md §2.
+      const priorArtifact = {
+        upstream,
+        dependencyProfile: run.dependencyProfile
+      };
+
+      // 3. Call the real ritual engine.
+      const ritualId = await ritualEngine.start({
+        userTurn: node.summary,
+        editClass: "structural",
+        projectId: run.projectId,
+        userId: run.userId,
+        priorArtifact
+      });
+
+      // 4. Wire the recorder so broker events route to checkpoints.
       if (recorder) {
         recorder.registerRitualForNode(ritualId, workflowRunId, node.id);
       }
+
       return ritualId;
     };
   }
