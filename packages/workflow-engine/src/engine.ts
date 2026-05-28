@@ -32,6 +32,8 @@ import {
   NodeNotFoundError,
   InvalidNodePolicyEditError
 } from "./errors.js";
+import { ArtifactContractRegistry } from "./artifact-contracts/registry.js";
+import { GenericArtifactSchema } from "./artifact-contracts/generic.js";
 
 // ---------------------------------------------------------------------------
 // Minimal repo interfaces — the engine depends on these abstractions so that
@@ -579,24 +581,17 @@ export class WorkflowEngine {
   }
 
   /**
-   * Plan A: stub awaitRitual — resolves immediately with a done result.
-   * Plan B: poll ritualEngine.getRitual() until terminal state.
+   * Plan D Task 2: real awaitRitual — polls the ritualEngine until the ritual
+   * reaches a terminal state, then scans roleEvents for ritual.artifact_emitted
+   * and validates the payload artifact against the registered schema for the
+   * expected artifactKind. Falls back to GenericArtifactSchema if the kind isn't
+   * registered. If no artifact event is present on a completed ritual, returns a
+   * synthesized generic placeholder so frontend/test rituals that don't yet emit
+   * artifact events keep working.
    */
   private makeAwaitRitual() {
-    return async (
-      ritualId: string
-    ): Promise<
-      | { kind: "done"; artifact: unknown; artifactKind: string }
-      | { kind: "failed"; error: string }
-    > => {
-      // Extract nodeId from the stub ritual ID format: "stub-ritual-<nodeId>"
-      const nodeId = ritualId.replace("stub-ritual-", "");
-      return {
-        kind: "done",
-        artifact: { schemaVersion: "1", kind: "generic", payload: { nodeId } },
-        artifactKind: "generic"
-      };
-    };
+    return (ritualId: string, expectedKind: string) =>
+      awaitRitualImpl(this.opts.ritualEngine, ritualId, expectedKind, {});
   }
 
   /**
@@ -653,3 +648,91 @@ export class WorkflowEngine {
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Plan D Task 2: module-scope awaitRitual implementation.
+// Exposed under a `_` prefix for tests to drive without constructing a
+// full WorkflowEngine + scheduler.
+// ---------------------------------------------------------------------------
+
+export interface AwaitRitualOptions {
+  pollMs?: number;
+  timeoutMs?: number;
+}
+
+export type AwaitRitualResult =
+  | { kind: "done"; artifact: unknown; artifactKind: string }
+  | { kind: "failed"; error: string };
+
+async function awaitRitualImpl(
+  ritualEngine: IRitualEngine,
+  ritualId: string,
+  expectedKind: string,
+  opts: AwaitRitualOptions
+): Promise<AwaitRitualResult> {
+  const pollMs = opts.pollMs ?? 250;
+  const timeoutMs = opts.timeoutMs ?? 30 * 60 * 1000;
+  const deadline = Date.now() + timeoutMs;
+
+  let snapshot: Awaited<ReturnType<IRitualEngine["getRitual"]>> | undefined;
+  while (Date.now() < deadline) {
+    snapshot = await ritualEngine.getRitual(ritualId);
+    if (
+      snapshot &&
+      (snapshot.state === "completed" ||
+        snapshot.state === "failed" ||
+        snapshot.state === "aborted")
+    ) {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+
+  if (
+    !snapshot ||
+    (snapshot.state !== "completed" &&
+      snapshot.state !== "failed" &&
+      snapshot.state !== "aborted")
+  ) {
+    return { kind: "failed", error: `awaitRitual timed out after ${timeoutMs}ms` };
+  }
+  if (snapshot.state === "failed" || snapshot.state === "aborted") {
+    return { kind: "failed", error: `ritual ended in state "${snapshot.state}"` };
+  }
+
+  for (let i = snapshot.roleEvents.length - 1; i >= 0; i--) {
+    const ev = snapshot.roleEvents[i];
+    if (!ev || ev.eventType !== "ritual.artifact_emitted") continue;
+    const payload = ev.payload as { artifact?: unknown } | null | undefined;
+    const artifact = payload?.artifact;
+    const schema = ArtifactContractRegistry.get(expectedKind);
+    if (!schema) {
+      const parsed = GenericArtifactSchema.safeParse(artifact);
+      if (!parsed.success) {
+        return {
+          kind: "failed",
+          error: `emitted artifact failed generic validation: ${parsed.error.message}`
+        };
+      }
+      return { kind: "done", artifact: parsed.data, artifactKind: "generic" };
+    }
+    const parsed = schema.safeParse(artifact);
+    if (!parsed.success) {
+      return {
+        kind: "failed",
+        error: `emitted artifact failed "${expectedKind}" validation: ${parsed.error.message}`
+      };
+    }
+    return { kind: "done", artifact: parsed.data, artifactKind: expectedKind };
+  }
+
+  // No artifact event emitted — synthesize a generic placeholder so existing
+  // frontend/test rituals that don't emit artifacts yet keep their old behaviour.
+  return {
+    kind: "done",
+    artifact: { schemaVersion: "1", kind: "generic", payload: {} },
+    artifactKind: "generic"
+  };
+}
+
+export const _awaitRitualForTesting = awaitRitualImpl;

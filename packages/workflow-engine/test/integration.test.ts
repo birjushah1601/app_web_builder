@@ -114,7 +114,14 @@ function makeCustomRitualEngine(nodes: PlannerNode[]): IRitualEngine {
       return ritualId;
     },
     async getRitual(ritualId) {
-      return snapshots.get(ritualId);
+      // Planner rituals are stored explicitly. Plan D Task 2: the WorkflowEngine
+      // now polls awaitRitual for node rituals too, but these stub-ritual-*
+      // launches aren't registered with this fake engine. Return a synthetic
+      // completed snapshot with no artifact events so awaitRitualImpl hits the
+      // "synthesized generic" fallback — matching the old stub behaviour.
+      return (
+        snapshots.get(ritualId) ?? { state: "completed", roleEvents: [] }
+      );
     },
     async abort(_ritualId, _reason) {
       // no-op for Plan A

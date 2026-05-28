@@ -186,7 +186,12 @@ function makeRitualEngine(): IRitualEngine & {
       return ritualId;
     },
     async getRitual(ritualId) {
-      return snapshots.get(ritualId);
+      // Plan D Task 2: node-level rituals (stub-ritual-*) aren't registered.
+      // Return a completed snapshot with no artifact events so the engine's
+      // real awaitRitualImpl hits the generic-fallback path.
+      return (
+        snapshots.get(ritualId) ?? { state: "completed", roleEvents: [] }
+      );
     },
     async abort(ritualId) {
       abortCalled.push(ritualId);
@@ -221,7 +226,9 @@ function makeMultiNodeRitualEngine(nodes: Array<{
       });
       return ritualId;
     },
-    async getRitual(ritualId) { return snapshots.get(ritualId); },
+    async getRitual(ritualId) {
+      return snapshots.get(ritualId) ?? { state: "completed", roleEvents: [] };
+    },
     async abort() {}
   };
 }

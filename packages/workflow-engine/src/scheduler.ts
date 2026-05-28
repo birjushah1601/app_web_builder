@@ -6,8 +6,10 @@ export interface SchedulerDeps {
   /** Launches a ritual for the node; returns the ritualId immediately. */
   launchRitual: (node: WorkflowNode, run: WorkflowRunSnapshot) => Promise<string>;
   /** Returns a promise that resolves when the given ritual terminates,
-   *  with either a "done" + artifact OR a "failed" + error. */
-  awaitRitual: (ritualId: string) => Promise<
+   *  with either a "done" + artifact OR a "failed" + error.
+   *  The `artifactKind` is the workflow node's expected artifactKind — the
+   *  callback uses it to look up the right schema in the ArtifactContractRegistry. */
+  awaitRitual: (ritualId: string, artifactKind: string) => Promise<
     | { kind: "done"; artifact: unknown; artifactKind: string }
     | { kind: "failed"; error: string }
   >;
@@ -80,7 +82,7 @@ export class WorkflowScheduler {
       const ritualId = await this.deps.launchRitual(node, this.run);
       node.ritualId = ritualId;
       await this.deps.persistNodeState(node.id, { status: "running", ritualId });
-      const result = await this.deps.awaitRitual(ritualId);
+      const result = await this.deps.awaitRitual(ritualId, node.artifactKind);
       if (result.kind === "done") {
         node.status = "done";
         node.artifact = result.artifact;

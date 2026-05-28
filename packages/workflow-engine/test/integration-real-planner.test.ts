@@ -146,7 +146,12 @@ function makeRealPlannerRitualEngine(dagNodes: Array<{
       return ritualId;
     },
     async getRitual(ritualId) {
-      return snapshots.get(ritualId);
+      // Plan D Task 2: node-level rituals (stub-ritual-*) aren't registered with
+      // this fake engine. Return a synthetic completed snapshot so awaitRitualImpl
+      // hits the generic-fallback path and the scheduler progresses.
+      return (
+        snapshots.get(ritualId) ?? { state: "completed", roleEvents: [] }
+      );
     },
     async abort(_ritualId, _reason) {
       // no-op
