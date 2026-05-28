@@ -1,4 +1,5 @@
-import { ArtifactContractRegistry, GenericArtifactSchema } from "./index.js";
+import { GenericArtifactSchema } from "./generic.js";
+import { ArtifactContractRegistry } from "./registry.js";
 
 const KNOWN_VERSIONS = ["1"];
 
