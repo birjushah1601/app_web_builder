@@ -19,6 +19,7 @@
     "@atlas/llm-provider": "workspace:*",
     "@atlas/skill-runtime": "workspace:*",
     "@atlas/spec-graph-schema": "workspace:*",
+    "@atlas/workflow-engine": "workspace:*",
     "zod": "3.23.8"
   },
   "devDependencies": {

@@ -860,6 +860,9 @@ importers:
       '@atlas/spec-graph-schema':
         specifier: workspace:*
         version: link:../spec-graph-schema
+      '@atlas/workflow-engine':
+        specifier: workspace:*
+        version: link:../workflow-engine
       zod:
         specifier: 3.23.8
         version: 3.23.8
