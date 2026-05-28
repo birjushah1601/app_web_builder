@@ -51,6 +51,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { isFeatureEnabled } = await import("@/lib/feature-flags");
   const { SpecEventsHydrator } = await import("./spec-events-hydrator");
   const { getCanvasPauseRegistry } = await import("./canvas-pause-singleton");
+  const { buildPostDeveloperChain } = await import("./post-developer-chain");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   // Plan H: share one SpecEventRepo instance between the engine's eventSink
@@ -63,6 +64,14 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   );
 
   const roles = new Map<string, Role>();
+
+  // Plan D Task 6 — captured AFTER the build-gate flag block resolves the
+  // live sandbox's templateId. Used downstream by buildPostDeveloperChain
+  // to decide whether the backend-artifact role joins the chain. Mirrors
+  // the same source of truth (live sandbox) that BuildGateRole uses for
+  // its per-template compile commands, so the chain and the registered
+  // roles stay in sync.
+  let activeTemplate: string | undefined;
 
   // Provider precedence:
   //   1. ATLAS_LLM_BASE_URL → OpenAI-compatible local proxy (Claude Code CLI etc.)
@@ -295,8 +304,22 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       // Best-effort template capture. .catch(() => null) mirrors VQ's pattern.
       const buildGateSession = await getSandboxFactory().getOrProvision(projectId).catch(() => null);
       const template = buildGateSession?.record?.templateId ?? "atlas-next-ts-v2";
+      activeTemplate = template;
 
       roles.set("build-gate", new BuildGateRole({ template, exec: buildExec }));
+
+      // Plan D Task 6 — BackendArtifactRole runs after build-gate succeeds
+      // on atlas-fastapi rituals. It probes /health on the live preview and
+      // emits the typed backend artifact downstream consumers (workflow
+      // engine, frontend ritual) read off priorArtifact. Always registering
+      // it would still be safe (it returns diff:none with a "missing
+      // sandboxId/previewUrl" event if priorArtifact lacks the required
+      // shape) but gating on template avoids a confusing event in
+      // non-backend rituals where the chain never includes it anyway.
+      if (template === "atlas-fastapi") {
+        const { BackendArtifactRole } = await import("@atlas/role-developer");
+        roles.set("backend-artifact", new BackendArtifactRole());
+      }
     }
 
     // T15: register SchemaArchitectRole when ATLAS_FF_SCHEMA_ARCHITECT=true.
@@ -408,13 +431,29 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       }
     : undefined;
 
-  // Plan I + S.5: build the postDeveloperChain from the per-role flags.
-  // Order is fixed: security first (more critical — secret-leak blocks the
-  // whole branch), then accessibility (advisory-grade), then visual-quality
-  // (taste-driven; runs last so it sees the final-state preview after any
-  // upstream gate fixes). Empty chain = no post-developer dispatch.
+  // Plan I + S.5 + Plan D Task 6: build the postDeveloperChain from the
+  // per-role flags + the active sandbox template. Order is fixed:
+  //   1. build-gate           (compiler — short-circuits LLM gate work)
+  //   2. backend-artifact     (atlas-fastapi only — emits typed handoff;
+  //                            runs after build-gate so we don't probe
+  //                            /health on uncompilable code)
+  //   3. security             (secret-leak — blocks whole branch on fail)
+  //   4. accessibility        (advisory-grade)
+  //   5. visual-quality       (taste-driven; runs last so it sees the
+  //                            final-state preview after upstream fixes)
+  // Empty chain = no post-developer dispatch.
+  //
+  // The build-gate + backend-artifact pair is delegated to the pure helper
+  // buildPostDeveloperChain so the template-conditional logic is
+  // unit-testable in isolation. The helper is invoked only when the
+  // build-gate flag is on (preserving the empty-chain default when
+  // operators disable gates entirely); without build-gate registered,
+  // appending backend-artifact would be a no-op anyway because the chain
+  // stops on a missing role at dispatch time.
   const postDeveloperChain: string[] = [];
-  if (isFeatureEnabled("build-gate"))          postDeveloperChain.push("build-gate");
+  if (isFeatureEnabled("build-gate")) {
+    postDeveloperChain.push(...buildPostDeveloperChain(activeTemplate));
+  }
   if (isFeatureEnabled("security-role"))       postDeveloperChain.push("security");
   if (isFeatureEnabled("a11y-role"))           postDeveloperChain.push("accessibility");
   if (isFeatureEnabled("visual-quality-gate")) postDeveloperChain.push("visual-quality");
