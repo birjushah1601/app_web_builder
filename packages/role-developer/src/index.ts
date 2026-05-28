@@ -14,3 +14,5 @@ export {
 export { getSandboxContextPromptFor } from "./assemble-prompt.js";
 export { renderFocusedRefineUserTurn, FOCUSED_REFINE_SYSTEM_PROMPT } from "./render-focused-refine.js";
 export type { FocusedRefineInput } from "./render-focused-refine.js";
+export { BackendArtifactRole, type BackendArtifactRoleOptions } from "./backend-artifact/role.js";
+export { buildBackendArtifact, type BuildBackendArtifactInput } from "./backend-artifact/build-artifact.js";
