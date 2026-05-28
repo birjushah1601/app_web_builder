@@ -17,6 +17,10 @@ import { DesignerCanvas } from "./renderers/DesignerCanvas";
 import { RefineWizard } from "./renderers/RefineWizard";
 import { PreviewCanvas } from "./renderers/PreviewCanvas";
 import { SchemaCanvas } from "./renderers/SchemaCanvas";
+import { BackendStubCanvas } from "./renderers/BackendStubCanvas";
+import { TestsStubCanvas } from "./renderers/TestsStubCanvas";
+import { IacStubCanvas } from "./renderers/IacStubCanvas";
+import { DeployStubCanvas } from "./renderers/DeployStubCanvas";
 
 let _registered = false;
 
@@ -27,6 +31,15 @@ function registerOnce() {
   canvasModeRegistry.register("refining", RefineWizard as React.ComponentType<unknown>);
   canvasModeRegistry.register("preview", PreviewCanvas as React.ComponentType<unknown>);
   canvasModeRegistry.register("schema", SchemaCanvas as React.ComponentType<unknown>);
+  // Plan C Task 11 — placeholder renderers for non-frontend artifact kinds.
+  // Plans D-F replace these with real Swagger / test-results / topology /
+  // deploy-status panels. Registering them now so a workflow that produces
+  // a backend/tests/iac/deploy node's manifest doesn't crash the canvas
+  // shell with "renderer not found".
+  canvasModeRegistry.register("swagger", BackendStubCanvas as React.ComponentType<unknown>);
+  canvasModeRegistry.register("test-results", TestsStubCanvas as React.ComponentType<unknown>);
+  canvasModeRegistry.register("topology", IacStubCanvas as React.ComponentType<unknown>);
+  canvasModeRegistry.register("deploy-status", DeployStubCanvas as React.ComponentType<unknown>);
 }
 
 registerOnce();
