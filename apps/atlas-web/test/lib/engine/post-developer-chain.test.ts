@@ -1,20 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { buildPostDeveloperChain } from "@/lib/engine/post-developer-chain";
+import { backendArtifactChainTail } from "@/lib/engine/post-developer-chain";
 
-describe("buildPostDeveloperChain", () => {
-  it("appends backend-artifact for atlas-fastapi", () => {
-    expect(buildPostDeveloperChain("atlas-fastapi")).toEqual(["build-gate", "backend-artifact"]);
+describe("backendArtifactChainTail", () => {
+  it("returns [\"backend-artifact\"] for atlas-fastapi", () => {
+    expect(backendArtifactChainTail("atlas-fastapi")).toEqual(["backend-artifact"]);
   });
 
-  it("does NOT append backend-artifact for atlas-next-ts-v2", () => {
-    expect(buildPostDeveloperChain("atlas-next-ts-v2")).toEqual(["build-gate"]);
+  it("returns [] for atlas-next-ts-v2", () => {
+    expect(backendArtifactChainTail("atlas-next-ts-v2")).toEqual([]);
   });
 
-  it("does NOT append backend-artifact for an unknown template", () => {
-    expect(buildPostDeveloperChain("unknown-template")).toEqual(["build-gate"]);
+  it("returns [] for an unknown template", () => {
+    expect(backendArtifactChainTail("unknown-template")).toEqual([]);
   });
 
-  it("handles undefined template by returning the base chain", () => {
-    expect(buildPostDeveloperChain(undefined)).toEqual(["build-gate"]);
+  it("returns [] for undefined template", () => {
+    expect(backendArtifactChainTail(undefined)).toEqual([]);
   });
 });

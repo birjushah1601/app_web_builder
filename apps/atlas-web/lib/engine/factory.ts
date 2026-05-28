@@ -51,7 +51,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const { isFeatureEnabled } = await import("@/lib/feature-flags");
   const { SpecEventsHydrator } = await import("./spec-events-hydrator");
   const { getCanvasPauseRegistry } = await import("./canvas-pause-singleton");
-  const { buildPostDeveloperChain } = await import("./post-developer-chain");
+  const { backendArtifactChainTail } = await import("./post-developer-chain");
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   // Plan H: share one SpecEventRepo instance between the engine's eventSink
@@ -66,7 +66,7 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   const roles = new Map<string, Role>();
 
   // Plan D Task 6 — captured AFTER the build-gate flag block resolves the
-  // live sandbox's templateId. Used downstream by buildPostDeveloperChain
+  // live sandbox's templateId. Used downstream by backendArtifactChainTail
   // to decide whether the backend-artifact role joins the chain. Mirrors
   // the same source of truth (live sandbox) that BuildGateRole uses for
   // its per-template compile commands, so the chain and the registered
@@ -434,29 +434,32 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
   // Plan I + S.5 + Plan D Task 6: build the postDeveloperChain from the
   // per-role flags + the active sandbox template. Order is fixed:
   //   1. build-gate           (compiler — short-circuits LLM gate work)
-  //   2. backend-artifact     (atlas-fastapi only — emits typed handoff;
-  //                            runs after build-gate so we don't probe
-  //                            /health on uncompilable code)
-  //   3. security             (secret-leak — blocks whole branch on fail)
-  //   4. accessibility        (advisory-grade)
-  //   5. visual-quality       (taste-driven; runs last so it sees the
-  //                            final-state preview after upstream fixes)
+  //   2. security             (secret-leak — blocks whole branch on fail)
+  //   3. accessibility        (advisory-grade)
+  //   4. visual-quality       (taste-driven; runs after upstream fixes)
+  //   5. backend-artifact     (atlas-fastapi only — emits typed handoff;
+  //                            runs LAST so gate failures escalate-and-stop
+  //                            the chain BEFORE we emit a typed artifact
+  //                            for code about to be marked failed)
   // Empty chain = no post-developer dispatch.
   //
-  // The build-gate + backend-artifact pair is delegated to the pure helper
-  // buildPostDeveloperChain so the template-conditional logic is
-  // unit-testable in isolation. The helper is invoked only when the
-  // build-gate flag is on (preserving the empty-chain default when
-  // operators disable gates entirely); without build-gate registered,
-  // appending backend-artifact would be a no-op anyway because the chain
-  // stops on a missing role at dispatch time.
+  // The template-conditional backend-artifact tail is delegated to the
+  // pure helper backendArtifactChainTail so it's unit-testable in
+  // isolation. The tail is NOT gated on `isFeatureEnabled("build-gate")` —
+  // backend-artifact emission is independent of which gates are enabled.
+  // If operators disable every gate, the chain for an atlas-fastapi
+  // ritual becomes just `["backend-artifact"]`, which is correct:
+  // artifacts are emitted from raw developer output.
   const postDeveloperChain: string[] = [];
-  if (isFeatureEnabled("build-gate")) {
-    postDeveloperChain.push(...buildPostDeveloperChain(activeTemplate));
-  }
+  if (isFeatureEnabled("build-gate"))          postDeveloperChain.push("build-gate");
   if (isFeatureEnabled("security-role"))       postDeveloperChain.push("security");
   if (isFeatureEnabled("a11y-role"))           postDeveloperChain.push("accessibility");
   if (isFeatureEnabled("visual-quality-gate")) postDeveloperChain.push("visual-quality");
+  // Plan D — emit typed artifact AFTER every gate passes. Gate failures
+  // stop the chain before reaching here (per ritual-engine's escalation
+  // contract), which is what we want: no typed artifact emission for code
+  // that didn't survive all gates.
+  postDeveloperChain.push(...backendArtifactChainTail(activeTemplate));
 
   // Plan A: lazy ref so the conductor's isAborted callback can delegate to
   // the engine even though the engine is constructed AFTER the conductor.
