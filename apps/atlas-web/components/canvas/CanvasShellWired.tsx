@@ -57,6 +57,19 @@ export interface CanvasShellWiredProps {
    *  manifest/proposal. Omitted on the regular canvas page (latest-wins
    *  default still applies). */
   ritualIdOverride?: string;
+  /** Plan D fix #2 — persisted typed artifact for the workflow node
+   *  (e.g. BackendArtifact). Forwarded into rendererProps as `artifact`
+   *  so node-kind renderers (BackendCanvas, eventually TestsCanvas /
+   *  IacCanvas / DeployCanvas) can read the real data instead of their
+   *  empty-states. Omitted on the regular canvas page. */
+  nodeArtifact?: unknown;
+  /** Plan D fix #2 — shortcut so renderers don't have to dig into the
+   *  artifact. Threaded as `backendPreviewUrl` in rendererProps to
+   *  avoid colliding with PreviewCanvas's `previewUrl` (which is the
+   *  frontend dev-server URL, semantically distinct from the backend
+   *  sandbox URL). BackendCanvas reads `backendPreviewUrl` first, then
+   *  falls back to `previewUrl`. */
+  nodePreviewUrl?: string;
 }
 
 export function CanvasShellWired({
@@ -70,7 +83,9 @@ export function CanvasShellWired({
   inlineEditEnabled,
   onSelectDirection,
   manifestOverride,
-  ritualIdOverride
+  ritualIdOverride,
+  nodeArtifact,
+  nodePreviewUrl
 }: CanvasShellWiredProps) {
   const { manifest: liveManifest } = useCanvasManifest(projectId, ritualIdOverride);
   const proposalState = useDesignerProposal(projectId, ritualIdOverride);
@@ -136,7 +151,15 @@ export function CanvasShellWired({
       ...(previewError !== undefined ? { previewError } : {}),
       ...(clickToEditEnabled !== undefined ? { clickToEditEnabled } : {}),
       ...(elementSlidersEnabled !== undefined ? { elementSlidersEnabled } : {}),
-      ...(inlineEditEnabled !== undefined ? { inlineEditEnabled } : {})
+      ...(inlineEditEnabled !== undefined ? { inlineEditEnabled } : {}),
+      // Plan D fix #2 — workflow drill-in carries the persisted typed
+      // artifact + a backend-specific previewUrl. BackendCanvas reads
+      // `artifact` (its existing prop) and prefers `backendPreviewUrl`
+      // over `previewUrl` so a workflow node's backend sandbox URL
+      // doesn't get clobbered by the frontend dev-server URL when both
+      // happen to be set.
+      ...(nodeArtifact !== undefined ? { artifact: nodeArtifact } : {}),
+      ...(nodePreviewUrl !== undefined ? { backendPreviewUrl: nodePreviewUrl } : {})
     };
     if (proposalState.ritualId === null) {
       return { persona, ...previewProps };
@@ -149,7 +172,7 @@ export function CanvasShellWired({
       ...(submittedDirection !== null ? { submittedDirectionId: submittedDirection } : {}),
       ...previewProps
     };
-  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, inlineEditEnabled, handleSelect, handleRefine, submittedDirection]);
+  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, inlineEditEnabled, handleSelect, handleRefine, submittedDirection, nodeArtifact, nodePreviewUrl]);
 
   return (
     <CanvasShell

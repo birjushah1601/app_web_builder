@@ -4,15 +4,22 @@ import type { BackendArtifact } from "@atlas/workflow-engine";
 
 export interface BackendCanvasProps {
   artifact?: BackendArtifact;
+  /** Frontend dev-server URL — set by PreviewCanvas's wiring. The backend
+   *  canvas uses it only as a fallback. */
   previewUrl?: string;
+  /** Plan D fix #2 — backend sandbox URL, set by the workflow drill-in
+   *  page. Preferred over `previewUrl` (the frontend dev-server URL)
+   *  because the two are semantically distinct sandboxes. */
+  backendPreviewUrl?: string;
 }
 
-export function BackendCanvas({ artifact, previewUrl }: BackendCanvasProps) {
+export function BackendCanvas({ artifact, previewUrl, backendPreviewUrl }: BackendCanvasProps) {
+  const effectivePreviewUrl = backendPreviewUrl ?? artifact?.previewUrl ?? previewUrl;
   const firstRoute = artifact?.routes[0];
 
   const onCopyCurl = async () => {
-    if (!firstRoute || !previewUrl) return;
-    const cmd = `curl -X ${firstRoute.method.toUpperCase()} ${previewUrl}${firstRoute.path}`;
+    if (!firstRoute || !effectivePreviewUrl) return;
+    const cmd = `curl -X ${firstRoute.method.toUpperCase()} ${effectivePreviewUrl}${firstRoute.path}`;
     try {
       await navigator.clipboard.writeText(cmd);
     } catch {
@@ -20,7 +27,7 @@ export function BackendCanvas({ artifact, previewUrl }: BackendCanvasProps) {
     }
   };
 
-  if (!previewUrl) {
+  if (!effectivePreviewUrl) {
     return (
       <div
         data-testid="backend-canvas-no-preview"
@@ -34,7 +41,7 @@ export function BackendCanvas({ artifact, previewUrl }: BackendCanvasProps) {
   return (
     <div className="flex h-full w-full flex-col">
       <header className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 text-xs">
-        <span className="font-mono text-slate-700">{previewUrl}</span>
+        <span className="font-mono text-slate-700">{effectivePreviewUrl}</span>
         <button
           type="button"
           data-testid="backend-copy-curl"
@@ -47,7 +54,7 @@ export function BackendCanvas({ artifact, previewUrl }: BackendCanvasProps) {
       </header>
       <iframe
         data-testid="backend-swagger-iframe"
-        src={`${previewUrl}/docs`}
+        src={`${effectivePreviewUrl}/docs`}
         className="h-full w-full border-0"
         title="Swagger UI"
       />

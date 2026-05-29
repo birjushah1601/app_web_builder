@@ -49,6 +49,10 @@ export default async function WorkflowNodePage({
             projectId={projectId}
             persona="ama"
             ritualIdOverride={node.ritualId}
+            {...(node.artifact !== undefined && { nodeArtifact: node.artifact })}
+            {...(((node.artifact as { previewUrl?: string } | undefined)?.previewUrl) && {
+              nodePreviewUrl: (node.artifact as { previewUrl: string }).previewUrl
+            })}
           />
         ) : (
           <div

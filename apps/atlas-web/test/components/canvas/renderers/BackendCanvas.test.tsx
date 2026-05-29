@@ -20,9 +20,28 @@ describe("BackendCanvas", () => {
     expect(iframe).toHaveAttribute("src", "https://sb-1.preview/docs");
   });
 
-  it("shows the empty-state placeholder when previewUrl is undefined", () => {
-    render(<BackendCanvas artifact={ARTIFACT} previewUrl={undefined} />);
+  it("shows the empty-state placeholder when every previewUrl source is undefined", () => {
+    const { previewUrl: _drop, ...artifactWithoutUrl } = ARTIFACT;
+    render(<BackendCanvas artifact={artifactWithoutUrl} previewUrl={undefined} />);
     expect(screen.getByTestId("backend-canvas-no-preview")).toBeInTheDocument();
+  });
+
+  it("falls back to artifact.previewUrl when no explicit prop is set", () => {
+    render(<BackendCanvas artifact={ARTIFACT} />);
+    const iframe = screen.getByTestId("backend-swagger-iframe");
+    expect(iframe).toHaveAttribute("src", "https://sb-1.preview/docs");
+  });
+
+  it("prefers backendPreviewUrl over artifact.previewUrl and the frontend previewUrl", () => {
+    render(
+      <BackendCanvas
+        artifact={ARTIFACT}
+        previewUrl="https://frontend-dev"
+        backendPreviewUrl="https://backend-sb-1"
+      />
+    );
+    const iframe = screen.getByTestId("backend-swagger-iframe");
+    expect(iframe).toHaveAttribute("src", "https://backend-sb-1/docs");
   });
 
   it("copy-curl button writes a curl command for the first route to the clipboard", async () => {
