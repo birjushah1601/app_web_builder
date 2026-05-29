@@ -128,6 +128,13 @@ export interface IRitualEngine {
     projectId: string;
     userId: string;
     priorArtifact?: unknown;
+    /** Plan E Task 5: when set, the ritual-engine dispatches this ordered
+     *  list of role IDs through the conductor and SKIPS the default
+     *  architect → developer → canvas-pause → build-gate chain. Used by
+     *  WorkflowEngine.makeLaunchRitual to route artifact-kind-specific
+     *  nodes (e.g. tests) to a single dedicated role.
+     *  Empty / undefined preserves today's full-chain behavior. */
+    roleChain?: string[];
   }): Promise<string>;
   getRitual(ritualId: string): Promise<{
     state: string;
@@ -600,12 +607,19 @@ export class WorkflowEngine {
       };
 
       // 3. Call the real ritual engine.
+      //    Plan E Task 5 — for artifact-kind="tests" nodes, route directly
+      //    to the dedicated tester role. The full architect → developer
+      //    chain isn't a fit: we're not generating new product code, we're
+      //    generating + executing tests against the existing frontend
+      //    artifact upstream of this node.
+      const roleChain = node.artifactKind === "tests" ? ["tester"] : undefined;
       const ritualId = await ritualEngine.start({
         userTurn: node.summary,
         editClass: "structural",
         projectId: run.projectId,
         userId: run.userId,
-        priorArtifact
+        priorArtifact,
+        ...(roleChain ? { roleChain } : {})
       });
 
       // 4. Wire the recorder so broker events route to checkpoints.

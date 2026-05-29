@@ -80,6 +80,20 @@ export interface StartInput {
    *  architect's priorArtifact so it flows through to Designer for
    *  visual conditioning. Empty array → omitted from priorArtifact. */
   referenceImages?: ReadonlyArray<{ url: string; caption?: string }>;
+  /** Plan E Task 5 — when set, the engine dispatches this ordered list
+   *  of role IDs via Conductor.dispatch({ forceRoleId, priorArtifact })
+   *  and SKIPS the default architect → developer → canvas-pause →
+   *  build-gate chain. Each role receives the same `priorArtifact` the
+   *  ritual was started with. A role failing inside its own logic
+   *  (events: tests.failed, etc.) does NOT escalate the ritual — the
+   *  workflow-engine awaitRitual reads roleEvents and surfaces the
+   *  artifact-or-failure to the scheduler. Empty / undefined preserves
+   *  today's full-chain behavior. */
+  roleChain?: string[];
+  /** Plan E Task 5 — when set together with roleChain, propagates a
+   *  priorArtifact into each chained role's dispatch. Mirrors the shape
+   *  the workflow-engine builds (`{ upstream, dependencyProfile }`). */
+  priorArtifact?: unknown;
 }
 
 /** Plan K: refine starts a NEW ritual linked to the parent via
@@ -333,6 +347,86 @@ export class RitualEngine {
         ...(input.parentRitualId ? { parentRitualId: input.parentRitualId } : {})
       }
     });
+
+    // Plan E Task 5 — short-circuit roleChain path. When the caller (the
+    // workflow-engine launching a tests-artifact node ritual) passes a
+    // roleChain, dispatch those role IDs in order via the conductor and
+    // skip the full architect → developer → canvas-pause → build-gate
+    // machinery. Each role receives the start input's priorArtifact
+    // unchanged. The final ritual.artifact_emitted event is harvested
+    // from whichever chained role emitted one (TestsRole emits it on
+    // success), preserving the contract the workflow-engine's
+    // awaitRitual reads. A role's internal failure (e.g. tests.failed)
+    // is recorded into roleEvents but does NOT escalate the ritual —
+    // the scheduler reads roleEvents/artifact and decides node status.
+    if (input.roleChain && input.roleChain.length > 0) {
+      const record = this.rituals.get(ritualId)!;
+      record.roleEvents = [];
+      let emittedArtifact: unknown | undefined;
+
+      for (const roleId of input.roleChain) {
+        try {
+          const chainResult = await this.conductor.dispatch(
+            {
+              ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
+              graphVersion: 0,
+              userTurn: input.userTurn,
+              projectId: input.projectId
+            },
+            input.priorArtifact !== undefined
+              ? { forceRoleId: roleId, priorArtifact: input.priorArtifact }
+              : { forceRoleId: roleId }
+          );
+
+          record.roleEvents = [
+            ...(record.roleEvents ?? []),
+            ...chainResult.output.events.map((e) => ({
+              eventType: e.eventType,
+              payload: e.payload as unknown
+            }))
+          ];
+
+          // Capture an artifact_emitted event's artifact (roles like
+          // TestsRole emit ritual.artifact_emitted as their success signal).
+          for (const ev of chainResult.output.events) {
+            if (ev.eventType === "ritual.artifact_emitted") {
+              const p = ev.payload as { artifact?: unknown } | null | undefined;
+              if (p && "artifact" in p) emittedArtifact = p.artifact;
+            }
+          }
+        } catch (err) {
+          record.roleEvents = [
+            ...(record.roleEvents ?? []),
+            {
+              eventType: `${roleId}.dispatch.failed`,
+              payload: { error: err instanceof Error ? err.message : String(err) }
+            }
+          ];
+          break;
+        }
+      }
+
+      if (emittedArtifact !== undefined) {
+        record.artifact = emittedArtifact;
+      }
+
+      // Emit a top-level ritual.artifact_emitted so the workflow-engine's
+      // awaitRitual can find the artifact via the same code path it uses
+      // for all rituals. When no chained role emitted an artifact, we
+      // still emit (with null) so the ritual reaches a terminal state.
+      await this.emit({
+        type: "ritual.artifact_emitted",
+        ritualId,
+        ts: new Date().toISOString(),
+        payload: { fromRole: input.roleChain[input.roleChain.length - 1], artifact: emittedArtifact ?? null }
+      });
+
+      const tx: RitualTransition = input.editClass === "cosmetic"
+        ? { kind: "artifact_emitted_cosmetic" }
+        : { kind: "artifact_emitted" };
+      await this.transition(ritualId, tx);
+      return ritualId;
+    }
 
     // Dispatch Architect role for the Visualize step. When refining, pass
     // the PriorRitualContext as priorArtifact so the architect's prompt
