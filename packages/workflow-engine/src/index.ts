@@ -11,3 +11,6 @@ export { TestsArtifactSchema, type TestsArtifact, type SpecResult } from "./arti
 export {
   IacArtifactSchema, type IacArtifact, type IacService, type IacK8sManifest
 } from "./artifact-contracts/iac.js";
+export {
+  DeployArtifactSchema, type DeployArtifact, type DeployArgoApplication, type DeployImageBuild, type DeploySmokeTest
+} from "./artifact-contracts/deploy.js";
