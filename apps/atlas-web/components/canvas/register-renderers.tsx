@@ -18,7 +18,7 @@ import { RefineWizard } from "./renderers/RefineWizard";
 import { PreviewCanvas } from "./renderers/PreviewCanvas";
 import { SchemaCanvas } from "./renderers/SchemaCanvas";
 import { BackendCanvas } from "./renderers/BackendCanvas";
-import { TestsStubCanvas } from "./renderers/TestsStubCanvas";
+import { TestsCanvas } from "./renderers/TestsCanvas";
 import { IacStubCanvas } from "./renderers/IacStubCanvas";
 import { DeployStubCanvas } from "./renderers/DeployStubCanvas";
 
@@ -37,7 +37,7 @@ function registerOnce() {
   // a backend/tests/iac/deploy node's manifest doesn't crash the canvas
   // shell with "renderer not found".
   canvasModeRegistry.register("swagger", BackendCanvas as React.ComponentType<unknown>);
-  canvasModeRegistry.register("test-results", TestsStubCanvas as React.ComponentType<unknown>);
+  canvasModeRegistry.register("test-results", TestsCanvas as React.ComponentType<unknown>);
   canvasModeRegistry.register("topology", IacStubCanvas as React.ComponentType<unknown>);
   canvasModeRegistry.register("deploy-status", DeployStubCanvas as React.ComponentType<unknown>);
 }
