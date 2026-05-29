@@ -37,6 +37,7 @@
     "@atlas/role-developer": "workspace:*",
     "@atlas/role-researcher": "workspace:*",
     "@atlas/role-security": "workspace:*",
+    "@atlas/role-tester": "workspace:*",
     "@atlas/run-dashboard": "workspace:*",
     "@atlas/sandbox-e2b": "workspace:*",
     "@atlas/skill-runtime": "workspace:*",

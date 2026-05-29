@@ -64,6 +64,9 @@ importers:
       '@atlas/role-security':
         specifier: workspace:*
         version: link:../../packages/role-security
+      '@atlas/role-tester':
+        specifier: workspace:*
+        version: link:../../packages/role-tester
       '@atlas/role-workflow-planner':
         specifier: workspace:*
         version: link:../../packages/role-workflow-planner

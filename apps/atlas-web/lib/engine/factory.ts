@@ -322,6 +322,109 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       }
     }
 
+    // Plan E Task 5 — register TestsRole when an LLM is configured. The
+    // workflow-engine routes "tests" artifact-kind nodes here via
+    // roleChain=["tester"] (see WorkflowEngine.makeLaunchRitual). The
+    // role:
+    //   1. installs Vitest + RTL inside the running E2B sandbox
+    //   2. asks the LLM to emit one Vitest spec per page from the
+    //      upstream FrontendArtifact (auto-detected via kind walk; no
+    //      frontendNodeId pinned — that'd be brittle since the
+    //      workflow-planner picks the id)
+    //   3. writes the specs into the sandbox via files.write
+    //   4. executes `vitest run --reporter=json`, parses stdout
+    //   5. emits a typed TestsArtifact on ritual.artifact_emitted
+    // For Task 5 the prompt is intentionally minimal — one renders-without-
+    // crashing test per page. A richer prompt template is a polish task.
+    {
+      const { TestsRole } = await import("@atlas/role-tester");
+
+      const testsSandbox = {
+        exec: async (cmd: string) => {
+          const session = await getSandboxFactory().getOrProvision(projectId);
+          const { Sandbox } = await import("@e2b/sdk");
+          const sdk = await Sandbox.connect(session.record.sandboxId, {
+            apiKey: process.env.E2B_API_KEY ?? ""
+          });
+          try {
+            const result = await (sdk as unknown as {
+              commands: { run: (cmd: string, opts?: { background?: false; timeoutMs?: number }) => Promise<{ stdout: string; stderr: string; exitCode: number }> }
+            }).commands.run(cmd, { timeoutMs: 180_000 });
+            return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode };
+          } catch (err) {
+            // E2B v2.5 throws CommandExitError on non-zero exits — including
+            // the legitimate case of `vitest run` exiting non-zero with valid
+            // JSON in stdout (e.g. one spec failed). Surface as a normal
+            // result so TestsRole can parse stdout.
+            const name = (err as { name?: string })?.name;
+            if (name === "CommandExitError") {
+              const e = err as { exitCode?: number; stdout?: string; stderr?: string };
+              return {
+                exitCode: typeof e.exitCode === "number" ? e.exitCode : 1,
+                stdout: e.stdout ?? "",
+                stderr: e.stderr ?? ""
+              };
+            }
+            throw err;
+          }
+        },
+        write: async (path: string, contents: string) => {
+          const session = await getSandboxFactory().getOrProvision(projectId);
+          const { Sandbox } = await import("@e2b/sdk");
+          const sdk = await Sandbox.connect(session.record.sandboxId, {
+            apiKey: process.env.E2B_API_KEY ?? ""
+          });
+          await (sdk as unknown as {
+            files: { write: (path: string, contents: string) => Promise<unknown> }
+          }).files.write(path, contents);
+        }
+      };
+
+      // generateTests — simplest possible v1: one renders-without-crashing
+      // spec per page from the upstream FrontendArtifact. Pages live at
+      // priorArtifact.upstream[<frontendId>].pages = [{ route, file }].
+      // We extract them, build a one-shot prompt, ask the LLM for a
+      // {<filePath>: <contents>} JSON map, parse, return.
+      const generateTests = async (input: { frontendArtifact: unknown; ritualId: string }): Promise<Record<string, string>> => {
+        if (!llm) throw new Error("TestsRole.generateTests: no LLM provider configured");
+        const fa = input.frontendArtifact as { pages?: Array<{ route?: string; file?: string }> } | undefined;
+        const pages = Array.isArray(fa?.pages) ? fa!.pages : [];
+        const pageList = pages
+          .map((p, i) => `${i + 1}. route="${p.route ?? "?"}" file="${p.file ?? "?"}"`)
+          .join("\n") || "(no pages declared)";
+
+        const prompt = [
+          "You are generating Vitest unit tests for a Next.js (App Router) project.",
+          "",
+          "For each page listed below, emit ONE Vitest spec that:",
+          "  - imports the page component via its file path",
+          "  - renders it with @testing-library/react",
+          "  - asserts the component renders without crashing",
+          "",
+          "Pages:",
+          pageList,
+          "",
+          'Place each spec under `__tests__/<basename>.test.tsx` where <basename> is derived from the page file (e.g. `app/page.tsx` → `Home`, `app/about/page.tsx` → `About`).',
+          "",
+          'Return ONLY a JSON object of the shape `{"<filePath>": "<fileContents>"}` — no prose, no markdown fences, no explanation. The keys must be repo-relative paths under `__tests__/`. The values must be valid TypeScript+JSX strings.'
+        ].join("\n");
+
+        const completion = await llm.complete(
+          [{ role: "user", content: prompt }],
+          { model: triageModel ?? "claude-haiku-4-5", maxTokens: 4096 }
+        );
+        // Strip accidental code fences (some models wrap JSON in ```json … ```).
+        const stripped = completion.content
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/\s*```\s*$/i, "")
+          .trim();
+        const parsed = JSON.parse(stripped) as Record<string, string>;
+        return parsed;
+      };
+
+      roles.set("tester", new TestsRole({ sandbox: testsSandbox, generateTests }));
+    }
+
     // T15: register SchemaArchitectRole when ATLAS_FF_SCHEMA_ARCHITECT=true.
     // Dispatch is based on artifactKind at ritual time; both schema-architect
     // and designer can coexist in the roles map without conflict.
