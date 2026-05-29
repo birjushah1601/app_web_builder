@@ -8,3 +8,6 @@ export * from "./engine.js";
 export * from "./errors.js";
 export { BackendArtifactSchema, type BackendArtifact } from "./artifact-contracts/backend-rest-api.js";
 export { TestsArtifactSchema, type TestsArtifact, type SpecResult } from "./artifact-contracts/tests.js";
+export {
+  IacArtifactSchema, type IacArtifact, type IacService, type IacK8sManifest
+} from "./artifact-contracts/iac.js";
