@@ -129,6 +129,17 @@ export interface SandboxApplyResult {
     bytesWritten?: number;
   }>;
   parseError?: string;
+  /** Plan D fix #1 — identity of the live E2B sandbox the diff landed in.
+   *  Populated by the atlas-web applier so post-developer chain roles that
+   *  need to talk to the running app (BackendArtifactRole probes /health
+   *  and /openapi.json) can find it. Optional because tests and the
+   *  hydrator-replay path may construct SandboxApplyResult without a real
+   *  session attached. */
+  sandboxId?: string;
+  /** Plan D fix #1 — HTTPS base URL for the running app inside the
+   *  sandbox (e.g. https://3000-<sandboxId>.e2b.app). Mirrors
+   *  SandboxSession.previewUrl in apps/atlas-web/lib/sandbox/types.ts. */
+  previewUrl?: string;
 }
 
 /** Optional injection on RitualEngineOptions. Implementations live
@@ -823,7 +834,21 @@ export class RitualEngine {
                   userTurn: record.developerOutput.diff,
                   projectId: input.projectId
                 },
-                { forceRoleId: roleId, priorArtifact: record.developerOutput }
+                // Plan D fix #1 — chain roles need more than just { diff, summary }.
+                // BackendArtifactRole probes the live preview (sandboxId + previewUrl);
+                // those fields land on sandboxApplyResult via the atlas-web applier.
+                // Spread sandboxApplyResult first so developerOutput's { diff, summary }
+                // take precedence on any name collision (no overlap today, but future-
+                // safe). When no SandboxApplier is configured (engine-developer-chain
+                // tests, cosmetic edits, etc.) sandboxApplyResult is undefined and the
+                // spread is a no-op — preserves today's `{ diff, summary }`-only shape.
+                {
+                  forceRoleId: roleId,
+                  priorArtifact: {
+                    ...(record.sandboxApplyResult ?? {}),
+                    ...record.developerOutput
+                  }
+                }
               );
 
               record.roleEvents = [

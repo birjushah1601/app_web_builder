@@ -603,7 +603,16 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
           } catch (err) {
             console.warn(`[atlas-assets-sync] skipped:`, err instanceof Error ? err.message : String(err));
           }
-          return result;
+          // Plan D fix #1 — thread the live sandbox identity into the apply
+          // result so the engine can spread it into the post-developer chain's
+          // priorArtifact. Without this, BackendArtifactRole always short-
+          // circuits to backend-artifact.failed because chain dispatch only
+          // saw { diff, summary }.
+          return {
+            ...result,
+            sandboxId: session.record.sandboxId,
+            previewUrl: session.previewUrl
+          };
         };
 
         const isStaleSandboxError = (err: unknown): boolean => {

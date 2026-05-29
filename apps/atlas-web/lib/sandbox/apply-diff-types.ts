@@ -39,6 +39,17 @@ export interface ApplyDiffResult {
   files: FileApplyResult[];
   /** Present iff parsed === 0 due to a parse error. */
   parseError?: string;
+  /** Plan D fix #1 — identity of the live E2B sandbox the diff landed in.
+   *  Populated by the atlas-web sandboxApplier wrapper (not by applyDiff
+   *  itself, which is purely filesystem-level) so post-developer chain
+   *  roles (BackendArtifactRole) can locate the running app. Optional
+   *  because the pure applyDiff() function in this package returns
+   *  ApplyDiffResult without ever knowing about sandbox identity. */
+  sandboxId?: string;
+  /** Plan D fix #1 — HTTPS base URL for the running app inside the
+   *  sandbox. Mirrors SandboxSession.previewUrl. Set alongside sandboxId
+   *  by the applier wrapper. */
+  previewUrl?: string;
 }
 
 /** Minimal filesystem surface applyDiff needs. The concrete
