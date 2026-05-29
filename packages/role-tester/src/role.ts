@@ -11,7 +11,11 @@ export interface SandboxLike {
 export interface TestsRoleOptions {
   sandbox: SandboxLike;
   generateTests: (input: { frontendArtifact: unknown; ritualId: string }) => Promise<Record<string, string>>;
-  frontendNodeId: string;
+  /** Optional. When unset, the role walks `priorArtifact.upstream` and
+   *  picks the first entry whose value has `kind === "frontend-app"`.
+   *  This is the path the atlas-web factory takes — the workflow-engine
+   *  picks the node id, so the factory shouldn't have to guess it. */
+  frontendNodeId?: string;
   installCmd?: string;
   runCmd?: string;
 }
@@ -27,9 +31,32 @@ export class TestsRole implements Role {
   async run(inv: RoleInvocation): Promise<RoleOutput> {
     const events: RoleOutput["events"] = [];
     const upstream = (inv.priorArtifact as { upstream?: Record<string, unknown> } | undefined)?.upstream ?? {};
-    const frontendArtifact = upstream[this.opts.frontendNodeId];
-    if (!frontendArtifact) {
-      events.push({ eventType: "tests.failed", payload: { reason: `missing upstream frontend artifact at "${this.opts.frontendNodeId}"` } });
+
+    // Resolve the upstream frontend artifact + its node-id. Two paths:
+    //   (a) caller provided frontendNodeId at construction — look it up directly
+    //   (b) caller omitted it — auto-detect by walking upstream entries and
+    //       picking the first whose value has `kind === "frontend-app"`.
+    // (b) is the path atlas-web's factory takes: the workflow planner picks
+    // the node id, so the factory can't know it in advance.
+    let resolvedFrontendNodeId: string | undefined;
+    let frontendArtifact: unknown;
+    if (this.opts.frontendNodeId !== undefined) {
+      resolvedFrontendNodeId = this.opts.frontendNodeId;
+      frontendArtifact = upstream[this.opts.frontendNodeId];
+    } else {
+      for (const [id, art] of Object.entries(upstream)) {
+        if (art && typeof art === "object" && (art as { kind?: unknown }).kind === "frontend-app") {
+          resolvedFrontendNodeId = id;
+          frontendArtifact = art;
+          break;
+        }
+      }
+    }
+    if (!frontendArtifact || !resolvedFrontendNodeId) {
+      const reason = this.opts.frontendNodeId !== undefined
+        ? `missing upstream frontend artifact at "${this.opts.frontendNodeId}"`
+        : `no upstream artifact with kind="frontend-app" found`;
+      events.push({ eventType: "tests.failed", payload: { reason } });
       return { events, diff: { kind: "none" } };
     }
 
@@ -60,7 +87,7 @@ export class TestsRole implements Role {
     }
 
     const targetsBySpec: Record<string, string[]> = {};
-    for (const r of results) targetsBySpec[r.file] = [this.opts.frontendNodeId];
+    for (const r of results) targetsBySpec[r.file] = [resolvedFrontendNodeId];
 
     const artifact = buildTestsArtifact({ framework: "vitest", results, targetsBySpec });
     const parsed = TestsArtifactSchema.safeParse(artifact);

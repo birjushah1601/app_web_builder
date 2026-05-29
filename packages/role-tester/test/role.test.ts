@@ -57,6 +57,57 @@ describe("TestsRole", () => {
     expect(out.events.some((e) => e.eventType === "ritual.artifact_emitted")).toBe(false);
   });
 
+  it("auto-detects the upstream frontend-app artifact when frontendNodeId is omitted", async () => {
+    const exec = vi.fn(async (cmd: string) => {
+      if (cmd.includes("pnpm add -D")) return { exitCode: 0, stdout: "", stderr: "" };
+      if (cmd.includes("vitest run")) return { exitCode: 0, stdout: VITEST_JSON_OK, stderr: "" };
+      return { exitCode: 0, stdout: "", stderr: "" };
+    });
+    const write = vi.fn(async () => {});
+    const generateTests = vi.fn(async () => ({
+      "__tests__/Home.test.tsx": "import { test } from 'vitest';\ntest('x', () => {});"
+    }));
+
+    // No frontendNodeId — the role should walk upstream and pick the
+    // entry whose artifact has kind === "frontend-app". Here that's the
+    // "ui-node" key (planner-generated id; not literal "frontend").
+    const role = new TestsRole({ sandbox: { exec, write }, generateTests });
+    const out = await role.run({
+      ritualId: "r-1",
+      intent: "x",
+      graphSlice: { bytes: "{}", hash: "h" },
+      userTurn: "",
+      priorArtifact: {
+        upstream: {
+          // Non-frontend sibling — should be skipped.
+          "api-node": { schemaVersion: "1", kind: "backend-rest-api", openApiSpec: { openapi: "3.1.0", paths: {} }, routes: [], envContract: [] },
+          "ui-node": { schemaVersion: "1", kind: "frontend-app", pages: [{ route: "/", file: "app/page.tsx" }], designTokens: {}, references: [] }
+        }
+      }
+    });
+
+    const ev = out.events.find((e) => e.eventType === "ritual.artifact_emitted");
+    expect(ev).toBeDefined();
+    const artifact = (ev?.payload as { artifact: { specs: Array<{ targets: string[] }> } }).artifact;
+    // Auto-detected node id flows through to the artifact's targetsBySpec.
+    expect(artifact.specs).toHaveLength(1);
+    expect(artifact.specs[0]?.targets).toEqual(["ui-node"]);
+  });
+
+  it("emits failure when frontendNodeId is omitted AND no upstream entry has kind=frontend-app", async () => {
+    const role = new TestsRole({
+      sandbox: { exec: vi.fn(), write: vi.fn() },
+      generateTests: vi.fn()
+    });
+    const out = await role.run({
+      ritualId: "r-1", intent: "x", graphSlice: { bytes: "{}", hash: "h" }, userTurn: "",
+      priorArtifact: { upstream: { "api-node": { schemaVersion: "1", kind: "backend-rest-api" } } }
+    });
+    const failed = out.events.find((e) => e.eventType === "tests.failed");
+    expect(failed).toBeDefined();
+    expect((failed?.payload as { reason: string }).reason).toMatch(/no upstream artifact with kind="frontend-app"/);
+  });
+
   it("emits failure when the runner exits non-zero with no parseable output", async () => {
     const role = new TestsRole({
       sandbox: {
