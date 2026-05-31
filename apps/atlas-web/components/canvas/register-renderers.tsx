@@ -19,8 +19,8 @@ import { PreviewCanvas } from "./renderers/PreviewCanvas";
 import { SchemaCanvas } from "./renderers/SchemaCanvas";
 import { BackendCanvas } from "./renderers/BackendCanvas";
 import { TestsCanvas } from "./renderers/TestsCanvas";
-import { IacStubCanvas } from "./renderers/IacStubCanvas";
-import { DeployStubCanvas } from "./renderers/DeployStubCanvas";
+import { IacCanvas } from "./renderers/IacCanvas";
+import { DeployCanvas } from "./renderers/DeployCanvas";
 
 let _registered = false;
 
@@ -38,8 +38,8 @@ function registerOnce() {
   // shell with "renderer not found".
   canvasModeRegistry.register("swagger", BackendCanvas as React.ComponentType<unknown>);
   canvasModeRegistry.register("test-results", TestsCanvas as React.ComponentType<unknown>);
-  canvasModeRegistry.register("topology", IacStubCanvas as React.ComponentType<unknown>);
-  canvasModeRegistry.register("deploy-status", DeployStubCanvas as React.ComponentType<unknown>);
+  canvasModeRegistry.register("topology", IacCanvas as React.ComponentType<unknown>);
+  canvasModeRegistry.register("deploy-status", DeployCanvas as React.ComponentType<unknown>);
 }
 
 registerOnce();
