@@ -25,6 +25,7 @@
     "@atlas/conductor": "workspace:*",
     "@atlas/spec-graph-data": "workspace:*",
     "drizzle-orm": "0.45.2",
+    "openapi-typescript": "^7.4.0",
     "zod": "3.23.8"
   },
   "devDependencies": {
