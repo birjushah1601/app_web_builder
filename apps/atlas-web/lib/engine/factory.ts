@@ -425,6 +425,89 @@ export const getRitualEngine = cache(async (projectId: string): Promise<RitualEn
       roles.set("tester", new TestsRole({ sandbox: testsSandbox, generateTests }));
     }
 
+    // Plan F Task 7 — register IacRole + DeployerRole when an LLM is
+    // configured. The workflow-engine routes "iac" / "deploy" artifact-kind
+    // nodes here via roleChain=["iac"] / roleChain=["deployer"] (see
+    // WorkflowEngine.makeLaunchRitual). Both roles take a minimal LLM
+    // closure that prompts the model for a JSON-shaped response and parses
+    // it. Richer prompt engineering is a polish task — for v1 we mirror
+    // the TestsRole.generateTests pattern verbatim: build a one-shot
+    // prompt, call llm.complete, strip optional code fences, JSON.parse.
+    {
+      const { IacRole } = await import("@atlas/role-iac");
+      const { DeployerRole } = await import("@atlas/role-deployer");
+
+      const stripFencesAndParse = <T>(raw: string): T => {
+        const stripped = raw
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/\s*```\s*$/i, "")
+          .trim();
+        return JSON.parse(stripped) as T;
+      };
+
+      // IacRole.generateIac — ask the LLM for docker-compose.yml + a list of
+      // k8s manifest entries (Knative + cert-manager friendly). The role
+      // itself builds the typed IacArtifact from the returned compose +
+      // manifests + the services list it derived from upstream artifacts.
+      const generateIac: ConstructorParameters<typeof IacRole>[0]["generateIac"] = async ({ services, ritualId: _ritualId }) => {
+        if (!llm) throw new Error("IacRole.generateIac: no LLM provider configured");
+        const prompt = [
+          "You are generating Infrastructure-as-Code for a multi-service app.",
+          "",
+          "For these services:",
+          JSON.stringify(services, null, 2),
+          "",
+          "Generate:",
+          "  1. A docker-compose.yml that runs every service locally with the declared port + envContract.",
+          "  2. A set of Kubernetes manifests (Knative Service per runtime service + cert-manager Certificate for ingress) suitable for a GitOps repo layout.",
+          "",
+          'Return ONLY a JSON object of the shape `{ "composeYaml": "<contents>", "k8sManifests": [{ "file": "<repo-relative-path>", "kind": "<k8s-kind>", "name": "<metadata.name>", "content": "<yaml>" }] }` — no prose, no markdown fences, no explanation.'
+        ].join("\n");
+
+        const completion = await llm.complete(
+          [{ role: "user", content: prompt }],
+          { model: triageModel ?? "claude-haiku-4-5", maxTokens: 4096 }
+        );
+        return stripFencesAndParse<{
+          composeYaml: string;
+          k8sManifests: Array<{ file: string; kind: string; name: string; content: string }>;
+        }>(completion.content);
+      };
+
+      roles.set("iac", new IacRole({ generateIac }));
+
+      // DeployerRole.generateDeploy — ask the LLM for an Argo CD Application
+      // manifest + per-service image build refs + smoke tests. The role
+      // wraps the result into a typed DeployArtifact (schemaVersion+kind
+      // injected by build-artifact.ts).
+      const generateDeploy: ConstructorParameters<typeof DeployerRole>[0]["generateDeploy"] = async ({ iac, ritualId: _ritualId }) => {
+        if (!llm) throw new Error("DeployerRole.generateDeploy: no LLM provider configured");
+        const prompt = [
+          "You are wiring continuous deployment for this Infrastructure-as-Code artifact:",
+          JSON.stringify(iac, null, 2),
+          "",
+          "Generate:",
+          "  1. An Argo CD `Application` manifest that points at the GitOps repo path containing the k8s manifests.",
+          "  2. Per-service image build references (dockerfile path + image tag, one per runtime service).",
+          "  3. A small set of smoke tests (HTTP GET on each service's health endpoint with the expected status code).",
+          "",
+          'Return ONLY a JSON object of the shape `{ "argoApplication": { "file": "<repo-relative-path>", "content": "<yaml>", "name": "<metadata.name>", "repoUrl": "<git-url>", "path": "<repo-subpath>" }, "imageBuilds": [{ "serviceName": "<name>", "dockerfilePath": "<path>", "imageTag": "<tag>" }], "smokeTests": [{ "url": "<full-url>", "expectStatus": <int>, "expectBodyContains": "<optional substring>" }] }` — no prose, no markdown fences, no explanation.'
+        ].join("\n");
+
+        const completion = await llm.complete(
+          [{ role: "user", content: prompt }],
+          { model: triageModel ?? "claude-haiku-4-5", maxTokens: 4096 }
+        );
+        return stripFencesAndParse<{
+          argoApplication: { file: string; content: string; name: string; repoUrl: string; path: string };
+          imageBuilds: Array<{ serviceName: string; dockerfilePath: string; imageTag: string }>;
+          smokeTests: Array<{ url: string; expectStatus: number; expectBodyContains?: string }>;
+        }>(completion.content);
+      };
+
+      roles.set("deployer", new DeployerRole({ generateDeploy }));
+    }
+
     // T15: register SchemaArchitectRole when ATLAS_FF_SCHEMA_ARCHITECT=true.
     // Dispatch is based on artifactKind at ritual time; both schema-architect
     // and designer can coexist in the roles map without conflict.

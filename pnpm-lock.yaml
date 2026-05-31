@@ -49,12 +49,18 @@ importers:
       '@atlas/role-asset-generator':
         specifier: workspace:*
         version: link:../../packages/role-asset-generator
+      '@atlas/role-deployer':
+        specifier: workspace:*
+        version: link:../../packages/role-deployer
       '@atlas/role-designer':
         specifier: workspace:*
         version: link:../../packages/role-designer
       '@atlas/role-developer':
         specifier: workspace:*
         version: link:../../packages/role-developer
+      '@atlas/role-iac':
+        specifier: workspace:*
+        version: link:../../packages/role-iac
       '@atlas/role-researcher':
         specifier: workspace:*
         version: link:../../packages/role-researcher

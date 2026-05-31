@@ -31,6 +31,8 @@
     "@atlas/role-accessibility": "workspace:*",
     "@atlas/role-architect": "workspace:*",
     "@atlas/role-asset-generator": "workspace:*",
+    "@atlas/role-deployer": "workspace:*",
+    "@atlas/role-iac": "workspace:*",
     "@atlas/role-schema-architect": "workspace:*",
     "@atlas/role-workflow-planner": "workspace:*",
     "@atlas/role-designer": "workspace:*",

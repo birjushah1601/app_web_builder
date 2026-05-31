@@ -175,6 +175,20 @@ export interface WorkflowEngineOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Plan E Task 5 + Plan F Task 7 — artifactKind → roleChain mapping.
+// When makeLaunchRitual sees a node whose artifactKind has an entry here,
+// the ritual-engine dispatches that single role and SKIPS the default
+// architect → developer → canvas-pause → build-gate chain. Empty / missing
+// entry preserves the full-chain behavior.
+// ---------------------------------------------------------------------------
+
+const ROLE_CHAIN_BY_KIND: Record<string, string[] | undefined> = {
+  tests: ["tester"],
+  iac: ["iac"],
+  deploy: ["deployer"]
+};
+
+// ---------------------------------------------------------------------------
 // WorkflowEngine
 // ---------------------------------------------------------------------------
 
@@ -607,12 +621,13 @@ export class WorkflowEngine {
       };
 
       // 3. Call the real ritual engine.
-      //    Plan E Task 5 — for artifact-kind="tests" nodes, route directly
-      //    to the dedicated tester role. The full architect → developer
-      //    chain isn't a fit: we're not generating new product code, we're
-      //    generating + executing tests against the existing frontend
-      //    artifact upstream of this node.
-      const roleChain = node.artifactKind === "tests" ? ["tester"] : undefined;
+      //    Plan E Task 5 + Plan F Task 7 — for artifact-kinds that are NOT
+      //    product-code generation (tests, iac, deploy), route directly to
+      //    a single dedicated role. The full architect → developer chain
+      //    isn't a fit for these: we're not generating new product code,
+      //    we're generating tests / infrastructure-as-code / deployment
+      //    wiring from already-emitted upstream artifacts.
+      const roleChain = ROLE_CHAIN_BY_KIND[node.artifactKind];
       const ritualId = await ritualEngine.start({
         userTurn: node.summary,
         editClass: "structural",
