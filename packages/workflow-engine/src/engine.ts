@@ -34,6 +34,7 @@ import {
 } from "./errors.js";
 import { ArtifactContractRegistry } from "./artifact-contracts/registry.js";
 import { GenericArtifactSchema } from "./artifact-contracts/generic.js";
+import { generateApiClient } from "./api-client-gen.js";
 
 // ---------------------------------------------------------------------------
 // Minimal repo interfaces — the engine depends on these abstractions so that
@@ -613,14 +614,38 @@ export class WorkflowEngine {
         // priorArtifact.upstream[id] === undefined and decide what to do.
       }
 
-      // 2. Build priorArtifact for the downstream ritual. Plan D ships the
+      // 2. Plan D.2: cross-stack — generate the typed api-client when a
+      //    frontend-app node consumes a single backend-rest-api upstream.
+      //    Multi-backend cross-stack is Plan D.3.
+      let generatedFiles: Array<{ path: string; contents: string }> | undefined;
+      if (node.artifactKind === "frontend-app") {
+        const backendUpstreams = Object.values(upstream).filter(
+          (a): a is { kind: string; openApiSpec: unknown } =>
+            !!a &&
+            typeof a === "object" &&
+            (a as { kind?: unknown }).kind === "backend-rest-api" &&
+            "openApiSpec" in (a as object)
+        );
+        if (backendUpstreams.length > 1) {
+          throw new Error(
+            `Plan D.2 v1: multiple backend upstreams not supported (frontend node "${node.id}" consumes ${backendUpstreams.length} backend-rest-api artifacts). Multi-backend cross-stack is Plan D.3.`
+          );
+        }
+        if (backendUpstreams.length === 1) {
+          const generated = await generateApiClient(backendUpstreams[0]!.openApiSpec);
+          generatedFiles = [generated];
+        }
+      }
+
+      // 3. Build priorArtifact for the downstream ritual. Plan D ships the
       //    minimum shape per docs/superpowers/specs/2026-05-29-plan-d-...md §2.
       const priorArtifact = {
         upstream,
-        dependencyProfile: run.dependencyProfile
+        dependencyProfile: run.dependencyProfile,
+        ...(generatedFiles ? { generatedFiles } : {})
       };
 
-      // 3. Call the real ritual engine.
+      // 4. Call the real ritual engine.
       //    Plan E Task 5 + Plan F Task 7 — for artifact-kinds that are NOT
       //    product-code generation (tests, iac, deploy), route directly to
       //    a single dedicated role. The full architect → developer chain
@@ -637,7 +662,7 @@ export class WorkflowEngine {
         ...(roleChain ? { roleChain } : {})
       });
 
-      // 4. Wire the recorder so broker events route to checkpoints.
+      // 5. Wire the recorder so broker events route to checkpoints.
       if (recorder) {
         recorder.registerRitualForNode(ritualId, workflowRunId, node.id);
       }
