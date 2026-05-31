@@ -118,6 +118,30 @@ export function renderDeveloperUserTurn(userTurn: string, architectArtifact: unk
     if (lines.length > 1) sections.push("", lines.join("\n"));
   }
 
+  // Plan D.2 Task 4 — when the engine runs a cross-stack ritual (frontend-app
+  // node consuming a backend-rest-api upstream), it pre-generates a typed
+  // api-client from the backend's OpenAPI spec and stuffs it into
+  // `priorArtifact.generatedFiles` (engine.ts ~line 620). Because role.ts
+  // passes `inv.priorArtifact` straight through as the architectArtifact arg,
+  // we read the field off this same object. Surface each entry verbatim so
+  // the LLM emits the file in its diff and the sandbox applier writes it to
+  // disk; the developer can then import from it in its own generated code.
+  const generatedFiles = (architectArtifact as { generatedFiles?: Array<{ path: string; contents: string }> } | null | undefined)?.generatedFiles;
+  if (Array.isArray(generatedFiles) && generatedFiles.length > 0) {
+    const lines = [
+      "## Pre-generated files",
+      "",
+      "These files have been generated for you by upstream workflow steps.",
+      "Include each file in your diff EXACTLY as shown so the sandbox applier writes them to disk.",
+      "Then import from them as needed in your own code:",
+      ""
+    ];
+    for (const f of generatedFiles) {
+      lines.push(`### ${f.path}`, "```ts", f.contents, "```", "");
+    }
+    sections.push("", lines.join("\n"));
+  }
+
   sections.push("", "## Build target");
   if (layoutDirective) {
     sections.push(
