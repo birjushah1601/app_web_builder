@@ -50,10 +50,28 @@ export interface IWorkflowRunRepo {
     status: string;
     dependencyProfile: unknown;
     concurrencyCap?: number;
+    /** Plan G — optional USD cost cap for the run. Drizzle stores this as
+     *  numeric (returned as string); in-memory fakes typically use number.
+     *  The repo implementation accepts a number here; the snapshot builder
+     *  normalizes either string or number coming back from findById. */
+    costCapUsd?: number;
     createdAt: Date;
     updatedAt: Date;
   }): Promise<{ id: string; status: string; createdAt: Date | string; updatedAt: Date | string }>;
-  findById(id: string): Promise<{ id: string; projectId: string; userId: string; prompt: string; status: string; dependencyProfile: unknown; concurrencyCap?: number | null; createdAt: Date | string; updatedAt: Date | string } | undefined>;
+  findById(id: string): Promise<{
+    id: string;
+    projectId: string;
+    userId: string;
+    prompt: string;
+    status: string;
+    dependencyProfile: unknown;
+    concurrencyCap?: number | null;
+    /** Plan G — drizzle returns numeric columns as string; in-memory fakes
+     *  may return number. The snapshot builder accepts either form. */
+    costCapUsd?: number | string | null;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+  } | undefined>;
   updateStatus(id: string, status: string): Promise<void>;
   updateDependencyProfile(id: string, dependencyProfile: unknown): Promise<void>;
 }
@@ -154,6 +172,10 @@ export interface StartWorkflowInput {
   prompt: string;
   artifactKindHint?: string;
   concurrencyCap?: number;
+  /** Plan G — optional USD cost cap for the run. When set, it is persisted
+   *  to the run row and surfaced on the WorkflowRunSnapshot. Enforcement
+   *  (abort-on-overrun) is the responsibility of later Plan G tasks. */
+  costCapUsd?: number;
 }
 
 export interface PlanEdit {
@@ -289,6 +311,7 @@ export class WorkflowEngine {
       status: "planning",
       dependencyProfile: { schemaVersion: "1" },
       ...(input.concurrencyCap !== undefined && { concurrencyCap: input.concurrencyCap }),
+      ...(input.costCapUsd !== undefined && { costCapUsd: input.costCapUsd }),
       createdAt: now,
       updatedAt: now
     });
@@ -722,6 +745,16 @@ export class WorkflowEngine {
         ? runRow.updatedAt.toISOString()
         : String(runRow.updatedAt);
 
+    // Plan G — normalize costCapUsd from either string (drizzle numeric) or
+    // number (in-memory fakes) to a finite number; null/undefined → omit.
+    const costCapUsdRaw = (runRow as { costCapUsd?: unknown }).costCapUsd;
+    const costCapUsd =
+      typeof costCapUsdRaw === "string"
+        ? Number(costCapUsdRaw)
+        : typeof costCapUsdRaw === "number"
+          ? costCapUsdRaw
+          : undefined;
+
     return {
       id: runRow.id,
       projectId: runRow.projectId,
@@ -734,6 +767,9 @@ export class WorkflowEngine {
         schemaVersion: "1"
       },
       ...(runRow.concurrencyCap != null && { concurrencyCap: runRow.concurrencyCap }),
+      ...(costCapUsd !== undefined && Number.isFinite(costCapUsd)
+        ? { costCapUsd }
+        : {}),
       createdAt,
       updatedAt
     };

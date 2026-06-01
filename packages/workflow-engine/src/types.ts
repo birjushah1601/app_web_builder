@@ -121,6 +121,10 @@ export const WorkflowRunSchema = z.object({
   nodes: z.array(WorkflowNodeSchema),
   edges: z.array(WorkflowEdgeSchema),
   dependencyProfile: DependencyProfileSchema,
+  // Plan G — optional USD cost cap for the run. Engine-internal contract is
+  // undefined-when-unset; DB layer (drizzle) may return null which adapters
+  // normalize to undefined before constructing the snapshot.
+  costCapUsd: z.number().positive().optional(),
   concurrencyCap: z.number().int().positive().optional(),
   createdAt: z.string(),
   updatedAt: z.string()
