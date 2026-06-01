@@ -1,5 +1,6 @@
 // src/engine.ts
 import { randomUUID } from "node:crypto";
+import { InMemoryUsageTracker, type LLMUsageTracker } from "@atlas/llm-provider";
 import type {
   WorkflowNode,
   WorkflowRunSnapshot,
@@ -154,6 +155,12 @@ export interface IRitualEngine {
      *  nodes (e.g. tests) to a single dedicated role.
      *  Empty / undefined preserves today's full-chain behavior. */
     roleChain?: string[];
+    /** Plan G Task 4 — per-workflow usage tracker. When set, roles can
+     *  record token usage so the workflow engine can later enforce a USD
+     *  cost cap. Optional — when unset, no cost tracking happens. Role-level
+     *  recording is wired in a follow-up Plan G task; v1 just plumbs the
+     *  channel through to the ritual engine. */
+    usageTracker?: LLMUsageTracker;
   }): Promise<string>;
   getRitual(ritualId: string): Promise<{
     state: string;
@@ -225,6 +232,14 @@ export class WorkflowEngine {
    */
   private readonly runningSchedulers = new Map<string, Promise<void>>();
 
+  /**
+   * Plan G Task 4: per-workflow-run LLMUsageTracker. Created lazily in
+   * start(); read by makeLaunchRitual() so every node ritual of the same
+   * workflow run shares the same tracker instance (subsequent calls see
+   * accumulated cost). Key = workflowRunId.
+   */
+  private readonly usageTrackers = new Map<string, LLMUsageTracker>();
+
   constructor(opts: WorkflowEngineOptions) {
     this.opts = opts;
   }
@@ -236,6 +251,15 @@ export class WorkflowEngine {
    */
   _waitForScheduler(workflowRunId: string): Promise<void> {
     return this.runningSchedulers.get(workflowRunId) ?? Promise.resolve();
+  }
+
+  /**
+   * Test-only helper (underscore prefix = internal API).
+   * Returns the workflow's per-run LLMUsageTracker, or undefined when
+   * the runId is unknown to this engine instance.
+   */
+  _getUsageTracker(workflowRunId: string): LLMUsageTracker | undefined {
+    return this.usageTrackers.get(workflowRunId);
   }
 
   // ---------------------------------------------------------------------------
@@ -316,6 +340,15 @@ export class WorkflowEngine {
       updatedAt: now
     });
 
+    // Plan G Task 4: provision a per-run usage tracker so every ritual
+    // (the planner and every node ritual) of this workflow shares one
+    // accumulator. Created unconditionally — Plan G's cost cap only
+    // fires when costCapUsd is set, but having the tracker always
+    // available means roles can record usage uniformly without
+    // branching on cap presence.
+    const usageTracker: LLMUsageTracker = new InMemoryUsageTracker();
+    this.usageTrackers.set(runId, usageTracker);
+
     // 2. Launch workflow-planner ritual
     const plannerRitualId = await ritualEngine.start({
       userTurn: input.prompt,
@@ -324,7 +357,8 @@ export class WorkflowEngine {
       userId: input.userId,
       priorArtifact: input.artifactKindHint
         ? { suggestedKinds: [input.artifactKindHint] }
-        : undefined
+        : undefined,
+      usageTracker
     });
 
     // 3. Read emitted DAG from ritual snapshot
@@ -675,14 +709,19 @@ export class WorkflowEngine {
       //    isn't a fit for these: we're not generating new product code,
       //    we're generating tests / infrastructure-as-code / deployment
       //    wiring from already-emitted upstream artifacts.
+      //    Plan G Task 4 — thread the per-run usage tracker so roles can
+      //    record token usage; the workflow engine will enforce the cap
+      //    in a follow-up task.
       const roleChain = ROLE_CHAIN_BY_KIND[node.artifactKind];
+      const usageTracker = this.usageTrackers.get(workflowRunId);
       const ritualId = await ritualEngine.start({
         userTurn: node.summary,
         editClass: "structural",
         projectId: run.projectId,
         userId: run.userId,
         priorArtifact,
-        ...(roleChain ? { roleChain } : {})
+        ...(roleChain ? { roleChain } : {}),
+        ...(usageTracker ? { usageTracker } : {})
       });
 
       // 5. Wire the recorder so broker events route to checkpoints.

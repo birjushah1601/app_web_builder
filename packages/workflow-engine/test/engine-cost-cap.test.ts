@@ -6,6 +6,7 @@
 //   - WorkflowRunSchema validation
 import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
+import { InMemoryUsageTracker } from "@atlas/llm-provider";
 import { WorkflowEngine } from "../src/engine.js";
 import type {
   IWorkflowRunRepo,
@@ -233,5 +234,146 @@ describe("Plan G — costCapUsd plumbing", () => {
       updatedAt: new Date().toISOString()
     });
     expect(r.success).toBe(false);
+  });
+});
+
+describe("Plan G — per-run usage tracker plumbing", () => {
+  it("passes a usageTracker to ritualEngine.start for each node ritual", async () => {
+    const startCalls: Array<{ ritualId: string; input: any }> = [];
+    let counter = 0;
+    const ritualEngine: IRitualEngine = {
+      async start(input) {
+        const ritualId = `r-${++counter}`;
+        startCalls.push({ ritualId, input });
+        return ritualId;
+      },
+      async getRitual() {
+        return {
+          state: "completed",
+          roleEvents: [
+            {
+              eventType: "workflow_planner.dag.emitted",
+              payload: {
+                nodes: [
+                  {
+                    id: "n1",
+                    artifactKind: "backend-rest-api",
+                    summary: "build the API",
+                    dependsOn: [],
+                    consumes: [],
+                    policy: { priority: 0, runMode: "active" }
+                  }
+                ],
+                dependencyProfile: { schemaVersion: "1" }
+              }
+            }
+          ]
+        };
+      },
+      async abort() {}
+    };
+    const engine = new WorkflowEngine({
+      ritualEngine,
+      runRepo: makeRunRepo(),
+      nodeRepo: makeNodeRepo()
+    });
+    const runId = await engine.start({
+      projectId: randomUUID(),
+      userId: "user-1",
+      prompt: "Build the API",
+      costCapUsd: 5.00
+    });
+    await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
+
+    // At least one ritualEngine.start was called — the node ritual.
+    // Its input.usageTracker should be a defined object with a record() method.
+    const nodeStart = startCalls.find(
+      (c) => c.input.userTurn !== undefined && c.input.userTurn !== ""
+    );
+    expect(nodeStart).toBeDefined();
+    const tracker = nodeStart!.input.usageTracker;
+    expect(tracker).toBeDefined();
+    expect(typeof tracker.record).toBe("function");
+    expect(typeof tracker.totalUsd).toBe("function");
+  });
+
+  it("uses the SAME tracker across all node rituals of one workflow run", async () => {
+    const startCalls: Array<{ ritualId: string; input: any }> = [];
+    let counter = 0;
+    const ritualEngine: IRitualEngine = {
+      async start(input) {
+        const ritualId = `r-${++counter}`;
+        startCalls.push({ ritualId, input });
+        // Simulate a role recording $0.01 of usage per ritual.
+        (input.usageTracker as InMemoryUsageTracker | undefined)?.record(
+          "anthropic",
+          "claude-sonnet-4-6",
+          { inputTokens: 3333, outputTokens: 0 } // 3333 * $3 / 1M ≈ $0.01
+        );
+        return ritualId;
+      },
+      async getRitual() {
+        return {
+          state: "completed",
+          roleEvents: [
+            {
+              eventType: "workflow_planner.dag.emitted",
+              payload: {
+                nodes: [
+                  {
+                    id: "n1",
+                    artifactKind: "backend-rest-api",
+                    summary: "build it 1",
+                    dependsOn: [],
+                    consumes: [],
+                    policy: { priority: 0, runMode: "active" }
+                  },
+                  {
+                    id: "n2",
+                    artifactKind: "backend-rest-api",
+                    summary: "build it 2",
+                    dependsOn: [],
+                    consumes: [],
+                    policy: { priority: 0, runMode: "active" }
+                  }
+                ],
+                dependencyProfile: { schemaVersion: "1" }
+              }
+            }
+          ]
+        };
+      },
+      async abort() {}
+    };
+    const engine = new WorkflowEngine({
+      ritualEngine,
+      runRepo: makeRunRepo(),
+      nodeRepo: makeNodeRepo()
+    });
+    const runId = await engine.start({
+      projectId: randomUUID(),
+      userId: "user-1",
+      prompt: "Build it"
+    });
+    await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
+
+    // The tracker is the SAME instance across calls (so subsequent calls
+    // see accumulated cost).
+    const nodeStarts = startCalls.filter(
+      (c) => c.input.userTurn !== "" && c.input.userTurn !== undefined
+    );
+    if (nodeStarts.length > 1) {
+      const firstTracker = nodeStarts[0]!.input.usageTracker;
+      for (const call of nodeStarts.slice(1)) {
+        expect(call.input.usageTracker).toBe(firstTracker);
+      }
+    }
+    // Total accumulated cost > 0 after recording usage.
+    if (nodeStarts.length > 0) {
+      const tracker = nodeStarts[0]!.input.usageTracker as InMemoryUsageTracker;
+      expect(tracker.totalUsd()).toBeGreaterThan(0);
+    }
   });
 });

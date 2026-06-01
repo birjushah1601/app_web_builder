@@ -94,6 +94,17 @@ export interface StartInput {
    *  priorArtifact into each chained role's dispatch. Mirrors the shape
    *  the workflow-engine builds (`{ upstream, dependencyProfile }`). */
   priorArtifact?: unknown;
+  /** Plan G Task 4 — per-workflow-run usage tracker threaded by the
+   *  workflow-engine so roles can record token usage and the engine can
+   *  enforce a USD cost cap. Structural type (matches
+   *  `LLMUsageTracker` from `@atlas/llm-provider`) so this package does
+   *  not need a new dependency. The ritual-engine accepts it for
+   *  forward-compat but does NOT yet read it — Plan G v1 only plumbs the
+   *  channel; role-level recording lands in a follow-up task. */
+  usageTracker?: {
+    record(provider: string, model: string, usage: { inputTokens: number; outputTokens: number }): void;
+    totalUsd(): number;
+  };
 }
 
 /** Plan K: refine starts a NEW ritual linked to the parent via
