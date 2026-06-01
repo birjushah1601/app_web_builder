@@ -427,30 +427,10 @@ export class WorkflowEngine {
     if (!snapshot) throw new WorkflowNotFoundError(workflowRunId);
 
     // Run scheduler (awaited for Plan A; Plan C makes this fire-and-forget)
-    const scheduler = new WorkflowScheduler(snapshot, {
-      launchRitual: this.makeLaunchRitual(workflowRunId),
-      awaitRitual: this.makeAwaitRitual(),
-      persistNodeState: async (nodeId, update) => {
-        if (update.status) {
-          await nodeRepo.updateStatus(workflowRunId, nodeId, update.status, {
-            ...(update.ritualId && { ritualId: update.ritualId }),
-            ...(update.failure && { failure: update.failure })
-          });
-          this.emitNodeStatus(runRow.projectId, workflowRunId, nodeId, update.status, {
-            ritualId: update.ritualId,
-            artifact: update.artifact,
-            failure: update.failure
-          });
-        }
-        if (update.artifact !== undefined) {
-          await nodeRepo.setArtifact(workflowRunId, nodeId, update.artifact, "1");
-        }
-      },
-      persistWorkflowStatus: async (status) => {
-        await runRepo.updateStatus(workflowRunId, status);
-        this.emitRunStatus(runRow.projectId, workflowRunId, status);
-      }
-    });
+    const scheduler = new WorkflowScheduler(
+      snapshot,
+      this.buildSchedulerDeps(workflowRunId, runRow.projectId, snapshot.costCapUsd)
+    );
 
     // F4: fire-and-forget so approvePlan() returns immediately in production.
     // The scheduler persists its own terminal status via persistWorkflowStatus.
@@ -518,30 +498,10 @@ export class WorkflowEngine {
     const snapshot = await this.buildSnapshot(workflowRunId);
     if (!snapshot) throw new WorkflowNotFoundError(workflowRunId);
 
-    const scheduler = new WorkflowScheduler(snapshot, {
-      launchRitual: this.makeLaunchRitual(workflowRunId),
-      awaitRitual: this.makeAwaitRitual(),
-      persistNodeState: async (nId, update) => {
-        if (update.status) {
-          await nodeRepo.updateStatus(workflowRunId, nId, update.status, {
-            ...(update.ritualId && { ritualId: update.ritualId }),
-            ...(update.failure && { failure: update.failure })
-          });
-          this.emitNodeStatus(runRow.projectId, workflowRunId, nId, update.status, {
-            ritualId: update.ritualId,
-            artifact: update.artifact,
-            failure: update.failure
-          });
-        }
-        if (update.artifact !== undefined) {
-          await nodeRepo.setArtifact(workflowRunId, nId, update.artifact, "1");
-        }
-      },
-      persistWorkflowStatus: async (status) => {
-        await runRepo.updateStatus(workflowRunId, status);
-        this.emitRunStatus(runRow.projectId, workflowRunId, status);
-      }
-    });
+    const scheduler = new WorkflowScheduler(
+      snapshot,
+      this.buildSchedulerDeps(workflowRunId, runRow.projectId, snapshot.costCapUsd)
+    );
 
     // F4: fire-and-forget for retryNode too
     const retrySchedulerPromise = scheduler.execute().catch((err) => {
@@ -551,6 +511,91 @@ export class WorkflowEngine {
     void retrySchedulerPromise.finally(() => {
       this.runningSchedulers.delete(workflowRunId);
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plan G Task 5 — shared scheduler-deps builder. Centralizes the wiring
+  // approvePlan() and retryNode() previously duplicated, and adds the
+  // cost-cap + tracker-cleanup callbacks.
+  // ---------------------------------------------------------------------------
+
+  private buildSchedulerDeps(
+    workflowRunId: string,
+    projectId: string,
+    costCapUsd: number | undefined
+  ): import("./scheduler.js").SchedulerDeps {
+    const { runRepo, nodeRepo, ritualEngine, broker } = this.opts;
+    const tracker = this.usageTrackers.get(workflowRunId);
+    const capActive = costCapUsd !== undefined && tracker !== undefined;
+
+    return {
+      launchRitual: this.makeLaunchRitual(workflowRunId),
+      awaitRitual: this.makeAwaitRitual(),
+      persistNodeState: async (nodeId, update) => {
+        if (update.status) {
+          await nodeRepo.updateStatus(workflowRunId, nodeId, update.status, {
+            ...(update.ritualId && { ritualId: update.ritualId }),
+            ...(update.failure && { failure: update.failure })
+          });
+          this.emitNodeStatus(projectId, workflowRunId, nodeId, update.status, {
+            ...(update.ritualId !== undefined && { ritualId: update.ritualId }),
+            ...(update.artifact !== undefined && { artifact: update.artifact }),
+            ...(update.failure !== undefined && { failure: update.failure })
+          });
+        }
+        if (update.artifact !== undefined) {
+          await nodeRepo.setArtifact(workflowRunId, nodeId, update.artifact, "1");
+        }
+      },
+      persistWorkflowStatus: async (status) => {
+        await runRepo.updateStatus(workflowRunId, status);
+        this.emitRunStatus(projectId, workflowRunId, status);
+      },
+      // Plan G Task 5 — only configure the cap callback when both a cap
+      // and a tracker are present. Without a cap, the scheduler runs to
+      // natural completion exactly as it did pre-Plan-G.
+      ...(capActive
+        ? {
+            checkCostCap: () => {
+              const totalUsd = tracker!.totalUsd();
+              if (totalUsd > costCapUsd!) {
+                return {
+                  exceeded: true,
+                  message: `cost cap exceeded: $${totalUsd.toFixed(4)} > $${costCapUsd!.toFixed(4)}`
+                };
+              }
+              return { exceeded: false, message: "" };
+            },
+            abortInFlightRituals: async (ritualIds, reason) => {
+              // Fire abort on each in-flight ritual; surface a single SSE
+              // event with the reason so the UI can display it without a
+              // schema change to workflow_runs.
+              await Promise.allSettled(
+                ritualIds.map((rid) => ritualEngine.abort(rid, reason))
+              );
+              if (broker) {
+                void broker
+                  .publish({
+                    projectId,
+                    ritualId: workflowRunId,
+                    type: "workflow.run.aborted",
+                    payload: { workflowRunId, reason },
+                    ts: Date.now()
+                  })
+                  .catch((err) => {
+                    console.error("[workflow-engine] broker emit (run aborted) failed:", err);
+                  });
+              }
+            }
+          }
+        : {}),
+      // Plan G Task 5 — release the per-run tracker on terminal status to
+      // avoid the memory leak Task 4 flagged. Runs for completed, escalated,
+      // and aborted alike.
+      onSchedulerExit: () => {
+        this.usageTrackers.delete(workflowRunId);
+      }
+    };
   }
 
   /**
