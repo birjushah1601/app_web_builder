@@ -125,6 +125,10 @@ export const WorkflowRunSchema = z.object({
   // undefined-when-unset; DB layer (drizzle) may return null which adapters
   // normalize to undefined before constructing the snapshot.
   costCapUsd: z.number().positive().optional(),
+  // Plan G — running USD cost tracked across this workflow's LLM calls.
+  // Reflects the per-run usage tracker's current total. Optional —
+  // omitted when no tracker exists (e.g. terminal cleanup or pre-Plan G).
+  totalCostUsd: z.number().nonnegative().optional(),
   concurrencyCap: z.number().int().positive().optional(),
   createdAt: z.string(),
   updatedAt: z.string()

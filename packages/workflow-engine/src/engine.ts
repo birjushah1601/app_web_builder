@@ -839,6 +839,15 @@ export class WorkflowEngine {
           ? costCapUsdRaw
           : undefined;
 
+    // Plan G Task 7 — surface the running USD cost so the SSE-driven UI
+    // can read it without new events. Reads the per-run usage tracker's
+    // current total. After terminal status, onSchedulerExit cleared the
+    // tracker, so this is undefined (v1 trade-off — freezing the final
+    // cost onto the run row is a future refinement requiring a schema
+    // column).
+    const tracker = this.usageTrackers.get(workflowRunId);
+    const totalCostUsd = tracker?.totalUsd();
+
     return {
       id: runRow.id,
       projectId: runRow.projectId,
@@ -854,6 +863,7 @@ export class WorkflowEngine {
       ...(costCapUsd !== undefined && Number.isFinite(costCapUsd)
         ? { costCapUsd }
         : {}),
+      ...(totalCostUsd !== undefined ? { totalCostUsd } : {}),
       createdAt,
       updatedAt
     };

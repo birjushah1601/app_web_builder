@@ -377,3 +377,128 @@ describe("Plan G — per-run usage tracker plumbing", () => {
     }
   });
 });
+
+describe("Plan G — snapshot.totalCostUsd", () => {
+  it("returns tracker.totalUsd() on the snapshot", async () => {
+    const ritualEngine: IRitualEngine = {
+      async start(input) {
+        // Record some usage via the injected tracker
+        (input.usageTracker as InMemoryUsageTracker | undefined)?.record(
+          "anthropic", "claude-sonnet-4-6",
+          { inputTokens: 500_000, outputTokens: 100_000 }
+        );
+        // 500K * $3 / 1M + 100K * $15 / 1M = $1.50 + $1.50 = $3.00
+        return "r-1";
+      },
+      async getRitual() {
+        return {
+          state: "completed",
+          roleEvents: [
+            {
+              eventType: "workflow_planner.dag.emitted",
+              payload: {
+                nodes: [],
+                dependencyProfile: { schemaVersion: "1" }
+              }
+            }
+          ]
+        };
+      },
+      async abort() {}
+    };
+    const runRepo = makeRunRepo();
+    const nodeRepo = makeNodeRepo();
+    const engine = new WorkflowEngine({ ritualEngine, runRepo, nodeRepo });
+
+    const runId = await engine.start({
+      projectId: randomUUID(),
+      userId: "user-1",
+      prompt: "Test"
+    });
+
+    // Before approvePlan() triggers terminal status + tracker cleanup,
+    // the snapshot should surface the tracker's accumulated cost (set
+    // by the planner ritual's start() above).
+    const snap = await engine.getRun(runId);
+    expect(snap?.totalCostUsd).toBeCloseTo(3.00, 4);
+  });
+
+  it("totalCostUsd is 0 when no usage has been recorded", async () => {
+    const ritualEngine: IRitualEngine = {
+      async start() { return "r-1"; },
+      async getRitual() {
+        return {
+          state: "completed",
+          roleEvents: [
+            {
+              eventType: "workflow_planner.dag.emitted",
+              payload: {
+                nodes: [],
+                dependencyProfile: { schemaVersion: "1" }
+              }
+            }
+          ]
+        };
+      },
+      async abort() {}
+    };
+    const engine = new WorkflowEngine({
+      ritualEngine,
+      runRepo: makeRunRepo(),
+      nodeRepo: makeNodeRepo()
+    });
+    const runId = await engine.start({
+      projectId: randomUUID(),
+      userId: "user-1",
+      prompt: "p"
+    });
+    const snap = await engine.getRun(runId);
+    // Tracker exists but no usage recorded yet → totalUsd() === 0
+    expect(snap?.totalCostUsd).toBe(0);
+  });
+
+  it("totalCostUsd is undefined after the tracker is cleaned up (terminal status)", async () => {
+    const ritualEngine: IRitualEngine = {
+      async start(input) {
+        (input.usageTracker as InMemoryUsageTracker | undefined)?.record(
+          "anthropic", "claude-sonnet-4-6",
+          { inputTokens: 500_000, outputTokens: 100_000 }
+        );
+        return "r-1";
+      },
+      async getRitual() {
+        return {
+          state: "completed",
+          roleEvents: [
+            {
+              eventType: "workflow_planner.dag.emitted",
+              payload: {
+                nodes: [],
+                dependencyProfile: { schemaVersion: "1" }
+              }
+            }
+          ]
+        };
+      },
+      async abort() {}
+    };
+    const engine = new WorkflowEngine({
+      ritualEngine,
+      runRepo: makeRunRepo(),
+      nodeRepo: makeNodeRepo()
+    });
+    const runId = await engine.start({
+      projectId: randomUUID(),
+      userId: "user-1",
+      prompt: "p"
+    });
+    await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
+    // After terminal status, onSchedulerExit cleared the tracker.
+    // v1 acceptable behavior (chosen here): snapshot.totalCostUsd is
+    // undefined after cleanup. A future iteration may freeze the final
+    // cost onto the run row via a new schema column.
+    const snap = await engine.getRun(runId);
+    expect(snap?.totalCostUsd).toBeUndefined();
+  });
+});
