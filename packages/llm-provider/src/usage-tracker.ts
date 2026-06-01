@@ -16,8 +16,11 @@ export interface TokenUsage {
   outputTokens: number;
 }
 
+const DATE_SUFFIX_RE = /-\d{8}$/;
+
 export function computeUsd(provider: string, model: string, usage: TokenUsage): number {
-  const price = MODEL_PRICING[`${provider}:${model}`];
+  const normalizedModel = model.replace(DATE_SUFFIX_RE, "");
+  const price = MODEL_PRICING[`${provider}:${normalizedModel}`];
   if (!price) return 0;
   return (usage.inputTokens * price.inputPerMTok + usage.outputTokens * price.outputPerMTok) / 1_000_000;
 }

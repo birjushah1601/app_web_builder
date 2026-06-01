@@ -39,3 +39,22 @@ describe("MODEL_PRICING", () => {
     expect(MODEL_PRICING["google:gemini-2.5-flash"]).toBeDefined();
   });
 });
+
+describe("computeUsd — dated model ID normalization", () => {
+  it("strips a trailing -YYYYMMDD suffix and matches the undated key", () => {
+    const cost = computeUsd("anthropic", "claude-haiku-4-5-20251001", { inputTokens: 1_000_000, outputTokens: 0 });
+    // claude-haiku-4-5 inputPerMTok = $1.00 → 1M * $1 / 1M = $1.00
+    expect(cost).toBeCloseTo(1.00, 4);
+  });
+
+  it("still returns 0 for a non-existent base model with a date suffix", () => {
+    const cost = computeUsd("anthropic", "no-such-model-20251001", { inputTokens: 1_000_000, outputTokens: 0 });
+    expect(cost).toBe(0);
+  });
+
+  it("does not strip suffixes that aren't dates (e.g. -latest)", () => {
+    // -latest isn't a YYYYMMDD pattern; should NOT match undated claude-sonnet-4-6
+    const cost = computeUsd("anthropic", "claude-sonnet-4-6-latest", { inputTokens: 1_000_000, outputTokens: 0 });
+    expect(cost).toBe(0);
+  });
+});
