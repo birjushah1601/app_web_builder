@@ -5,3 +5,10 @@ export * from "./circuit-breaker.js";
 export * from "./observability.js";
 export { AnthropicProvider } from "./anthropic.js";
 export { GoogleProvider } from "./google.js";
+export {
+  InMemoryUsageTracker,
+  computeUsd,
+  MODEL_PRICING,
+  type LLMUsageTracker,
+  type TokenUsage
+} from "./usage-tracker.js";
