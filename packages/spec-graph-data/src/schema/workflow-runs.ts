@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, text, timestamp, uuid, index } from "drizzle-orm/pg-core";
+import { integer, jsonb, numeric, pgTable, text, timestamp, uuid, index } from "drizzle-orm/pg-core";
 import { projects } from "./projects.js";
 
 export const workflowRuns = pgTable(
@@ -11,6 +11,8 @@ export const workflowRuns = pgTable(
     status: text("status").notNull(),
     concurrencyCap: integer("concurrency_cap"),
     dependencyProfile: jsonb("dependency_profile").notNull(),
+    // Plan G — optional USD budget for this workflow run. Null = no cap.
+    costCapUsd: numeric("cost_cap_usd"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
