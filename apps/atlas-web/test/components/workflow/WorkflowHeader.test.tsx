@@ -6,6 +6,13 @@ import type { WorkflowRunSnapshot } from "@atlas/workflow-engine";
 const { abortWorkflowMock } = vi.hoisted(() => ({ abortWorkflowMock: vi.fn() }));
 vi.mock("@/lib/actions/abortWorkflow", () => ({ abortWorkflow: abortWorkflowMock }));
 
+const { retryAllMock: hoistedRetryAllMock } = vi.hoisted(() => ({
+  retryAllMock: vi.fn()
+}));
+vi.mock("@/lib/actions/retryAllFailedNodes", () => ({
+  retryAllFailedNodes: hoistedRetryAllMock
+}));
+
 import { WorkflowHeader } from "@/components/workflow/WorkflowHeader";
 
 function makeSnapshot(
@@ -79,5 +86,133 @@ describe("WorkflowHeader", () => {
       expect(screen.getByTestId("workflow-abort-error")).toHaveTextContent("nope");
     });
     confirmSpy.mockRestore();
+  });
+});
+
+describe("WorkflowHeader — Plan G cost + retry-all", () => {
+  beforeEach(() => {
+    hoistedRetryAllMock.mockReset();
+  });
+
+  it("renders running cost when snapshot.totalCostUsd is set", () => {
+    const snap = makeSnapshot("running", { totalCostUsd: 1.234567 });
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    expect(screen.getByTestId("workflow-running-cost")).toHaveTextContent(/\$1\.23/);
+  });
+
+  it("renders running cost / cap when both totalCostUsd and costCapUsd are set", () => {
+    const snap = makeSnapshot("running", { totalCostUsd: 2.5, costCapUsd: 5.0 });
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    const display = screen.getByTestId("workflow-running-cost");
+    expect(display).toHaveTextContent(/\$2\.50/);
+    expect(display).toHaveTextContent(/\$5\.00/);
+  });
+
+  it("flips amber at 80% of cap", () => {
+    const snap = makeSnapshot("running", { totalCostUsd: 4.1, costCapUsd: 5.0 });
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    expect(screen.getByTestId("workflow-running-cost").className).toMatch(/amber/);
+  });
+
+  it("flips red at 100% of cap", () => {
+    const snap = makeSnapshot("running", { totalCostUsd: 5.1, costCapUsd: 5.0 });
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    expect(screen.getByTestId("workflow-running-cost").className).toMatch(/red/);
+  });
+
+  it("does NOT render the retry-all button when status is not escalated", () => {
+    const snap = makeSnapshot("running");
+    snap.nodes = [
+      {
+        id: "n1",
+        artifactKind: "x",
+        summary: "s",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "failed"
+      }
+    ];
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    expect(screen.queryByTestId("workflow-retry-all-btn")).toBeNull();
+  });
+
+  it("does NOT render retry-all when escalated but no failed nodes", () => {
+    const snap = makeSnapshot("escalated");
+    snap.nodes = [
+      {
+        id: "n1",
+        artifactKind: "x",
+        summary: "s",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "done"
+      }
+    ];
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    expect(screen.queryByTestId("workflow-retry-all-btn")).toBeNull();
+  });
+
+  it("renders retry-all-failed(N) button when escalated with failed nodes", () => {
+    const snap = makeSnapshot("escalated");
+    snap.nodes = [
+      {
+        id: "n1",
+        artifactKind: "x",
+        summary: "s",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "failed"
+      },
+      {
+        id: "n2",
+        artifactKind: "x",
+        summary: "s",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "failed"
+      },
+      {
+        id: "n3",
+        artifactKind: "x",
+        summary: "s",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "done"
+      }
+    ];
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    const btn = screen.getByTestId("workflow-retry-all-btn");
+    expect(btn).toBeInTheDocument();
+    expect(btn).toHaveTextContent(/retry all failed/i);
+    expect(btn).toHaveTextContent(/2/);
+  });
+
+  it("calls retryAllFailedNodes on click", async () => {
+    hoistedRetryAllMock.mockResolvedValue({ retriedCount: 2, errors: [] });
+    const snap = makeSnapshot("escalated");
+    snap.nodes = [
+      {
+        id: "n1",
+        artifactKind: "x",
+        summary: "s",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "failed"
+      }
+    ];
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    fireEvent.click(screen.getByTestId("workflow-retry-all-btn"));
+    await waitFor(() => {
+      expect(hoistedRetryAllMock).toHaveBeenCalledWith({
+        projectId: "proj-1",
+        workflowRunId: "run-1"
+      });
+    });
   });
 });
