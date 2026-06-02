@@ -18,6 +18,9 @@ export const workflowNodes = pgTable(
     artifact: jsonb("artifact"),
     artifactSchemaVersion: text("artifact_schema_version"),
     failure: jsonb("failure"),
+    // Plan F.3 — deploy runtime result (publicUrl + Argo app + applied manifests + smoke results).
+    // Null = node has not run a runtime deploy (today's default).
+    deployResult: jsonb("deploy_result"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true })
   },
