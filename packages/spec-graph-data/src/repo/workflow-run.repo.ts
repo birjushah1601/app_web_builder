@@ -57,4 +57,37 @@ export class WorkflowRunRepo {
       .set({ dependencyProfile: dependencyProfile as WorkflowRunRow["dependencyProfile"], updatedAt: new Date() })
       .where(eq(workflowRuns.id, id));
   }
+
+  /**
+   * Plan G.2 — set or clear the per-run USD cost cap. Passing `undefined`
+   * writes NULL (cap removed). Numeric column accepts a number on write;
+   * drizzle stringifies before sending to Postgres.
+   */
+  async updateCostCap(id: string, costCapUsd: number | undefined): Promise<void> {
+    await this.db
+      .update(workflowRuns)
+      .set({
+        // drizzle numeric accepts string | null on write; number is rejected by
+        // the column type. Use toString() to keep precision exact.
+        costCapUsd: costCapUsd === undefined ? null : String(costCapUsd),
+        updatedAt: new Date()
+      })
+      .where(eq(workflowRuns.id, id));
+  }
+
+  /**
+   * Plan G.2 — freeze the workflow's final USD cost onto the run row.
+   * Called by WorkflowEngine.buildSchedulerDeps.onSchedulerExit before the
+   * per-run LLMUsageTracker is released, so buildSnapshot can surface a
+   * stable totalCostUsd after terminal status.
+   */
+  async updateTotalCostUsd(id: string, totalCostUsd: number): Promise<void> {
+    await this.db
+      .update(workflowRuns)
+      .set({
+        totalCostUsd: String(totalCostUsd),
+        updatedAt: new Date()
+      })
+      .where(eq(workflowRuns.id, id));
+  }
 }

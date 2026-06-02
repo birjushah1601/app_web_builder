@@ -13,6 +13,9 @@ export const workflowRuns = pgTable(
     dependencyProfile: jsonb("dependency_profile").notNull(),
     // Plan G — optional USD budget for this workflow run. Null = no cap.
     costCapUsd: numeric("cost_cap_usd"),
+    // Plan G.2 — frozen final USD cost, written in onSchedulerExit before the
+    // per-run LLMUsageTracker is released. Null until first terminal status.
+    totalCostUsd: numeric("total_cost_usd"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },

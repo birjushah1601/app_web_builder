@@ -163,3 +163,76 @@ describe("WorkflowRunRepo.updateStatus", () => {
     expect(bAfter!.status).toBe("planning");
   });
 });
+
+describe("WorkflowRunRepo.updateCostCap (Plan G.2)", () => {
+  let db: Database;
+  let repo: WorkflowRunRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    repo = new WorkflowRunRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAllTables(db);
+  });
+
+  afterAll(async () => {
+    await db.pool.end();
+  });
+
+  it("sets the cost cap when given a positive number", async () => {
+    const projectId = await seedProject(db);
+    const inserted = await repo.insert(makeInput(projectId));
+
+    await repo.updateCostCap(inserted.id, 5.0);
+    const updated = await repo.findById(inserted.id);
+    // numeric returns as string from drizzle
+    expect(Number(updated!.costCapUsd)).toBe(5.0);
+  });
+
+  it("clears the cost cap when given undefined", async () => {
+    const projectId = await seedProject(db);
+    const inserted = await repo.insert(makeInput(projectId, { costCapUsd: 5.0 }));
+
+    await repo.updateCostCap(inserted.id, undefined);
+    const updated = await repo.findById(inserted.id);
+    expect(updated!.costCapUsd).toBeNull();
+  });
+});
+
+describe("WorkflowRunRepo.updateTotalCostUsd (Plan G.2)", () => {
+  let db: Database;
+  let repo: WorkflowRunRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    repo = new WorkflowRunRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAllTables(db);
+  });
+
+  afterAll(async () => {
+    await db.pool.end();
+  });
+
+  it("persists the frozen final cost to the run row", async () => {
+    const projectId = await seedProject(db);
+    const inserted = await repo.insert(makeInput(projectId));
+
+    await repo.updateTotalCostUsd(inserted.id, 1.2345);
+    const updated = await repo.findById(inserted.id);
+    expect(Number(updated!.totalCostUsd)).toBeCloseTo(1.2345, 4);
+  });
+
+  it("persists 0 (no usage recorded)", async () => {
+    const projectId = await seedProject(db);
+    const inserted = await repo.insert(makeInput(projectId));
+
+    await repo.updateTotalCostUsd(inserted.id, 0);
+    const updated = await repo.findById(inserted.id);
+    expect(Number(updated!.totalCostUsd)).toBe(0);
+  });
+});
