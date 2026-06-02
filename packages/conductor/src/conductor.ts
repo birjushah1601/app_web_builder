@@ -85,6 +85,30 @@ const EVAL_QUALITY_BUDGET = 2;
 /** Pass threshold for judge dimensions (score must be >= this to pass). */
 const JUDGE_PASS_THRESHOLD = 6;
 
+/**
+ * Bridges the contract gap between `role.run()` returning RoleOutput and
+ * producer-role rubrics declaring Rubric<TArtifact>. Walks RoleOutput.events
+ * newest-first for `ritual.artifact_emitted`; returns the event's
+ * payload.artifact if found, undefined otherwise. Mirrored in
+ * @atlas/eval-runtime/extract-artifact.ts (kept local here to avoid a
+ * conductor→eval-runtime→conductor workspace cycle).
+ */
+function extractEmittedArtifact(output: unknown): unknown | undefined {
+  if (!output || typeof output !== "object") return undefined;
+  const events = (output as { events?: unknown }).events;
+  if (!Array.isArray(events)) return undefined;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (!ev || typeof ev !== "object") continue;
+    if ((ev as { eventType?: unknown }).eventType !== "ritual.artifact_emitted") continue;
+    const payload = (ev as { payload?: unknown }).payload;
+    if (!payload || typeof payload !== "object") continue;
+    const artifact = (payload as { artifact?: unknown }).artifact;
+    if (artifact !== undefined) return artifact;
+  }
+  return undefined;
+}
+
 export class Conductor {
   private readonly classifier: Classifier;
   private readonly roles: Map<string, Role>;
@@ -186,8 +210,17 @@ export class Conductor {
       // Run the role (with transient retries for network/parse errors).
       const result = await this.runWithTransientRetries(ctx, role, invocation, policy);
 
+      // Producer-role rubrics (iac/deployer/tester/backend-artifact) declare
+      // Rubric<TArtifact> and expect the typed artifact, not the full
+      // RoleOutput. Bridge that contract gap: when the role emitted a
+      // `ritual.artifact_emitted` event, hand the artifact to the rubric;
+      // otherwise pass RoleOutput verbatim (today's behaviour for the
+      // developer rubric, which has its own legacy I/O shape).
+      const extracted = extractEmittedArtifact(result.output);
+      const rubricInput = extracted ?? result.output;
+
       // --- Structural check ---
-      const structuralResult = rubric.structural(result.output, invocation);
+      const structuralResult = rubric.structural(rubricInput, invocation);
       const structuralVerdict = buildStructuralVerdict(structuralResult, qualityAttempt, role, invocation, userId, rubric, evalFeedback, ctx.projectId);
       collectedVerdicts.push(structuralVerdict);
       await this.verdictSink!.write(structuralVerdict);
@@ -220,7 +253,7 @@ export class Conductor {
       }
 
       // Structural passed — run judge (fail-fast: skip judge when structural fails).
-      const judgeResult = await rubric.judge(result.output, invocation, this.llm);
+      const judgeResult = await rubric.judge(rubricInput, invocation, this.llm);
       const judgeVerdict = buildJudgeVerdict(judgeResult, qualityAttempt, role, invocation, userId, rubric, evalFeedback, ctx.projectId);
       collectedVerdicts.push(judgeVerdict);
       await this.verdictSink!.write(judgeVerdict);
