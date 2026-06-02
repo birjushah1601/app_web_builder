@@ -53,6 +53,7 @@ export default async function WorkflowNodePage({
             {...(((node.artifact as { previewUrl?: string } | undefined)?.previewUrl) && {
               nodePreviewUrl: (node.artifact as { previewUrl: string }).previewUrl
             })}
+            {...(node.deployResult !== undefined && { nodeDeployResult: node.deployResult })}
           />
         ) : (
           <div

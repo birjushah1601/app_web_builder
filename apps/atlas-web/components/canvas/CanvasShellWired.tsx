@@ -70,6 +70,12 @@ export interface CanvasShellWiredProps {
    *  sandbox URL). BackendCanvas reads `backendPreviewUrl` first, then
    *  falls back to `previewUrl`. */
   nodePreviewUrl?: string;
+  /** Plan F.2 Task 6 — workflow node's persisted deploy runtime result
+   *  (publicUrl + Argo app + applied manifests + phase). Forwarded into
+   *  rendererProps as `deployResult` so DeployCanvas can render its
+   *  deployed-state header. Omitted on the regular canvas page and on
+   *  nodes whose deploy hook hasn't run yet. */
+  nodeDeployResult?: unknown;
 }
 
 export function CanvasShellWired({
@@ -85,7 +91,8 @@ export function CanvasShellWired({
   manifestOverride,
   ritualIdOverride,
   nodeArtifact,
-  nodePreviewUrl
+  nodePreviewUrl,
+  nodeDeployResult
 }: CanvasShellWiredProps) {
   const { manifest: liveManifest } = useCanvasManifest(projectId, ritualIdOverride);
   const proposalState = useDesignerProposal(projectId, ritualIdOverride);
@@ -159,7 +166,12 @@ export function CanvasShellWired({
       // doesn't get clobbered by the frontend dev-server URL when both
       // happen to be set.
       ...(nodeArtifact !== undefined ? { artifact: nodeArtifact } : {}),
-      ...(nodePreviewUrl !== undefined ? { backendPreviewUrl: nodePreviewUrl } : {})
+      ...(nodePreviewUrl !== undefined ? { backendPreviewUrl: nodePreviewUrl } : {}),
+      // Plan F.2 Task 6 — DeployCanvas reads `deployResult` to render
+      // its deployed-state header. Threaded through the same rendererProps
+      // pipeline as the artifact so the per-node drill-in page can pass
+      // node.deployResult without any DeployCanvas-specific wiring.
+      ...(nodeDeployResult !== undefined ? { deployResult: nodeDeployResult } : {})
     };
     if (proposalState.ritualId === null) {
       return { persona, ...previewProps };
@@ -172,7 +184,7 @@ export function CanvasShellWired({
       ...(submittedDirection !== null ? { submittedDirectionId: submittedDirection } : {}),
       ...previewProps
     };
-  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, inlineEditEnabled, handleSelect, handleRefine, submittedDirection, nodeArtifact, nodePreviewUrl]);
+  }, [proposalState, persona, projectId, sandboxId, previewUrl, previewError, clickToEditEnabled, elementSlidersEnabled, inlineEditEnabled, handleSelect, handleRefine, submittedDirection, nodeArtifact, nodePreviewUrl, nodeDeployResult]);
 
   return (
     <CanvasShell

@@ -56,3 +56,55 @@ describe("DeployCanvas", () => {
     expect(screen.getByTestId("deploy-future-banner")).toHaveTextContent(/Plan F\.2/i);
   });
 });
+
+describe("DeployCanvas — Plan F.2 deployed-state rendering", () => {
+  const DEPLOY_RESULT = {
+    deployId: "d-1",
+    publicUrl: "https://proj-1.atlas.dev",
+    argoApplicationName: "proj-1-main",
+    branchSchemaName: "branch_main",
+    appliedManifests: [
+      { namespace: "atlas-projects", kind: "Service", name: "api" },
+      { namespace: "atlas-projects", kind: "Service", name: "web" },
+      { namespace: "atlas-projects", kind: "Certificate", name: "wildcard" }
+    ],
+    phase: "healthy" as const,
+    startedAt: "2026-06-02T00:00:00.000Z"
+  };
+
+  it("renders the deployed-state header with publicUrl link when deployResult is set", () => {
+    render(<DeployCanvas artifact={ARTIFACT} deployResult={DEPLOY_RESULT} />);
+    const header = screen.getByTestId("deploy-runtime-header");
+    expect(header).toBeInTheDocument();
+    const link = screen.getByTestId("deploy-runtime-publicurl");
+    expect(link).toHaveAttribute("href", "https://proj-1.atlas.dev");
+    expect(link).toHaveTextContent("https://proj-1.atlas.dev");
+  });
+
+  it("shows the Argo Application name + applied-manifest count in the deployed header", () => {
+    render(<DeployCanvas artifact={ARTIFACT} deployResult={DEPLOY_RESULT} />);
+    const header = screen.getByTestId("deploy-runtime-header");
+    expect(header).toHaveTextContent(/proj-1-main/);
+    expect(header).toHaveTextContent(/3.*applied|applied.*3/i);
+  });
+
+  it("uses a red header when phase is failed", () => {
+    render(<DeployCanvas artifact={ARTIFACT} deployResult={{ ...DEPLOY_RESULT, phase: "failed" }} />);
+    expect(screen.getByTestId("deploy-runtime-header").className).toMatch(/red/);
+  });
+
+  it("uses a green header when phase is healthy", () => {
+    render(<DeployCanvas artifact={ARTIFACT} deployResult={DEPLOY_RESULT} />);
+    expect(screen.getByTestId("deploy-runtime-header").className).toMatch(/emerald|green/);
+  });
+
+  it("hides the F.2 future banner when deployResult is set", () => {
+    render(<DeployCanvas artifact={ARTIFACT} deployResult={DEPLOY_RESULT} />);
+    expect(screen.queryByTestId("deploy-future-banner")).toBeNull();
+  });
+
+  it("still shows the F.2 future banner when deployResult is absent (today's Plan F behavior)", () => {
+    render(<DeployCanvas artifact={ARTIFACT} />);
+    expect(screen.getByTestId("deploy-future-banner")).toBeInTheDocument();
+  });
+});
