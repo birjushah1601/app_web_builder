@@ -838,6 +838,9 @@ importers:
       '@atlas/conductor':
         specifier: workspace:*
         version: link:../conductor
+      '@atlas/eval-runtime':
+        specifier: workspace:*
+        version: link:../eval-runtime
       '@atlas/llm-provider':
         specifier: workspace:*
         version: link:../llm-provider

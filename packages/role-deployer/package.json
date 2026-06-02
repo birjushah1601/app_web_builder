@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@atlas/conductor": "workspace:*",
+    "@atlas/eval-runtime": "workspace:*",
     "@atlas/llm-provider": "workspace:*",
     "@atlas/workflow-engine": "workspace:*",
     "zod": "3.23.8"
