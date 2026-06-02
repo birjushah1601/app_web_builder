@@ -6,6 +6,7 @@ export { GenericArtifactSchema };
 export { parseWorkflowArtifact } from "./parse.js";
 
 import "./backend-rest-api.js";
+import "./backend-graphql.js";
 import "./tests.js";
 import "./iac.js";
 import "./deploy.js";

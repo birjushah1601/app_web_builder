@@ -39,6 +39,7 @@ import {
 import { ArtifactContractRegistry } from "./artifact-contracts/registry.js";
 import { GenericArtifactSchema } from "./artifact-contracts/generic.js";
 import { generateApiClient } from "./api-client-gen.js";
+import { generateGraphqlClient } from "./graphql-client-gen.js";
 
 // ---------------------------------------------------------------------------
 // Minimal repo interfaces — the engine depends on these abstractions so that
@@ -846,19 +847,32 @@ export class WorkflowEngine {
         // priorArtifact.upstream[id] === undefined and decide what to do.
       }
 
-      // 2. Plan D.2 + Plan D.3: cross-stack — generate one typed api-client
-      //    per backend-rest-api upstream of a frontend-app node.
-      //    - 0 backends → generatedFiles stays undefined.
-      //    - 1 backend → single canonical `lib/api-client.ts` (D.2, preserved).
-      //    - 2+ backends → one `lib/api-client-{backendNodeId}.ts` per backend
-      //      (D.3 — naming includes the producing node id so files don't
-      //      collide and the LLM can pick the right client per route).
+      // 2. Plan D.2 + D.3 + D.4: cross-stack — generate one typed client per
+      //    backend upstream of a frontend-app node, dispatched per upstream
+      //    artifact kind:
+      //
+      //    REST (`backend-rest-api`):
+      //      - 0 backends → no REST files.
+      //      - 1 backend → single canonical `lib/api-client.ts` (D.2, preserved).
+      //      - 2+ backends → one `lib/api-client-{backendNodeId}.ts` per backend
+      //        (D.3 — naming includes the producing node id so files don't
+      //        collide and the LLM can pick the right client per route).
+      //
+      //    GraphQL (`backend-graphql`) — Plan D.4:
+      //      - 0 backends → no GraphQL files.
+      //      - 1+ backends → one `lib/graphql-client-{backendNodeId}.ts` per
+      //        backend, always per-node-named (no canonical single-backend
+      //        path — no template currently imports a fixed graphql-client
+      //        location).
+      //
       //    Iteration order follows `node.consumes` so a given DAG produces
-      //    a deterministic generatedFiles array across runs.
-      //    GraphQL upstream kinds (`backend-graphql`) are still out of scope.
+      //    a deterministic generatedFiles array across runs. If neither kind
+      //    is present `generatedFiles` stays undefined (so existing
+      //    "no-cross-stack" assertions still hold).
       let generatedFiles: Array<{ path: string; contents: string }> | undefined;
       if (node.artifactKind === "frontend-app") {
-        const backendPairs: Array<{ id: string; openApiSpec: unknown }> = [];
+        // ---- REST pass (Plan D.2/D.3) ----
+        const restPairs: Array<{ id: string; openApiSpec: unknown }> = [];
         for (const upstreamId of node.consumes) {
           const a = upstream[upstreamId];
           if (
@@ -867,26 +881,57 @@ export class WorkflowEngine {
             (a as { kind?: unknown }).kind === "backend-rest-api" &&
             "openApiSpec" in (a as object)
           ) {
-            backendPairs.push({
+            restPairs.push({
               id: upstreamId,
               openApiSpec: (a as { openApiSpec: unknown }).openApiSpec
             });
           }
         }
-        if (backendPairs.length === 1) {
-          // Single-backend: preserve the canonical Plan D.2 filename so the
-          // atlas-next-ts template's `@/lib/api-client` import keeps working.
-          const only = backendPairs[0]!;
+        if (restPairs.length === 1) {
+          const only = restPairs[0]!;
           const generated = await generateApiClient(only.openApiSpec);
           generatedFiles = [generated];
-        } else if (backendPairs.length >= 2) {
+        } else if (restPairs.length >= 2) {
           generatedFiles = [];
-          for (const { id, openApiSpec } of backendPairs) {
+          for (const { id, openApiSpec } of restPairs) {
             const generated = await generateApiClient(openApiSpec, {
               fileName: `api-client-${id}.ts`
             });
             generatedFiles.push(generated);
           }
+        }
+
+        // ---- GraphQL pass (Plan D.4) ----
+        const graphqlPairs: Array<{
+          id: string;
+          graphqlSchema: string;
+          operations?: string;
+        }> = [];
+        for (const upstreamId of node.consumes) {
+          const a = upstream[upstreamId];
+          if (
+            !!a &&
+            typeof a === "object" &&
+            (a as { kind?: unknown }).kind === "backend-graphql" &&
+            typeof (a as { graphqlSchema?: unknown }).graphqlSchema === "string"
+          ) {
+            const ops = (a as { operations?: unknown }).operations;
+            graphqlPairs.push({
+              id: upstreamId,
+              graphqlSchema: (a as { graphqlSchema: string }).graphqlSchema,
+              ...(typeof ops === "string" ? { operations: ops } : {})
+            });
+          }
+        }
+        if (graphqlPairs.length > 0 && generatedFiles === undefined) {
+          generatedFiles = [];
+        }
+        for (const { id, graphqlSchema, operations } of graphqlPairs) {
+          const generated = await generateGraphqlClient(graphqlSchema, {
+            fileName: `graphql-client-${id}.ts`,
+            ...(operations !== undefined ? { operations } : {})
+          });
+          generatedFiles!.push(generated);
         }
       }
 

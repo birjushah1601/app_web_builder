@@ -24,7 +24,11 @@
     "@atlas/llm-provider": "workspace:*",
     "@atlas/conductor": "workspace:*",
     "@atlas/spec-graph-data": "workspace:*",
+    "@graphql-codegen/core": "^4.0.2",
+    "@graphql-codegen/typescript": "^6.0.2",
+    "@graphql-codegen/typescript-operations": "^6.0.3",
     "drizzle-orm": "0.45.2",
+    "graphql": "^16.14.1",
     "openapi-typescript": "^7.4.0",
     "zod": "3.23.8"
   },
