@@ -108,3 +108,80 @@ describe("DeployCanvas — Plan F.2 deployed-state rendering", () => {
     expect(screen.getByTestId("deploy-future-banner")).toBeInTheDocument();
   });
 });
+
+describe("DeployCanvas — Plan F.3 smoke result badges", () => {
+  const DEPLOY_RESULT = {
+    deployId: "d-1",
+    publicUrl: "https://proj-1.atlas.dev",
+    argoApplicationName: "proj-1-main",
+    branchSchemaName: "branch_main",
+    appliedManifests: [
+      { namespace: "atlas-projects", kind: "Service", name: "api" }
+    ],
+    phase: "healthy" as const,
+    startedAt: "2026-06-02T00:00:00.000Z"
+  };
+
+  const ARTIFACT_WITH_SMOKES = {
+    ...ARTIFACT,
+    smokeTests: [
+      { url: "/health", expectStatus: 200 },
+      { url: "/api/v1/status", method: "post" as const, expectStatus: 201 }
+    ]
+  };
+
+  it("renders a pass badge with latency when smoke result is ok", () => {
+    render(
+      <DeployCanvas
+        artifact={ARTIFACT_WITH_SMOKES}
+        deployResult={{
+          ...DEPLOY_RESULT,
+          smokeResults: [
+            { url: "/health", method: "get", status: 200, ok: true, latencyMs: 42, expectStatus: 200 },
+            { url: "/api/v1/status", method: "post", status: 201, ok: true, latencyMs: 88, expectStatus: 201 }
+          ]
+        }}
+      />
+    );
+    const row = screen.getByTestId("deploy-smoke-row-/health");
+    expect(row).toHaveTextContent(/200/);
+    expect(row).toHaveTextContent(/42 ?ms/);
+    // Pass should NOT have red styling
+    expect(row.className).not.toMatch(/red/);
+  });
+
+  it("renders a fail badge with error when smoke result is not ok", () => {
+    render(
+      <DeployCanvas
+        artifact={ARTIFACT_WITH_SMOKES}
+        deployResult={{
+          ...DEPLOY_RESULT,
+          smokeResults: [
+            { url: "/health", method: "get", status: 500, ok: false, latencyMs: 100, expectStatus: 200, error: "status 500 did not match expected 200" }
+          ]
+        }}
+      />
+    );
+    const row = screen.getByTestId("deploy-smoke-row-/health");
+    expect(row).toHaveTextContent(/did not match/i);
+    expect(row.className).toMatch(/red/);
+  });
+
+  it("renders no result cell when deployResult is unset (today's Plan F.2 behavior)", () => {
+    render(<DeployCanvas artifact={ARTIFACT_WITH_SMOKES} />);
+    const row = screen.getByTestId("deploy-smoke-row-/health");
+    // No latency rendering; no "42ms" or similar
+    expect(row).not.toHaveTextContent(/ms/);
+  });
+
+  it("renders no result cell when deployResult is set but smokeResults is omitted (zero smokes ran)", () => {
+    render(
+      <DeployCanvas
+        artifact={ARTIFACT_WITH_SMOKES}
+        deployResult={{ ...DEPLOY_RESULT /* no smokeResults field */ }}
+      />
+    );
+    const row = screen.getByTestId("deploy-smoke-row-/health");
+    expect(row).not.toHaveTextContent(/ms/);
+  });
+});

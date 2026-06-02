@@ -116,21 +116,37 @@ export function DeployCanvas({ artifact, deployResult }: DeployCanvasProps) {
               <th className="px-3 py-1 font-medium">Method</th>
               <th className="px-3 py-1 font-medium">Expect status</th>
               <th className="px-3 py-1 font-medium">Body contains</th>
+              {deployResult?.smokeResults && deployResult.smokeResults.length > 0 && (
+                <th className="px-3 py-1 font-medium">Result</th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {artifact.smokeTests.map((s) => (
-              <tr
-                key={s.url}
-                data-testid={`deploy-smoke-row-${s.url}`}
-                className="border-t border-slate-100"
-              >
-                <td className="px-3 py-1 font-mono text-slate-800">{s.url}</td>
-                <td className="px-3 py-1 text-[11px] uppercase text-slate-600">{s.method ?? "get"}</td>
-                <td className="px-3 py-1 text-slate-700">{s.expectStatus}</td>
-                <td className="px-3 py-1 font-mono text-[11px] text-slate-500">{s.expectBodyContains ?? "—"}</td>
-              </tr>
-            ))}
+            {artifact.smokeTests.map((s) => {
+              const result = deployResult?.smokeResults?.find((r) => r.url === s.url);
+              const rowClass = `border-t border-slate-100 ${result && !result.ok ? "bg-red-50" : ""}`.trim();
+              return (
+                <tr
+                  key={s.url}
+                  data-testid={`deploy-smoke-row-${s.url}`}
+                  className={rowClass}
+                >
+                  <td className="px-3 py-1 font-mono text-slate-800">{s.url}</td>
+                  <td className="px-3 py-1 text-[11px] uppercase text-slate-600">{s.method ?? "get"}</td>
+                  <td className="px-3 py-1 text-slate-700">{s.expectStatus}</td>
+                  <td className="px-3 py-1 font-mono text-[11px] text-slate-500">{s.expectBodyContains ?? "—"}</td>
+                  {result && (
+                    <td className="px-3 py-1 text-[11px]">
+                      {result.ok ? (
+                        <span className="text-emerald-700">✓ {result.status} · {result.latencyMs}ms</span>
+                      ) : (
+                        <span className="text-red-700">✗ {result.error ?? `status ${result.status}`}</span>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </section>
