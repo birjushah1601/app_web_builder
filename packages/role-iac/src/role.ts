@@ -1,6 +1,7 @@
 import type { Role, RoleInvocation, RoleOutput } from "@atlas/conductor";
 import { IacArtifactSchema, type IacService, type IacK8sManifest } from "@atlas/workflow-engine";
 import { buildIacArtifact } from "./build-artifact.js";
+import { iacRubric } from "./rubric.js";
 
 export interface SandboxLike {
   exec(cmd: string): Promise<{ exitCode: number; stdout: string; stderr: string }>;
@@ -18,6 +19,7 @@ const RUNTIME_KINDS = new Set(["backend-rest-api", "frontend-app", "backend-grap
 
 export class IacRole implements Role {
   readonly id = "iac";
+  readonly rubric = iacRubric;
   constructor(private readonly opts: IacRoleOptions) {}
 
   async run(inv: RoleInvocation): Promise<RoleOutput> {
