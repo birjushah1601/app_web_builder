@@ -959,24 +959,164 @@ export const getWorkflowEngine = cache(async (projectId: string): Promise<Workfl
     }
   }
 
+  // Plan F.2 Task 5 — when ATLAS_FF_DEPLOY_RUNTIME=true, construct a
+  // DeployOrchestrator (k8s + cloudflare + branching + migrate, env-driven)
+  // and thread its deployFromArtifacts as the engine's deployRunner so
+  // deploy-kind workflow nodes actually apply to a live cluster. Flag-OFF
+  // preserves today's no-op behavior: WorkflowEngine gets neither
+  // deployRunner nor deployApex, so engine.runDeployHookIfApplicable early-
+  // returns.
+  //
+  // We deliberately do the env validation + adapter construction here
+  // (inside the conditional) rather than at module load so a flag-OFF
+  // production deploy doesn't need ANY of the deploy env vars to boot.
+  // Throw at factory time when the flag is on but env is incomplete —
+  // failing fast at engine construction beats silently no-op'ing every
+  // deploy node at workflow runtime.
+  const deployWiring = await buildDeployRunner();
+
   // WorkflowEngine only calls .start(), .getRitual(), and .abort() on
   // ritualEngine — all three are present on RitualEngine. The cast satisfies
   // the IRitualEngine interface contract.
   const engine = new WorkflowEngine({
     ritualEngine: ritualEngine as import("@atlas/workflow-engine").IRitualEngine,
     runRepo: runRepo as import("@atlas/workflow-engine").IWorkflowRunRepo,
-    nodeRepo: nodeRepo as import("@atlas/workflow-engine").IWorkflowNodeRepo,
+    // WorkflowNodeRepo doesn't yet implement setDeployResult — the Plan F.3
+    // migration adds workflow_nodes.deploy_result. Real repo throws "not
+    // implemented" at runtime and the workflow-engine swallows that specific
+    // failure (per engine.ts runDeployHookIfApplicable trade-off). Cast
+    // through unknown so TS doesn't flag the structural mismatch.
+    nodeRepo: nodeRepo as unknown as import("@atlas/workflow-engine").IWorkflowNodeRepo,
     // WorkflowCheckpointRepo.append returns the inserted row; IWorkflowCheckpointRepo
     // declares append as returning Promise<void>. Both contracts are satisfied at
     // runtime (callers don't use the return value). Cast through unknown to satisfy TS.
     checkpointRepo: checkpointRepo as unknown as import("@atlas/workflow-engine").IWorkflowCheckpointRepo,
     // F3: wire the recorder so registerRitualForNode is called on each node launch
-    checkpointRecorder: checkpointRecorder as import("@atlas/workflow-engine").ICheckpointRecorder
+    checkpointRecorder: checkpointRecorder as import("@atlas/workflow-engine").ICheckpointRecorder,
+    // Plan F.2 Task 5 — spread only when the flag-on wiring built a runner.
+    ...(deployWiring
+      ? { deployRunner: deployWiring.deployRunner, deployApex: deployWiring.deployApex }
+      : {})
   });
 
   registry.set(projectId, engine);
   return engine;
 });
+
+// ---------------------------------------------------------------------------
+// Plan F.2 Task 5 — DeployOrchestrator wiring for the WorkflowEngine.
+// ---------------------------------------------------------------------------
+
+/** Internal: build the deployRunner closure + deployApex for WorkflowEngine
+ *  options. Returns undefined when ATLAS_FF_DEPLOY_RUNTIME is OFF so the
+ *  caller can simply skip the option. Throws (at factory-construction time)
+ *  when the flag is ON but required env vars are missing — failing fast
+ *  beats silently no-op'ing every deploy node.
+ *
+ *  Env contract (all REQUIRED when the flag is on):
+ *    ATLAS_DEPLOY_APEX               e.g. "atlas.dev"
+ *    ATLAS_DEPLOY_INGRESS_TARGET     e.g. "ingress.atlas.dev"
+ *    ATLAS_DEPLOY_ISSUER_REF         e.g. "letsencrypt-prod"
+ *    ATLAS_DEPLOY_MANIFEST_REPO_URL  GitOps manifest repo (Argo source)
+ *    ATLAS_CLOUDFLARE_TOKEN          Cloudflare API bearer token
+ *    ATLAS_CLOUDFLARE_ZONE_ID        Cloudflare zone id (reserved; not yet
+ *                                    used by HttpCloudflareClient — it
+ *                                    resolves zone-by-name — but kept in the
+ *                                    required set so the operator surfaces
+ *                                    every credential upfront)
+ *
+ *  Branching + Migrate are intentionally stubs for v1: the runtime side of
+ *  per-branch Postgres schemas is a Plan F.3 concern. Both adapters return
+ *  no-op shapes that satisfy the BranchingPort / MigratePort contracts. */
+async function buildDeployRunner(): Promise<
+  | {
+      deployRunner: import("@atlas/workflow-engine").DeployRunner;
+      deployApex: string;
+    }
+  | undefined
+> {
+  const { isFeatureEnabled } = await import("@/lib/feature-flags");
+  if (!isFeatureEnabled("deploy-runtime")) return undefined;
+
+  const apex = process.env.ATLAS_DEPLOY_APEX;
+  const ingressTarget = process.env.ATLAS_DEPLOY_INGRESS_TARGET;
+  const issuerRef = process.env.ATLAS_DEPLOY_ISSUER_REF;
+  const manifestRepoUrl = process.env.ATLAS_DEPLOY_MANIFEST_REPO_URL;
+  const cfToken = process.env.ATLAS_CLOUDFLARE_TOKEN;
+  const cfZoneId = process.env.ATLAS_CLOUDFLARE_ZONE_ID;
+
+  const missing = [
+    !apex && "ATLAS_DEPLOY_APEX",
+    !ingressTarget && "ATLAS_DEPLOY_INGRESS_TARGET",
+    !issuerRef && "ATLAS_DEPLOY_ISSUER_REF",
+    !manifestRepoUrl && "ATLAS_DEPLOY_MANIFEST_REPO_URL",
+    !cfToken && "ATLAS_CLOUDFLARE_TOKEN",
+    !cfZoneId && "ATLAS_CLOUDFLARE_ZONE_ID"
+  ].filter(Boolean) as string[];
+  if (missing.length > 0) {
+    throw new Error(
+      `Deploy runtime enabled (ATLAS_FF_DEPLOY_RUNTIME=true) but missing env: ${missing.join(", ")}`
+    );
+  }
+
+  // Dynamic imports keep the kubernetes-client-node + deploy-orchestrator
+  // adapters off the module-load critical path when the flag is OFF (the
+  // common production case). Each import lands inside the same conditional
+  // branch as the env validation above.
+  const { DeployOrchestrator, K8sClientNodeClient, HttpCloudflareClient } =
+    await import("@atlas/deploy-orchestrator");
+  const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
+
+  // KubeConfig.loadFromDefault() reads $KUBECONFIG or ~/.kube/config and,
+  // when running inside a pod with no explicit config, falls back to the
+  // mounted serviceaccount token. Same precedence the kubectl CLI uses.
+  const kc = new KubeConfig();
+  kc.loadFromDefault();
+  const api = kc.makeApiClient(CustomObjectsApi);
+  const kubernetes = new K8sClientNodeClient({ api });
+
+  const cloudflare = new HttpCloudflareClient({ token: cfToken! });
+
+  // BranchingPort stub — v1 just returns the existing "main" schema and
+  // never claims to have created a branch (so MigratePort is never invoked
+  // in deployFromArtifacts's `if (branch.created)` path). Real per-run
+  // branching is a Plan F.3 concern; the runner-side contract is satisfied.
+  const branching: import("@atlas/deploy-orchestrator").BranchingPort = {
+    ensureBranch: async (_projectId, _branchId) => ({ schemaName: "main", created: false }),
+    dropBranch: async (_projectId, _branchId) => ({ schemaName: "main", dropped: false }),
+    listBranches: async () => []
+  };
+
+  // MigratePort stub — applied=0, filenames=[] is the no-op shape.
+  const migrate: import("@atlas/deploy-orchestrator").MigratePort = async ({ schemaName }) => ({
+    schemaName,
+    applied: 0,
+    filenames: []
+  });
+
+  const orchestrator = new DeployOrchestrator({
+    kubernetes,
+    cloudflare,
+    branching,
+    migrate,
+    manifestRepoUrl: manifestRepoUrl!,
+    issuerRef: issuerRef!,
+    ingressTarget: ingressTarget!
+  });
+
+  const deployRunner: import("@atlas/workflow-engine").DeployRunner = async (input) => {
+    return orchestrator.deployFromArtifacts({
+      projectId: input.projectId,
+      branchId: input.branchId,
+      subdomain: input.subdomain,
+      apex: input.apex,
+      iacArtifact: input.iacArtifact,
+      deployArtifact: input.deployArtifact
+    });
+  };
+
+  return { deployRunner, deployApex: apex! };
+}
 
 /** Map a Conductor checkpoint event into a `(type, payload)` pair the
  *  broker can publish. Returns null when the event isn't surfaced on the

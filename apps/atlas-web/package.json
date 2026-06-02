@@ -47,6 +47,7 @@
     "@atlas/spec-graph-schema": "workspace:*",
     "@atlas/spec-graph-sync": "workspace:*",
     "@clerk/nextjs": "^6.0.0",
+    "@kubernetes/client-node": "^0.22.0",
     "@monaco-editor/react": "^4.6.0",
     "@octokit/rest": "^21.0.2",
     "@xyflow/react": "^12.3.0",

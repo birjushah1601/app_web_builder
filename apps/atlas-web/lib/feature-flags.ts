@@ -69,7 +69,12 @@ export type FeatureFlag =
   // Plan B — Workflow kinds CSV allow-list. isFeatureEnabled returns true when
   // ATLAS_FF_WORKFLOW_KINDS is set (non-empty); the CSV value is read by
   // readKindsAllowList() in startBuild.ts.
-  | "workflow-kinds";
+  | "workflow-kinds"
+  // Plan F.2 — Deploy runtime. When on, the WorkflowEngine factory constructs
+  // a DeployOrchestrator (k8s + cloudflare + branching + migrate) and threads
+  // its deployFromArtifacts as the engine's deployRunner so deploy-kind nodes
+  // actually apply their artifacts to a live cluster instead of being a no-op.
+  | "deploy-runtime";
 
 const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   "figma-importer": "ATLAS_FF_FIGMA_IMPORTER",
@@ -179,7 +184,9 @@ const FLAG_TO_ENV: Record<FeatureFlag, string> = {
   // Plan B — Workflow picker UI.
   "workflow-picker": "ATLAS_FF_WORKFLOW_PICKER",
   // Plan B — Workflow kinds CSV allow-list flag.
-  "workflow-kinds": "ATLAS_FF_WORKFLOW_KINDS"
+  "workflow-kinds": "ATLAS_FF_WORKFLOW_KINDS",
+  // Plan F.2 — Deploy runtime. Standard ATLAS_FF_* convention.
+  "deploy-runtime": "ATLAS_FF_DEPLOY_RUNTIME"
 };
 
 export interface FeatureFlagSource {
@@ -294,6 +301,7 @@ export function listFlagStates(source: FeatureFlagSource = processEnvSource): Re
     "workflow": isFeatureEnabled("workflow", source),
     "evals": isFeatureEnabled("evals", source),
     "workflow-picker": isFeatureEnabled("workflow-picker", source),
-    "workflow-kinds": isFeatureEnabled("workflow-kinds", source)
+    "workflow-kinds": isFeatureEnabled("workflow-kinds", source),
+    "deploy-runtime": isFeatureEnabled("deploy-runtime", source)
   };
 }

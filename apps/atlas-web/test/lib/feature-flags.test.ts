@@ -81,6 +81,7 @@ describe("listFlagStates", () => {
       "canvas-v1": false,
       "click-to-edit": false,
       "demo-mode": false,
+      "deploy-runtime": false,
       "designer": false,
       "designer-critique": false,
       "editable-plan": false,
