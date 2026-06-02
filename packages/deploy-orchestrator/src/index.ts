@@ -15,3 +15,8 @@ export {
   type DeployFromArtifactsResult,
   type DeployFromArtifactsOptions
 } from "./deploy-from-artifacts.js";
+export {
+  runSmokeTests,
+  type SmokeFetcher,
+  type RunSmokeTestsInput
+} from "./smoke-runner.js";
