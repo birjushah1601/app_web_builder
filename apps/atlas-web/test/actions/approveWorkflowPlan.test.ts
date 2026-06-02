@@ -50,4 +50,60 @@ describe("approveWorkflowPlan action", () => {
     await approveWorkflowPlan({ projectId: "p-1", workflowRunId: "wfr-1", edits });
     expect(approvePlan).toHaveBeenCalledWith("wfr-1", edits);
   });
+
+  // Plan G.2 — approval-time cost cap edit.
+  it("calls engine.setCostCap before approvePlan when costCapUsd is provided", async () => {
+    const order: string[] = [];
+    const setCostCap = vi.fn(async () => {
+      order.push("setCostCap");
+    });
+    const approvePlan = vi.fn(async () => {
+      order.push("approvePlan");
+    });
+    vi.doMock("@/lib/feature-flags", () => ({ isFeatureEnabled: () => true }));
+    vi.doMock("@/lib/auth/clerk-compat", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    vi.doMock("@/lib/engine/factory", () => ({
+      getWorkflowEngine: async () => ({ approvePlan, setCostCap })
+    }));
+    const { approveWorkflowPlan } = await import("@/lib/actions/approveWorkflowPlan");
+    await approveWorkflowPlan({
+      projectId: "p-1",
+      workflowRunId: "wfr-1",
+      costCapUsd: 7.5
+    });
+    expect(setCostCap).toHaveBeenCalledWith("wfr-1", 7.5);
+    expect(approvePlan).toHaveBeenCalledWith("wfr-1", undefined);
+    expect(order).toEqual(["setCostCap", "approvePlan"]);
+  });
+
+  it("passes through undefined costCapUsd to clear the cap", async () => {
+    const setCostCap = vi.fn(async () => undefined);
+    const approvePlan = vi.fn(async () => undefined);
+    vi.doMock("@/lib/feature-flags", () => ({ isFeatureEnabled: () => true }));
+    vi.doMock("@/lib/auth/clerk-compat", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    vi.doMock("@/lib/engine/factory", () => ({
+      getWorkflowEngine: async () => ({ approvePlan, setCostCap })
+    }));
+    const { approveWorkflowPlan } = await import("@/lib/actions/approveWorkflowPlan");
+    await approveWorkflowPlan({
+      projectId: "p-1",
+      workflowRunId: "wfr-1",
+      costCapUsd: null
+    });
+    expect(setCostCap).toHaveBeenCalledWith("wfr-1", undefined);
+  });
+
+  it("does not call setCostCap when costCapUsd is omitted", async () => {
+    const setCostCap = vi.fn(async () => undefined);
+    const approvePlan = vi.fn(async () => undefined);
+    vi.doMock("@/lib/feature-flags", () => ({ isFeatureEnabled: () => true }));
+    vi.doMock("@/lib/auth/clerk-compat", () => ({ auth: async () => ({ userId: "u-1" }) }));
+    vi.doMock("@/lib/engine/factory", () => ({
+      getWorkflowEngine: async () => ({ approvePlan, setCostCap })
+    }));
+    const { approveWorkflowPlan } = await import("@/lib/actions/approveWorkflowPlan");
+    await approveWorkflowPlan({ projectId: "p-1", workflowRunId: "wfr-1" });
+    expect(setCostCap).not.toHaveBeenCalled();
+    expect(approvePlan).toHaveBeenCalledWith("wfr-1", undefined);
+  });
 });
