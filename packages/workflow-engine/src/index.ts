@@ -14,4 +14,8 @@ export {
 export {
   DeployArtifactSchema, type DeployArtifact, type DeployArgoApplication, type DeployImageBuild, type DeploySmokeTest
 } from "./artifact-contracts/deploy.js";
-export { generateApiClient, type GeneratedClient } from "./api-client-gen.js";
+export {
+  generateApiClient,
+  type GeneratedClient,
+  type GenerateApiClientOptions
+} from "./api-client-gen.js";

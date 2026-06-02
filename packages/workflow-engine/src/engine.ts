@@ -786,26 +786,47 @@ export class WorkflowEngine {
         // priorArtifact.upstream[id] === undefined and decide what to do.
       }
 
-      // 2. Plan D.2: cross-stack — generate the typed api-client when a
-      //    frontend-app node consumes a single backend-rest-api upstream.
-      //    Multi-backend cross-stack is Plan D.3.
+      // 2. Plan D.2 + Plan D.3: cross-stack — generate one typed api-client
+      //    per backend-rest-api upstream of a frontend-app node.
+      //    - 0 backends → generatedFiles stays undefined.
+      //    - 1 backend → single canonical `lib/api-client.ts` (D.2, preserved).
+      //    - 2+ backends → one `lib/api-client-{backendNodeId}.ts` per backend
+      //      (D.3 — naming includes the producing node id so files don't
+      //      collide and the LLM can pick the right client per route).
+      //    Iteration order follows `node.consumes` so a given DAG produces
+      //    a deterministic generatedFiles array across runs.
+      //    GraphQL upstream kinds (`backend-graphql`) are still out of scope.
       let generatedFiles: Array<{ path: string; contents: string }> | undefined;
       if (node.artifactKind === "frontend-app") {
-        const backendUpstreams = Object.values(upstream).filter(
-          (a): a is { kind: string; openApiSpec: unknown } =>
+        const backendPairs: Array<{ id: string; openApiSpec: unknown }> = [];
+        for (const upstreamId of node.consumes) {
+          const a = upstream[upstreamId];
+          if (
             !!a &&
             typeof a === "object" &&
             (a as { kind?: unknown }).kind === "backend-rest-api" &&
             "openApiSpec" in (a as object)
-        );
-        if (backendUpstreams.length > 1) {
-          throw new Error(
-            `Plan D.2 v1: multiple backend upstreams not supported (frontend node "${node.id}" consumes ${backendUpstreams.length} backend-rest-api artifacts). Multi-backend cross-stack is Plan D.3.`
-          );
+          ) {
+            backendPairs.push({
+              id: upstreamId,
+              openApiSpec: (a as { openApiSpec: unknown }).openApiSpec
+            });
+          }
         }
-        if (backendUpstreams.length === 1) {
-          const generated = await generateApiClient(backendUpstreams[0]!.openApiSpec);
+        if (backendPairs.length === 1) {
+          // Single-backend: preserve the canonical Plan D.2 filename so the
+          // atlas-next-ts template's `@/lib/api-client` import keeps working.
+          const only = backendPairs[0]!;
+          const generated = await generateApiClient(only.openApiSpec);
           generatedFiles = [generated];
+        } else if (backendPairs.length >= 2) {
+          generatedFiles = [];
+          for (const { id, openApiSpec } of backendPairs) {
+            const generated = await generateApiClient(openApiSpec, {
+              fileName: `api-client-${id}.ts`
+            });
+            generatedFiles.push(generated);
+          }
         }
       }
 

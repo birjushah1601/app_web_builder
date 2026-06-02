@@ -55,4 +55,19 @@ describe("generateApiClient", () => {
   it("throws on a non-OpenAPI object", async () => {
     await expect(generateApiClient({ not: "openapi" } as never)).rejects.toThrow();
   });
+
+  // Plan D.3 Task 1 — optional fileName parameter for multi-backend cross-stack.
+  it("accepts an optional fileName and uses it for the returned path", async () => {
+    const r = await generateApiClient(SIMPLE_SPEC, {
+      fileName: "api-client-backend-x.ts"
+    });
+    expect(r.path).toBe("lib/api-client-backend-x.ts");
+    // Contents are independent of fileName — still valid TS.
+    expect(r.contents).toMatch(/export\s+interface\s+paths/);
+  });
+
+  it("defaults to lib/api-client.ts when no fileName is provided", async () => {
+    const r = await generateApiClient(SIMPLE_SPEC, {});
+    expect(r.path).toBe("lib/api-client.ts");
+  });
 });
