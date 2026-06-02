@@ -9,6 +9,8 @@ export {
   InMemoryUsageTracker,
   computeUsd,
   MODEL_PRICING,
+  UNASSIGNED_ROLE_ID,
   type LLMUsageTracker,
-  type TokenUsage
+  type TokenUsage,
+  type UsageBreakdownEntry
 } from "./usage-tracker.js";
