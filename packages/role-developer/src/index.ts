@@ -16,3 +16,4 @@ export { renderFocusedRefineUserTurn, FOCUSED_REFINE_SYSTEM_PROMPT } from "./ren
 export type { FocusedRefineInput } from "./render-focused-refine.js";
 export { BackendArtifactRole, type BackendArtifactRoleOptions } from "./backend-artifact/role.js";
 export { buildBackendArtifact, type BuildBackendArtifactInput } from "./backend-artifact/build-artifact.js";
+export { backendArtifactRubric } from "./backend-artifact/rubric.js";
