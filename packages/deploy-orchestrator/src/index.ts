@@ -27,3 +27,11 @@ export {
   type ImageBuilderResult,
   type BuildAndPushImagesOptions
 } from "./image-builder.js";
+export {
+  pushArgoApplicationToRepo,
+  nodeGitClient,
+  type GitClient,
+  type PushArgoApplicationOptions,
+  type PushArgoApplicationInput,
+  type PushArgoApplicationResult
+} from "./gitops-repo.js";
