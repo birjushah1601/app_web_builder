@@ -74,6 +74,25 @@ export const NodeFailureSchema = z.object({
 });
 export type NodeFailure = z.infer<typeof NodeFailureSchema>;
 
+// Plan F.2 — populated by the workflow engine when a deploy-kind node's
+// post-producer hook runs `deployRunner` (i.e. the runtime adapter actually
+// applied the artifact's manifests via the K8s/Cloudflare clients). Shape
+// matches what runDeployFromArtifacts returns from @atlas/deploy-orchestrator.
+export const DeployResultSchema = z.object({
+  deployId: z.string().min(1),
+  publicUrl: z.string().url(),
+  argoApplicationName: z.string().min(1),
+  branchSchemaName: z.string().min(1),
+  appliedManifests: z.array(z.object({
+    namespace: z.string().min(1),
+    kind: z.string().min(1),
+    name: z.string().min(1)
+  })),
+  phase: z.enum(["healthy", "failed"]),
+  startedAt: z.string()
+});
+export type DeployResult = z.infer<typeof DeployResultSchema>;
+
 export const WorkflowNodeSchema = z.object({
   id: z.string().min(1),
   artifactKind: z.string().min(1), // "frontend-app" | "backend-rest-api" | ... | "workflow-planner"
@@ -85,7 +104,9 @@ export const WorkflowNodeSchema = z.object({
   ritualId: z.string().optional(),
   artifactRef: ArtifactRefSchema.optional(),
   artifact: z.unknown().optional(), // typed payload; validated against artifact-contracts on assignment
-  failure: NodeFailureSchema.optional()
+  failure: NodeFailureSchema.optional(),
+  // Plan F.2 — present when an artifact-driven deploy ran for this node.
+  deployResult: DeployResultSchema.optional()
 }).superRefine((node, ctx) => {
   // consumes MUST be a subset of dependsOn (Section 5 invariant)
   const depSet = new Set(node.dependsOn);
