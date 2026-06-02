@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { load as parseYaml } from "js-yaml";
-import type { IacArtifact, DeployArtifact } from "@atlas/workflow-engine";
+import type { IacArtifact, DeployArtifact, SmokeTestResult } from "@atlas/workflow-engine";
 import type { KubernetesClient } from "./kubernetes-client.js";
 import type { CloudflareClient } from "./cloudflare-client.js";
 import type { BranchingPort, MigratePort } from "./orchestrator.js";
 import { reconcileArgoUntilSettled } from "./reconcile.js";
+import { runSmokeTests, type SmokeFetcher } from "./smoke-runner.js";
 import { DeployError } from "./errors.js";
 
 export interface DeployFromArtifactsOptions {
@@ -15,6 +16,8 @@ export interface DeployFromArtifactsOptions {
   ingressTarget: string;
   reconcileIntervalMs?: number;
   reconcileTimeoutMs?: number;
+  smokeFetcher?: SmokeFetcher;
+  smokeTimeoutMs?: number;
 }
 
 export interface DeployFromArtifactsInput {
@@ -34,6 +37,7 @@ export interface DeployFromArtifactsResult {
   appliedManifests: Array<{ namespace: string; kind: string; name: string }>;
   phase: "healthy" | "failed";
   startedAt: string;
+  smokeResults?: SmokeTestResult[];
 }
 
 const DEFAULT_NAMESPACE = "atlas-projects";
@@ -109,6 +113,28 @@ export async function runDeployFromArtifacts(
       );
     }
 
+    // Plan F.3: smoke tests post-Argo-Healthy
+    const smokeResults = await runSmokeTests({
+      deployArtifact: input.deployArtifact,
+      publicUrl: `https://${fqdn}`,
+      ...(opts.smokeFetcher ? { fetcher: opts.smokeFetcher } : {}),
+      ...(opts.smokeTimeoutMs !== undefined ? { perSmokeTimeoutMs: opts.smokeTimeoutMs } : {})
+    });
+
+    const failedSmokes = smokeResults.filter((s) => !s.ok);
+    if (failedSmokes.length > 0) {
+      await opts.cloudflare.deleteDnsRecord(input.apex, fqdn).catch(() => {});
+      for (const m of [...applied].reverse()) {
+        await opts.kubernetes.delete(m.namespace, m.kind, m.name).catch(() => {});
+      }
+      const failedUrls = failedSmokes
+        .map((s) => `${s.url} (${s.error ?? `status ${s.status}`})`)
+        .join(", ");
+      throw new DeployError(
+        `${failedSmokes.length} smoke test(s) failed: ${failedUrls}; deployment rolled back`
+      );
+    }
+
     return {
       deployId,
       publicUrl: `https://${fqdn}`,
@@ -116,7 +142,8 @@ export async function runDeployFromArtifacts(
       branchSchemaName: branch.schemaName,
       appliedManifests: applied,
       phase: "healthy",
-      startedAt
+      startedAt,
+      ...(smokeResults.length > 0 ? { smokeResults } : {})
     };
   } catch (err) {
     // On any failure mid-apply (or rethrown rollback above), tear down whatever landed.

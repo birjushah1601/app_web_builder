@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { InMemoryKubernetesClient } from "../src/kubernetes-client.js";
 import { InMemoryCloudflareClient } from "../src/cloudflare-client.js";
 import { runDeployFromArtifacts } from "../src/deploy-from-artifacts.js";
+import type { SmokeFetcher } from "../src/smoke-runner.js";
 import type { IacArtifact, DeployArtifact } from "@atlas/workflow-engine";
 
 const IAC: IacArtifact = {
@@ -157,5 +158,88 @@ describe("runDeployFromArtifacts", () => {
       type: "CNAME",
       content: "ingress.example.com"
     });
+  });
+});
+
+describe("runDeployFromArtifacts — Plan F.3 smoke tests", () => {
+  function makeDeployWithSmokes(smokeTests: DeployArtifact["smokeTests"]): DeployArtifact {
+    return { ...DEPLOY, smokeTests };
+  }
+
+  it("attaches smokeResults when all smoke tests pass", async () => {
+    const opts = makeOpts();
+    opts.kubernetes.setHealth("proj-1-main", "Healthy");
+    const smokeFetcher: SmokeFetcher = vi.fn(async () => new Response("ok", { status: 200 }));
+    const r = await runDeployFromArtifacts(
+      { ...opts, smokeFetcher },
+      {
+        projectId: "p-1",
+        branchId: "main",
+        subdomain: "proj-1",
+        apex: "atlas.dev",
+        iacArtifact: IAC,
+        deployArtifact: makeDeployWithSmokes([{ url: "/health", expectStatus: 200 }])
+      }
+    );
+    expect(r.phase).toBe("healthy");
+    expect(r.smokeResults).toBeDefined();
+    expect(r.smokeResults).toHaveLength(1);
+    expect(r.smokeResults?.[0]?.ok).toBe(true);
+  });
+
+  it("rolls back when a smoke test fails", async () => {
+    const opts = makeOpts();
+    opts.kubernetes.setHealth("proj-1-main", "Healthy");
+    const smokeFetcher: SmokeFetcher = vi.fn(async () => new Response("nope", { status: 500 }));
+    await expect(
+      runDeployFromArtifacts(
+        { ...opts, smokeFetcher },
+        {
+          projectId: "p-1",
+          branchId: "main",
+          subdomain: "proj-1",
+          apex: "atlas.dev",
+          iacArtifact: IAC,
+          deployArtifact: makeDeployWithSmokes([{ url: "/health", expectStatus: 200 }])
+        }
+      )
+    ).rejects.toThrow(/smoke test.*failed|rolled back/i);
+    expect(opts.kubernetes.get("atlas-projects", "Service", "api")).toBeUndefined();
+    expect(opts.kubernetes.get("atlas-projects", "Certificate", "wildcard")).toBeUndefined();
+    expect(opts.kubernetes.get("argocd", "Application", "proj-1-main")).toBeUndefined();
+    expect(opts.cloudflare.list("atlas.dev")).toHaveLength(0);
+  });
+
+  it("omits smokeResults when artifact has zero smoke tests", async () => {
+    const opts = makeOpts();
+    opts.kubernetes.setHealth("proj-1-main", "Healthy");
+    const r = await runDeployFromArtifacts(opts, {
+      projectId: "p-1",
+      branchId: "main",
+      subdomain: "proj-1",
+      apex: "atlas.dev",
+      iacArtifact: IAC,
+      deployArtifact: makeDeployWithSmokes([])
+    });
+    expect(r.smokeResults).toBeUndefined();
+  });
+
+  it("includes the failed smoke's URL in the rollback error message", async () => {
+    const opts = makeOpts();
+    opts.kubernetes.setHealth("proj-1-main", "Healthy");
+    const smokeFetcher: SmokeFetcher = vi.fn(async () => new Response("", { status: 503 }));
+    await expect(
+      runDeployFromArtifacts(
+        { ...opts, smokeFetcher },
+        {
+          projectId: "p-1",
+          branchId: "main",
+          subdomain: "proj-1",
+          apex: "atlas.dev",
+          iacArtifact: IAC,
+          deployArtifact: makeDeployWithSmokes([{ url: "/health", expectStatus: 200 }])
+        }
+      )
+    ).rejects.toThrow(/\/health/);
   });
 });
