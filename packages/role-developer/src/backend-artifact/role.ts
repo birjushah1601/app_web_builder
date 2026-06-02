@@ -1,6 +1,7 @@
 import type { Role, RoleInvocation, RoleOutput } from "@atlas/conductor";
 import { buildBackendArtifact } from "./build-artifact.js";
 import { BackendArtifactSchema } from "@atlas/workflow-engine";
+import { backendArtifactRubric } from "./rubric.js";
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -20,6 +21,7 @@ interface PriorShape {
 
 export class BackendArtifactRole implements Role {
   readonly id = "backend-artifact";
+  readonly rubric = backendArtifactRubric;
   private readonly fetcher: Fetcher;
   private readonly readinessTimeoutMs: number;
   private readonly readinessPollMs: number;

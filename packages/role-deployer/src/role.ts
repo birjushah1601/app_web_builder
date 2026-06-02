@@ -1,6 +1,7 @@
 import type { Role, RoleInvocation, RoleOutput } from "@atlas/conductor";
 import { DeployArtifactSchema, type DeployArgoApplication, type DeployImageBuild, type DeploySmokeTest, type IacArtifact } from "@atlas/workflow-engine";
 import { buildDeployArtifact } from "./build-artifact.js";
+import { deployerRubric } from "./rubric.js";
 
 export interface DeployerRoleOptions {
   generateDeploy: (input: { iac: IacArtifact; ritualId: string }) =>
@@ -13,6 +14,7 @@ export interface DeployerRoleOptions {
 
 export class DeployerRole implements Role {
   readonly id = "deployer";
+  readonly rubric = deployerRubric;
   constructor(private readonly opts: DeployerRoleOptions) {}
 
   async run(inv: RoleInvocation): Promise<RoleOutput> {

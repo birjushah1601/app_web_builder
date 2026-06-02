@@ -2,6 +2,7 @@ import type { Role, RoleInvocation, RoleOutput } from "@atlas/conductor";
 import { TestsArtifactSchema } from "@atlas/workflow-engine";
 import { parseVitestJson } from "./parse-vitest-json.js";
 import { buildTestsArtifact } from "./build-artifact.js";
+import { testsRubric } from "./rubric.js";
 
 export interface SandboxLike {
   exec(cmd: string): Promise<{ exitCode: number; stdout: string; stderr: string }>;
@@ -25,6 +26,7 @@ const DEFAULT_RUN = "pnpm exec vitest run --reporter=json";
 
 export class TestsRole implements Role {
   readonly id = "tester";
+  readonly rubric = testsRubric;
 
   constructor(private readonly opts: TestsRoleOptions) {}
 
