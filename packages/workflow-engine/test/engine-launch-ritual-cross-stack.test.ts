@@ -1,12 +1,10 @@
 // test/engine-launch-ritual-cross-stack.test.ts
-// Plan D.2 Task 3 — verifies that makeLaunchRitual, when launching a
+// Plan D.2 Task 3 + Plan D.3 — verifies that makeLaunchRitual, when launching a
 // frontend-app node, scans upstream artifacts for backend-rest-api and:
-//   1. If exactly one is found, generates the typed api-client via
-//      generateApiClient(openApiSpec) and injects the result into
-//      priorArtifact.generatedFiles.
-//   2. If zero are found, leaves priorArtifact.generatedFiles undefined.
-//   3. If two or more are found, throws — the scheduler surfaces this as
-//      a node failure with the multi-backend error message.
+//   1. Zero backends → priorArtifact.generatedFiles undefined.
+//   2. One backend → single canonical lib/api-client.ts file (D.2 behavior).
+//   3. Two+ backends → one lib/api-client-{backendNodeId}.ts per upstream
+//      (Plan D.3 — replaces the previous "throws on 2+" behavior).
 import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import "../src/artifact-contracts/backend-rest-api.js";
@@ -287,25 +285,38 @@ describe("makeLaunchRitual — cross-stack api-client injection (Plan D.2 Task 3
     expect(prior.generatedFiles).toBeUndefined();
   });
 
-  it("throws when a frontend node consumes 2+ backend-rest-api upstreams", async () => {
+  // ---------------------------------------------------------------------------
+  // Plan D.3 — multi-backend cross-stack. Replaces D.2's "throws on 2+" test
+  // with success cases for 2 and 3 backend upstreams.
+  // ---------------------------------------------------------------------------
+
+  it("injects ONE file per backend when 2 backend-rest-api upstreams exist (Plan D.3)", async () => {
     const runRepo = makeRunRepo();
     const nodeRepo = makeNodeRepo();
+    const startCalls: Array<{ ritualId: string; input: Parameters<IRitualEngine["start"]>[0] }> = [];
     let counter = 0;
     const ritualEngine: IRitualEngine = {
-      async start() {
-        return `r-${++counter}`;
+      async start(input) {
+        const r = `r-${++counter}`;
+        startCalls.push({ ritualId: r, input });
+        return r;
       },
-      async getRitual() {
-        // Always emit a BackendArtifact so both backend nodes produce one.
-        return {
-          state: "completed",
-          roleEvents: [
-            {
-              eventType: "ritual.artifact_emitted",
-              payload: { fromRole: "backend-artifact", artifact: BACKEND_ARTIFACT }
-            }
-          ]
-        };
+      async getRitual(ritualId) {
+        const call = startCalls.find((c) => c.ritualId === ritualId);
+        const upstream = (call?.input.priorArtifact as { upstream?: Record<string, unknown> })?.upstream ?? {};
+        // Backend nodes have no upstream → emit a BackendArtifact.
+        if (Object.keys(upstream).length === 0) {
+          return {
+            state: "completed",
+            roleEvents: [
+              {
+                eventType: "ritual.artifact_emitted",
+                payload: { fromRole: "backend-artifact", artifact: BACKEND_ARTIFACT }
+              }
+            ]
+          };
+        }
+        return { state: "completed", roleEvents: [] };
       },
       async abort() {}
     };
@@ -357,10 +368,130 @@ describe("makeLaunchRitual — cross-stack api-client injection (Plan D.2 Task 3
     await engine.approvePlan(runId);
     await engine._waitForScheduler(runId);
 
+    // The frontend node should have launched successfully — no failure status.
     const nodes = await nodeRepo.findByRunId(runId);
     const frontend = nodes.find((n) => n.id === "frontend");
-    expect(frontend?.status).toBe("failed");
-    const failure = frontend?.failure as { error?: string } | undefined;
-    expect(failure?.error ?? "").toMatch(/multiple backend upstreams|Plan D\.2/i);
+    expect(frontend?.status).not.toBe("failed");
+
+    const frontendCall = startCalls.find((c) => c.input.userTurn === "Build the UI");
+    expect(frontendCall).toBeDefined();
+    const generatedFiles = (frontendCall!.input.priorArtifact as {
+      generatedFiles?: Array<{ path: string; contents: string }>;
+    }).generatedFiles;
+    expect(generatedFiles).toBeDefined();
+    expect(generatedFiles).toHaveLength(2);
+    const paths = generatedFiles!.map((f) => f.path).sort();
+    expect(paths).toEqual([
+      "lib/api-client-backend-a.ts",
+      "lib/api-client-backend-b.ts"
+    ]);
+    for (const f of generatedFiles!) {
+      expect(f.contents).toMatch(/export\s+interface\s+paths/);
+    }
+  });
+
+  it("injects ONE file per backend when 3 backend-rest-api upstreams exist (Plan D.3)", async () => {
+    const runRepo = makeRunRepo();
+    const nodeRepo = makeNodeRepo();
+    const startCalls: Array<{ ritualId: string; input: Parameters<IRitualEngine["start"]>[0] }> = [];
+    let counter = 0;
+    const ritualEngine: IRitualEngine = {
+      async start(input) {
+        const r = `r-${++counter}`;
+        startCalls.push({ ritualId: r, input });
+        return r;
+      },
+      async getRitual(ritualId) {
+        const call = startCalls.find((c) => c.ritualId === ritualId);
+        const upstream = (call?.input.priorArtifact as { upstream?: Record<string, unknown> })?.upstream ?? {};
+        if (Object.keys(upstream).length === 0) {
+          return {
+            state: "completed",
+            roleEvents: [
+              {
+                eventType: "ritual.artifact_emitted",
+                payload: { fromRole: "backend-artifact", artifact: BACKEND_ARTIFACT }
+              }
+            ]
+          };
+        }
+        return { state: "completed", roleEvents: [] };
+      },
+      async abort() {}
+    };
+
+    const engine = new WorkflowEngine({ ritualEngine, runRepo, nodeRepo });
+    const runId = randomUUID();
+    await runRepo.insert({
+      id: runId,
+      projectId: "p-1",
+      userId: "u-1",
+      prompt: "p",
+      status: "awaiting_approval",
+      dependencyProfile: { schemaVersion: "1" },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await nodeRepo.insertMany([
+      {
+        id: "backend-a",
+        workflowRunId: runId,
+        artifactKind: "backend-rest-api",
+        summary: "API A",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "pending"
+      },
+      {
+        id: "backend-b",
+        workflowRunId: runId,
+        artifactKind: "backend-rest-api",
+        summary: "API B",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "pending"
+      },
+      {
+        id: "backend-c",
+        workflowRunId: runId,
+        artifactKind: "backend-rest-api",
+        summary: "API C",
+        dependsOn: [],
+        consumes: [],
+        policy: { priority: 0, runMode: "active" },
+        status: "pending"
+      },
+      {
+        id: "frontend",
+        workflowRunId: runId,
+        artifactKind: "frontend-app",
+        summary: "Build the UI",
+        dependsOn: ["backend-a", "backend-b", "backend-c"],
+        consumes: ["backend-a", "backend-b", "backend-c"],
+        policy: { priority: 0, runMode: "active" },
+        status: "pending"
+      }
+    ]);
+    await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
+
+    const nodes = await nodeRepo.findByRunId(runId);
+    const frontend = nodes.find((n) => n.id === "frontend");
+    expect(frontend?.status).not.toBe("failed");
+
+    const frontendCall = startCalls.find((c) => c.input.userTurn === "Build the UI");
+    expect(frontendCall).toBeDefined();
+    const generatedFiles = (frontendCall!.input.priorArtifact as {
+      generatedFiles?: Array<{ path: string; contents: string }>;
+    }).generatedFiles;
+    expect(generatedFiles).toHaveLength(3);
+    const paths = generatedFiles!.map((f) => f.path).sort();
+    expect(paths).toEqual([
+      "lib/api-client-backend-a.ts",
+      "lib/api-client-backend-b.ts",
+      "lib/api-client-backend-c.ts"
+    ]);
   });
 });
