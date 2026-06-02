@@ -114,4 +114,33 @@ describe("developerRubric.judge", () => {
       developerRubric.judge(GOOD_OUTPUT, { userTurn: "x" } as any, stubLlm as any)
     ).rejects.toThrow();
   });
+
+  // Post-Plan H rubric-contract fix: the conductor's eval gate passes the
+  // full RoleOutput when no ritual.artifact_emitted event exists
+  // (developer's path). The rubric must coerce RoleOutput → DeveloperOutput
+  // before running checks.
+  it("structural accepts RoleOutput-shaped input and extracts diff + summary", () => {
+    const roleOutput = {
+      events: [
+        { eventType: "developer.completed", payload: { summary: "Built landing page with hero + CTA" } }
+      ],
+      diff: {
+        kind: "patch",
+        body: GOOD_DIFF
+      }
+    };
+    const result = developerRubric.structural(roleOutput as any, {} as any);
+    expect(result.passed).toBe(true);
+  });
+
+  it("structural surfaces failures when RoleOutput.diff is empty", () => {
+    const roleOutput = {
+      events: [{ eventType: "developer.completed", payload: { summary: "x".repeat(30) } }],
+      diff: { kind: "none" }
+    };
+    const result = developerRubric.structural(roleOutput as any, {} as any);
+    expect(result.passed).toBe(false);
+    const failureChecks = result.failures?.map((f) => f.check) ?? [];
+    expect(failureChecks).toContain("diff_present");
+  });
 });

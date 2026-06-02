@@ -21,30 +21,31 @@ export const developerRubric: Rubric<DeveloperOutput> = {
   version: VERSION,
   judgeModel: process.env.ATLAS_EVAL_DEVELOPER_MODEL ?? DEFAULT_MODEL,
 
-  structural(output: DeveloperOutput, _inv: RoleInvocation): StructuralResult {
+  structural(output: DeveloperOutput | unknown, _inv: RoleInvocation): StructuralResult {
     const failures: Array<{ check: string; reason: string }> = [];
+    const dev = coerceDeveloperOutput(output);
 
     // diff_present: non-empty diff
-    if (!output.diff || output.diff.trim().length === 0) {
+    if (!dev.diff || dev.diff.trim().length === 0) {
       failures.push({ check: "diff_present", reason: "diff is empty" });
     }
 
     // diff_format: must have at least one diff --git header
-    if (output.diff && !/^diff --git /m.test(output.diff)) {
+    if (dev.diff && !/^diff --git /m.test(dev.diff)) {
       failures.push({ check: "diff_format", reason: "diff has no 'diff --git' headers" });
     }
 
     // new_app_page: for new-app scope, diff must touch a page file
     const scope = (_inv as any).priorArtifact?.scope ?? ((_inv as any).architectArtifact as any)?.scope;
     if (scope === "new-app") {
-      const touchesPage = /page\.(tsx?|jsx?)/.test(output.diff ?? "");
+      const touchesPage = /page\.(tsx?|jsx?)/.test(dev.diff ?? "");
       if (!touchesPage) {
         failures.push({ check: "new_app_page", reason: "new-app scope diff does not touch a page file" });
       }
     }
 
     // summary_meaningful: at least 20 chars
-    if (!output.summary || output.summary.trim().length < 20) {
+    if (!dev.summary || dev.summary.trim().length < 20) {
       failures.push({ check: "summary_meaningful", reason: "summary is too short (< 20 chars)" });
     }
 
@@ -52,7 +53,8 @@ export const developerRubric: Rubric<DeveloperOutput> = {
   },
 
   async judge(output, inv, llm): Promise<JudgeResult> {
-    const userTurn = renderJudgeUserTurn(inv.userTurn, output);
+    const dev = coerceDeveloperOutput(output);
+    const userTurn = renderJudgeUserTurn(inv.userTurn, dev);
     const result = await (llm as any).completeWithToolUse(
       [
         { role: "system", content: SYSTEM_PROMPT },
@@ -68,6 +70,57 @@ export const developerRubric: Rubric<DeveloperOutput> = {
     return JudgeResultSchema.parse(result.input);
   }
 };
+
+/**
+ * Reconstructs a DeveloperOutput shape from whatever the conductor's eval
+ * gate hands the rubric. Today (post Plan H rubric-contract fix) the
+ * conductor's input is either:
+ *   - the typed artifact from ritual.artifact_emitted (n/a for developer)
+ *   - the full RoleOutput when no artifact event exists ← developer's path
+ * Pre-existing tests pass a DeveloperOutput directly so we preserve that.
+ * Production-path: walk RoleOutput.events for `developer.completed` to
+ * recover summary; read RoleOutput.diff.body for the patch string.
+ */
+function coerceDeveloperOutput(input: unknown): DeveloperOutput {
+  const empty: DeveloperOutput = { diff: "", summary: "", testsAdded: [], filesModified: [] };
+  if (!input || typeof input !== "object") return empty;
+
+  // If it already looks like a DeveloperOutput (string diff), pass through —
+  // the existing test fixtures + runtime cases hit this branch.
+  const maybeDirect = input as {
+    diff?: unknown;
+    summary?: unknown;
+    testsAdded?: unknown;
+    filesModified?: unknown;
+  };
+  if (typeof maybeDirect.diff === "string") {
+    return {
+      diff: maybeDirect.diff,
+      summary: typeof maybeDirect.summary === "string" ? maybeDirect.summary : "",
+      testsAdded: Array.isArray(maybeDirect.testsAdded) ? maybeDirect.testsAdded.filter((t): t is string => typeof t === "string") : [],
+      filesModified: Array.isArray(maybeDirect.filesModified) ? maybeDirect.filesModified.filter((f): f is string => typeof f === "string") : []
+    };
+  }
+
+  // RoleOutput shape: diff is { kind, body? }, summary lives in
+  // developer.completed event payload.
+  const ro = input as { diff?: { body?: unknown }; events?: unknown };
+  const diff = typeof ro.diff?.body === "string" ? ro.diff.body : "";
+  let summary = "";
+  if (Array.isArray(ro.events)) {
+    for (let i = ro.events.length - 1; i >= 0; i--) {
+      const ev = ro.events[i];
+      if (!ev || typeof ev !== "object") continue;
+      if ((ev as { eventType?: unknown }).eventType !== "developer.completed") continue;
+      const payload = (ev as { payload?: unknown }).payload;
+      if (payload && typeof payload === "object") {
+        const s = (payload as { summary?: unknown }).summary;
+        if (typeof s === "string") { summary = s; break; }
+      }
+    }
+  }
+  return { diff, summary, testsAdded: [], filesModified: [] };
+}
 
 function renderJudgeUserTurn(userTurn: string, output: DeveloperOutput): string {
   // Truncate large diffs for the judge to avoid token explosion
