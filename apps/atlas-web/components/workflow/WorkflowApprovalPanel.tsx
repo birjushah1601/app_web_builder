@@ -59,6 +59,11 @@ export function WorkflowApprovalPanel({
   const [drafts, setDrafts] = useState<Record<string, NodeDraft>>(() =>
     Object.fromEntries(snapshot.nodes.map((n) => [n.id, toDraft(n)]))
   );
+  // Plan G.2 — approval-time cost cap input. Seeded from the snapshot's
+  // current cap (if any). Empty string = no value entered yet.
+  const [costCapInput, setCostCapInput] = useState<string>(() =>
+    snapshot.costCapUsd !== undefined ? String(snapshot.costCapUsd) : ""
+  );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -71,14 +76,33 @@ export function WorkflowApprovalPanel({
     setDrafts((cur) => ({ ...cur, [nodeId]: { ...cur[nodeId]!, ...patch } }));
   };
 
+  /**
+   * Plan G.2 — decide what to send for `costCapUsd`:
+   *   - input has a parseable positive number → that number
+   *   - input is empty AND snapshot has a pre-existing cap → null (clear it)
+   *   - input is empty AND snapshot has no cap → undefined (omit; no change)
+   *   - input is non-empty but unparseable → undefined (omit; engine validates)
+   */
+  const resolveCostCap = (): number | null | undefined => {
+    const trimmed = costCapInput.trim();
+    if (trimmed === "") {
+      return snapshot.costCapUsd !== undefined ? null : undefined;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+    return parsed;
+  };
+
   const onApprove = () => {
     setError(null);
     startTransition(async () => {
       try {
+        const costCapUsd = resolveCostCap();
         await approveWorkflowPlan({
           projectId,
           workflowRunId: snapshot.id,
-          edits: pendingEdits.length > 0 ? pendingEdits : undefined
+          edits: pendingEdits.length > 0 ? pendingEdits : undefined,
+          ...(costCapUsd !== undefined ? { costCapUsd } : {})
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -162,21 +186,38 @@ export function WorkflowApprovalPanel({
           })}
         </ul>
       </div>
-      <div className="flex items-center justify-between border-t border-amber-200 bg-amber-50 px-3 py-2">
-        <div className="text-[11px] text-amber-800">
-          {pendingEdits.length === 0
-            ? "No edits"
-            : `${pendingEdits.length} edit${pendingEdits.length === 1 ? "" : "s"} pending`}
+      <div className="border-t border-amber-200 bg-amber-50 px-3 py-2">
+        <label className="flex items-center justify-between gap-2 pb-2 text-[11px] text-amber-900">
+          <span>Cost cap (USD, optional)</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            inputMode="decimal"
+            aria-label="Cost cap (USD)"
+            data-testid="workflow-approval-cost-cap-input"
+            value={costCapInput}
+            onChange={(e) => setCostCapInput(e.target.value)}
+            placeholder="e.g. 5.00"
+            className="w-24 rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px]"
+          />
+        </label>
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] text-amber-800">
+            {pendingEdits.length === 0
+              ? "No edits"
+              : `${pendingEdits.length} edit${pendingEdits.length === 1 ? "" : "s"} pending`}
+          </div>
+          <button
+            type="button"
+            data-testid="workflow-approve-btn"
+            onClick={onApprove}
+            disabled={pending}
+            className="rounded-md bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+          >
+            {pending ? "Approving…" : "Approve"}
+          </button>
         </div>
-        <button
-          type="button"
-          data-testid="workflow-approve-btn"
-          onClick={onApprove}
-          disabled={pending}
-          className="rounded-md bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
-        >
-          {pending ? "Approving…" : "Approve"}
-        </button>
       </div>
       {error && (
         <div

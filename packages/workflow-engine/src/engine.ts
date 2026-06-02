@@ -73,11 +73,25 @@ export interface IWorkflowRunRepo {
     /** Plan G — drizzle returns numeric columns as string; in-memory fakes
      *  may return number. The snapshot builder accepts either form. */
     costCapUsd?: number | string | null;
+    /** Plan G.2 — frozen final cost persisted by onSchedulerExit. The snapshot
+     *  builder prefers the live tracker when present; falls back to this
+     *  column otherwise. Same string-or-number normalization as costCapUsd. */
+    totalCostUsd?: number | string | null;
     createdAt: Date | string;
     updatedAt: Date | string;
   } | undefined>;
   updateStatus(id: string, status: string): Promise<void>;
   updateDependencyProfile(id: string, dependencyProfile: unknown): Promise<void>;
+  /** Plan G.2 — sets or clears the per-run USD cost cap. Used by
+   *  WorkflowEngine.setCostCap during approval. Passing `undefined` clears
+   *  the cap. */
+  updateCostCap?(id: string, costCapUsd: number | undefined): Promise<void>;
+  /** Plan G.2 — freezes the workflow's final USD cost onto the run row.
+   *  Called in onSchedulerExit so the snapshot can surface a stable
+   *  totalCostUsd after terminal status. Optional on the interface so legacy
+   *  in-memory fakes without the method continue to work (the persisted
+   *  fallback in buildSnapshot is a no-op for them). */
+  updateTotalCostUsd?(id: string, totalCostUsd: number): Promise<void>;
 }
 
 export interface IWorkflowNodeRepo {
@@ -662,7 +676,23 @@ export class WorkflowEngine {
       // Plan G Task 5 — release the per-run tracker on terminal status to
       // avoid the memory leak Task 4 flagged. Runs for completed, escalated,
       // and aborted alike.
-      onSchedulerExit: () => {
+      // Plan G.2 — BEFORE releasing the tracker, freeze its final totalUsd()
+      // onto the run row so buildSnapshot can surface the cost after terminal
+      // status. We swallow persistence errors here: a failed write degrades
+      // gracefully to today's behavior (totalCostUsd undefined post-cleanup),
+      // and the scheduler must not crash on shutdown.
+      onSchedulerExit: async () => {
+        const t = this.usageTrackers.get(workflowRunId);
+        if (t !== undefined && typeof runRepo.updateTotalCostUsd === "function") {
+          try {
+            await runRepo.updateTotalCostUsd(workflowRunId, t.totalUsd());
+          } catch (err) {
+            console.error(
+              "[workflow-engine] failed to persist totalCostUsd on scheduler exit:",
+              err
+            );
+          }
+        }
         this.usageTrackers.delete(workflowRunId);
       }
     };
@@ -687,6 +717,36 @@ export class WorkflowEngine {
 
     await runRepo.updateStatus(workflowRunId, "aborted");
     this.emitRunStatus(runRow.projectId, workflowRunId, "aborted");
+  }
+
+  /**
+   * Plan G.2 — sets or clears the per-run USD cost cap on an existing run.
+   * Used by approveWorkflowPlan to apply an approval-time cap edit before
+   * approvePlan dispatches the scheduler. Passing `undefined` clears the cap.
+   * Throws WorkflowNotFoundError for unknown runs and InvalidNodePolicyEditError
+   * (re-used to keep error shape stable) for non-positive caps.
+   */
+  async setCostCap(
+    workflowRunId: string,
+    costCapUsd: number | undefined
+  ): Promise<void> {
+    const { runRepo } = this.opts;
+    const runRow = await runRepo.findById(workflowRunId);
+    if (!runRow) throw new WorkflowNotFoundError(workflowRunId);
+    if (costCapUsd !== undefined) {
+      if (!Number.isFinite(costCapUsd) || costCapUsd <= 0) {
+        throw new InvalidNodePolicyEditError(
+          workflowRunId,
+          `costCapUsd must be a positive finite number; got ${costCapUsd}`
+        );
+      }
+    }
+    if (typeof runRepo.updateCostCap !== "function") {
+      throw new Error(
+        "WorkflowEngine.setCostCap: runRepo.updateCostCap is not implemented by this repo"
+      );
+    }
+    await runRepo.updateCostCap(workflowRunId, costCapUsd);
   }
 
   /**
@@ -1026,13 +1086,28 @@ export class WorkflowEngine {
           : undefined;
 
     // Plan G Task 7 — surface the running USD cost so the SSE-driven UI
-    // can read it without new events. Reads the per-run usage tracker's
-    // current total. After terminal status, onSchedulerExit cleared the
-    // tracker, so this is undefined (v1 trade-off — freezing the final
-    // cost onto the run row is a future refinement requiring a schema
-    // column).
+    // can read it without new events.
+    // Plan G.2 — while the tracker is alive, read its live total (so the UI
+    // sees the cost climb during execution). After the scheduler exits the
+    // tracker is gone, and onSchedulerExit froze the final cost onto the run
+    // row — fall back to that persisted column. Same string|number
+    // normalization as costCapUsd; missing/non-finite → omit.
     const tracker = this.usageTrackers.get(workflowRunId);
-    const totalCostUsd = tracker?.totalUsd();
+    let totalCostUsd: number | undefined;
+    if (tracker !== undefined) {
+      totalCostUsd = tracker.totalUsd();
+    } else {
+      const totalCostUsdRaw = (runRow as { totalCostUsd?: unknown }).totalCostUsd;
+      const parsed =
+        typeof totalCostUsdRaw === "string"
+          ? Number(totalCostUsdRaw)
+          : typeof totalCostUsdRaw === "number"
+            ? totalCostUsdRaw
+            : undefined;
+      if (parsed !== undefined && Number.isFinite(parsed)) {
+        totalCostUsd = parsed;
+      }
+    }
 
     return {
       id: runRow.id,
