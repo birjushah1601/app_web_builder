@@ -76,6 +76,18 @@ export interface DispatchOptions {
    *  If absent, falls back to the placeholder "(unknown)" so the NOT NULL
    *  constraint in eval_verdicts is satisfied. */
   userId?: string;
+  /** Plan G.4 — per-workflow-run usage tracker. Conductor copies this into
+   *  RoleInvocation.usageTracker so each role can record token usage tagged
+   *  with its own roleId. Structurally typed (matches `LLMUsageTracker.record`
+   *  in @atlas/llm-provider) to avoid a workspace dep cycle. */
+  usageTracker?: {
+    record(
+      provider: string,
+      model: string,
+      usage: { inputTokens: number; outputTokens: number },
+      opts?: { roleId?: string }
+    ): void;
+  };
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -172,6 +184,13 @@ export class Conductor {
     // so downstream `=== undefined` checks behave consistently.
     if (options.currentFiles !== undefined) {
       baseInvocation.currentFiles = options.currentFiles;
+    }
+    // Plan G.4 — same exactOptionalPropertyTypes pattern: only set when the
+    // caller actually passed a tracker, so roles' `=== undefined` checks
+    // (and the synthetic `__unassigned__` fallback in InMemoryUsageTracker)
+    // behave consistently.
+    if (options.usageTracker !== undefined) {
+      baseInvocation.usageTracker = options.usageTracker;
     }
 
     // Eval gate: when verdictSink is set and role has a rubric, wrap the

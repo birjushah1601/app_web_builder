@@ -50,6 +50,21 @@ export interface RoleInvocation {
    *  structural or judge eval fails and `shouldRetry` allows a second attempt.
    *  Roles thread this into their prompts to self-correct. */
   evalFeedback?: EvalFeedback;
+  /** Plan G.4 — per-workflow-run usage tracker threaded by the workflow-engine
+   *  → ritual-engine → conductor → role. Roles call `record()` after each LLM
+   *  call so the workflow-engine can build a per-role cost breakdown.
+   *  Structurally compatible with `LLMUsageTracker.record` from
+   *  `@atlas/llm-provider`; defined locally to avoid a workspace dep cycle
+   *  (llm-provider depends on conductor types in some chains). When absent,
+   *  roles MUST skip recording silently (no fabricated usage). */
+  usageTracker?: {
+    record(
+      provider: string,
+      model: string,
+      usage: { inputTokens: number; outputTokens: number },
+      opts?: { roleId?: string }
+    ): void;
+  };
 }
 
 /** Minimal rubric shape expected by the conductor's eval gate.
