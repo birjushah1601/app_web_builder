@@ -105,9 +105,8 @@ export interface IWorkflowNodeRepo {
     artifact?: unknown;
     failure?: unknown;
     /** Plan F.2 — present when the engine's post-producer deploy hook
-     *  ran for this node. In-memory test repos store it directly; real
-     *  spec-graph-data repo returns undefined until Plan F.3 adds the
-     *  workflow_nodes.deploy_result column. */
+     *  ran for this node. Plan F.3 Task 2 persisted this via the real
+     *  spec-graph-data repo to the workflow_nodes.deploy_result column. */
     deployResult?: unknown;
   }>>;
   findOne(runId: string, nodeId: string): Promise<{
@@ -125,13 +124,9 @@ export interface IWorkflowNodeRepo {
   updatePolicy(runId: string, nodeId: string, policy: unknown): Promise<void>;
   updateSummary(runId: string, nodeId: string, summary: string): Promise<void>;
   /** Plan F.2 — persists the result of running the artifact-driven deploy
-   *  for a node (only used by deploy-kind nodes). The in-memory test repos
-   *  store this in a per-row field; the real spec-graph-data repo throws
-   *  "not implemented" because the workflow_nodes table doesn't yet have
-   *  a deploy_result column — Plan F.3 adds the migration. For Plan F.2 v1
-   *  the engine still calls this method; the real-DB throw is swallowed by
-   *  buildSchedulerDeps so the node still completes (deploy ran in K8s,
-   *  the result just isn't persisted across process restarts). */
+   *  for a node (only used by deploy-kind nodes). Plan F.3 Task 2 made the
+   *  real spec-graph-data repo write to the workflow_nodes.deploy_result
+   *  column directly; both real + in-memory repos persist now. */
   setDeployResult(runId: string, nodeId: string, deployResult: unknown): Promise<void>;
 }
 
@@ -879,16 +874,11 @@ export class WorkflowEngine {
    *   - the emitted artifact's kind !== "deploy"
    *   - no upstream IacArtifact is found via priorArtifact.upstream
    *
-   * If deployRunner throws, the throw propagates back up through
-   * persistNodeState → scheduler.launchAndAwait's catch block, which marks
-   * the node failed via the existing failure path. The deploy artifact is
-   * still persisted (step 1 above); only deployResult is missing.
-   *
-   * Plan F.3 trade-off: the real spec-graph-data WorkflowNodeRepo throws
-   * "not implemented" from setDeployResult because workflow_nodes.deploy_result
-   * doesn't exist yet. We swallow that specific persistence error so the
-   * node still completes — the deploy ran in K8s, the result just isn't
-   * visible across process restarts. The migration is a Plan F.3 task.
+   * If deployRunner OR setDeployResult throws, the throw propagates back up
+   * through persistNodeState → scheduler.launchAndAwait's catch block, which
+   * marks the node failed via the existing failure path. The deploy artifact
+   * is still persisted (step 1 above); only deployResult + status="done" are
+   * skipped.
    */
   private async runDeployHookIfApplicable(
     workflowRunId: string,
@@ -958,23 +948,10 @@ export class WorkflowEngine {
 
     // deployRunner throw → propagates up to scheduler.launchAndAwait's
     // catch block → node marked failed via existing path. We do NOT
-    // catch here.
+    // catch here. Likewise setDeployResult errors propagate; Plan F.3
+    // Task 2 made the real repo persist the column directly.
     const deployResult = await deployRunner(input);
-
-    // Persist deployResult. Swallow "not implemented" from the real repo
-    // (see Plan F.3 trade-off above) so the deploy still counts as done.
-    try {
-      await nodeRepo.setDeployResult(workflowRunId, nodeId, deployResult);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes("not implemented")) {
-        console.warn(
-          `[workflow-engine] deploy hook: setDeployResult is not implemented yet (Plan F.3) — deployResult won't persist for node "${nodeId}"`
-        );
-      } else {
-        throw err;
-      }
-    }
+    await nodeRepo.setDeployResult(workflowRunId, nodeId, deployResult);
   }
 
   /**

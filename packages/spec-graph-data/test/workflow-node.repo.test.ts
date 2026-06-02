@@ -264,3 +264,67 @@ describe("WorkflowNodeRepo.updatePolicy", () => {
     expect(updated!.policy).toEqual(newPolicy);
   });
 });
+
+describe("WorkflowNodeRepo.setDeployResult (Plan F.3)", () => {
+  let db: Database;
+  let runRepo: WorkflowRunRepo;
+  let repo: WorkflowNodeRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    runRepo = new WorkflowRunRepo(db.pool);
+    repo = new WorkflowNodeRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAllTables(db);
+  });
+
+  afterAll(async () => {
+    await db.pool.end();
+  });
+
+  it("writes + reads deployResult round-trip", async () => {
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
+    await repo.insertMany([
+      makeNode(run.id, "deploy", { artifactKind: "deploy", summary: "d" })
+    ]);
+
+    const result = {
+      deployId: "d-1",
+      publicUrl: "https://x.atlas.dev",
+      argoApplicationName: "x",
+      branchSchemaName: "main",
+      appliedManifests: [{ namespace: "atlas-projects", kind: "Service", name: "api" }],
+      phase: "healthy",
+      startedAt: "2026-06-02T00:00:00.000Z"
+    };
+    await repo.setDeployResult(run.id, "deploy", result);
+
+    const rows = await repo.findByRunId(run.id);
+    const row = rows.find((r) => r.id === "deploy")!;
+    expect(row.deployResult).toEqual(result);
+  });
+
+  it("does NOT throw 'not implemented' anymore (Plan F.3 closes the gap)", async () => {
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
+    await repo.insertMany([
+      makeNode(run.id, "deploy", { artifactKind: "deploy", summary: "d" })
+    ]);
+    await expect(
+      repo.setDeployResult(run.id, "deploy", { phase: "healthy" })
+    ).resolves.not.toThrow();
+  });
+
+  it("does not affect sibling nodes", async () => {
+    const run = await runRepo.insert(makeRun(await seedProject(db)));
+    await repo.insertMany([
+      makeNode(run.id, "deploy", { artifactKind: "deploy", summary: "d" }),
+      makeNode(run.id, "other")
+    ]);
+    await repo.setDeployResult(run.id, "deploy", { phase: "healthy" });
+    const rows = await repo.findByRunId(run.id);
+    const other = rows.find((r) => r.id === "other")!;
+    expect(other.deployResult).toBeNull();
+  });
+});
