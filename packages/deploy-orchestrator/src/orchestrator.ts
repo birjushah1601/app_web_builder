@@ -11,6 +11,11 @@ import {
   type DeployResult
 } from "./types.js";
 import { DeployError, ManifestEmissionError } from "./errors.js";
+import {
+  runDeployFromArtifacts,
+  type DeployFromArtifactsInput,
+  type DeployFromArtifactsResult
+} from "./deploy-from-artifacts.js";
 
 export interface BranchingPort {
   ensureBranch(projectId: string, branchId: string): Promise<{ schemaName: string; created: boolean }>;
@@ -104,5 +109,24 @@ export class DeployOrchestrator {
       startedAt,
       endedAt: new Date().toISOString()
     };
+  }
+
+  /**
+   * Plan F.2: artifact-driven deploy. Applies Plan F's LLM-generated K8s
+   * manifests + Argo CD Application verbatim via the same kubernetes-client
+   * + cloudflare-client + reconcile + rollback machinery as `deploy()`.
+   * Existing `deploy()` (canonical-manifest emission) stays for non-workflow
+   * callers.
+   */
+  async deployFromArtifacts(input: DeployFromArtifactsInput): Promise<DeployFromArtifactsResult> {
+    return runDeployFromArtifacts({
+      kubernetes: this.opts.kubernetes,
+      cloudflare: this.opts.cloudflare,
+      branching: this.opts.branching,
+      migrate: this.opts.migrate,
+      ingressTarget: this.opts.ingressTarget,
+      ...(this.opts.reconcileIntervalMs !== undefined ? { reconcileIntervalMs: this.opts.reconcileIntervalMs } : {}),
+      ...(this.opts.reconcileTimeoutMs !== undefined ? { reconcileTimeoutMs: this.opts.reconcileTimeoutMs } : {})
+    }, input);
   }
 }
