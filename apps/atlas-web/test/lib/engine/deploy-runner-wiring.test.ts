@@ -164,6 +164,23 @@ vi.mock("@kubernetes/client-node", () => ({
   CustomObjectsApi: class {}
 }));
 
+// Plan F.4 — factory's buildDeployRunner now instantiates a real
+// PgBranchingAdapter + replayMigrationsToSchema for the BranchingPort +
+// MigratePort. Stub both so tests don't need a live Postgres.
+vi.mock("@atlas/postgres-branching", () => ({
+  PgBranchingAdapter: class {
+    constructor(_pool: unknown) {}
+    async ensureBranch(_p: string, b: string) { return { schemaName: `br_${b}`, created: true }; }
+    async dropBranch(_p: string, b: string) { return { schemaName: `br_${b}`, dropped: true }; }
+    async listBranches(_p: string) { return []; }
+  },
+  replayMigrationsToSchema: vi.fn(async (input: { schemaName: string }) => ({
+    schemaName: input.schemaName,
+    applied: 0,
+    filenames: [] as string[]
+  }))
+}));
+
 const DEPLOY_ENV_KEYS = [
   "ATLAS_FF_DEPLOY_RUNTIME",
   "ATLAS_DEPLOY_APEX",
@@ -171,7 +188,8 @@ const DEPLOY_ENV_KEYS = [
   "ATLAS_DEPLOY_ISSUER_REF",
   "ATLAS_DEPLOY_MANIFEST_REPO_URL",
   "ATLAS_CLOUDFLARE_TOKEN",
-  "ATLAS_CLOUDFLARE_ZONE_ID"
+  "ATLAS_CLOUDFLARE_ZONE_ID",
+  "DATABASE_URL_DEPLOY"
 ] as const;
 
 function clearDeployEnv(): void {
@@ -186,6 +204,8 @@ function setFullDeployEnv(): void {
   process.env.ATLAS_DEPLOY_MANIFEST_REPO_URL = "git@example.com:manifests.git";
   process.env.ATLAS_CLOUDFLARE_TOKEN = "cf-token";
   process.env.ATLAS_CLOUDFLARE_ZONE_ID = "cf-zone";
+  // Plan F.4 — required for per-run Postgres branching adapter wiring.
+  process.env.DATABASE_URL_DEPLOY = "postgresql://atlas:atlas@localhost:5432/deploy-test";
 }
 
 beforeEach(() => {

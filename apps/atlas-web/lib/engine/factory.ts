@@ -1077,22 +1077,42 @@ async function buildDeployRunner(): Promise<
 
   const cloudflare = new HttpCloudflareClient({ token: cfToken! });
 
-  // BranchingPort stub — v1 just returns the existing "main" schema and
-  // never claims to have created a branch (so MigratePort is never invoked
-  // in deployFromArtifacts's `if (branch.created)` path). Real per-run
-  // branching is a Plan F.3 concern; the runner-side contract is satisfied.
-  const branching: import("@atlas/deploy-orchestrator").BranchingPort = {
-    ensureBranch: async (_projectId, _branchId) => ({ schemaName: "main", created: false }),
-    dropBranch: async (_projectId, _branchId) => ({ schemaName: "main", dropped: false }),
-    listBranches: async () => []
-  };
+  // Plan F.4 — real per-run Postgres branching. Each deploy run gets its own
+  // isolated schema (sha256-hashed from projectId|branchId via PgBranchingAdapter)
+  // and the full spec-graph-data migration history is replayed into it via
+  // replayMigrationsToSchema. Stubs from F.2 are gone.
+  //
+  // DATABASE_URL_DEPLOY lets operators point per-run branches at a separate
+  // cluster from spec-graph-data's primary; falls back to DATABASE_URL.
+  const { PgBranchingAdapter } = await import("@atlas/postgres-branching");
+  const { Pool: DeployPool } = await import("pg");
+  const { createDeployBranching, createDeployMigrate } = await import("./branching.js");
+  const { resolve: pathResolve } = await import("node:path");
 
-  // MigratePort stub — applied=0, filenames=[] is the no-op shape.
-  const migrate: import("@atlas/deploy-orchestrator").MigratePort = async ({ schemaName }) => ({
-    schemaName,
-    applied: 0,
-    filenames: []
-  });
+  const deployDbUrl = process.env.DATABASE_URL_DEPLOY ?? process.env.DATABASE_URL;
+  if (!deployDbUrl) {
+    throw new Error(
+      "Deploy runtime enabled (ATLAS_FF_DEPLOY_RUNTIME=true) but no DATABASE_URL_DEPLOY or DATABASE_URL is set"
+    );
+  }
+  const deployPool = new DeployPool({ connectionString: deployDbUrl });
+  const branchingAdapter = new PgBranchingAdapter(deployPool);
+  const branching = createDeployBranching(branchingAdapter);
+
+  // spec-graph-data ships its drizzle migrations inside its package. From
+  // atlas-web's monorepo cwd (apps/atlas-web at boot) they live at
+  // ../../packages/spec-graph-data/drizzle. The directory is read by
+  // replayMigrationsToSchema at call time so new migrations land automatically
+  // with no code change here.
+  const migrationsDir = pathResolve(
+    process.cwd(),
+    "..",
+    "..",
+    "packages",
+    "spec-graph-data",
+    "drizzle"
+  );
+  const migrate = createDeployMigrate({ pool: deployPool, migrationsDir });
 
   const orchestrator = new DeployOrchestrator({
     kubernetes,

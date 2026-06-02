@@ -37,6 +37,9 @@ importers:
       '@atlas/llm-provider':
         specifier: workspace:*
         version: link:../../packages/llm-provider
+      '@atlas/postgres-branching':
+        specifier: workspace:*
+        version: link:../../packages/postgres-branching
       '@atlas/ritual-engine':
         specifier: workspace:*
         version: link:../../packages/ritual-engine
