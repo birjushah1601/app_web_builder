@@ -11,6 +11,7 @@ import {
   type CommandRunner,
   type ImageBuilderResult
 } from "./image-builder.js";
+import { pushArgoApplicationToRepo, type GitClient } from "./gitops-repo.js";
 import { DeployError } from "./errors.js";
 
 export interface DeployFromArtifactsOptions {
@@ -31,6 +32,22 @@ export interface DeployFromArtifactsOptions {
    *  skips `docker push`. Useful for local dev + tests where no real
    *  registry exists. */
   skipImagePush?: boolean;
+  /** Plan F.5 — when > 1, image builds run with that many concurrent docker
+   *  invocations. Default 1 = sequential (today's behavior). */
+  imageBuildParallelism?: number;
+  /** Plan F.5 — when set, the Argo Application is pushed to this gitops
+   *  repo INSTEAD of being applied directly to the management cluster.
+   *  Argo CD will reconcile from the repo. When unset, the orchestrator
+   *  applies the Application directly (today's behavior). The IaC k8s
+   *  manifests (Service, Deployment, ...) continue to flow through
+   *  `kubernetes.apply` either way — those land in the management cluster. */
+  gitops?: {
+    repoUrl: string;
+    branch?: string;
+    gitClient?: GitClient;
+    appPath?: string;
+    workdir?: string;
+  };
 }
 
 export interface DeployFromArtifactsInput {
@@ -93,7 +110,10 @@ export async function runDeployFromArtifacts(
   if (input.deployArtifact.imageBuilds.length > 0) {
     imageResults = await buildAndPushImages(input.deployArtifact.imageBuilds, {
       ...(opts.imageRunner ? { runner: opts.imageRunner } : {}),
-      ...(opts.skipImagePush !== undefined ? { skipPush: opts.skipImagePush } : {})
+      ...(opts.skipImagePush !== undefined ? { skipPush: opts.skipImagePush } : {}),
+      ...(opts.imageBuildParallelism !== undefined
+        ? { parallelism: opts.imageBuildParallelism }
+        : {})
     });
     const failed = imageResults.filter((r) => !r.ok);
     if (failed.length > 0) {
@@ -113,17 +133,44 @@ export async function runDeployFromArtifacts(
     }
 
     // Apply Argo CD Application.
-    await opts.kubernetes.apply(
-      ARGO_NAMESPACE,
-      "Application",
-      input.deployArtifact.argoApplication.name,
-      input.deployArtifact.argoApplication.content
-    );
-    applied.push({
-      namespace: ARGO_NAMESPACE,
-      kind: "Application",
-      name: input.deployArtifact.argoApplication.name
-    });
+    //
+    // Plan F.5 — when opts.gitops is configured, push the Application to a
+    // gitops repo INSTEAD of direct kubectl-apply. Argo CD reconciles from
+    // the repo. When unset, today's direct-apply path runs unchanged.
+    if (opts.gitops) {
+      await pushArgoApplicationToRepo(
+        { deployId, deployArtifact: input.deployArtifact },
+        {
+          repoUrl: opts.gitops.repoUrl,
+          ...(opts.gitops.branch ? { branch: opts.gitops.branch } : {}),
+          ...(opts.gitops.gitClient ? { gitClient: opts.gitops.gitClient } : {}),
+          ...(opts.gitops.appPath ? { appPath: opts.gitops.appPath } : {}),
+          ...(opts.gitops.workdir ? { workdir: opts.gitops.workdir } : {})
+        }
+      );
+      // Synthetic applied entry under namespace "gitops" so the rollback +
+      // observability surface still sees the Application. Note: we do NOT
+      // try to revert the git commit on failure (that's F.6 territory —
+      // would need a separate "revert push" or PR-close flow). Rollback
+      // simply removes any direct k8s-applied IaC manifests.
+      applied.push({
+        namespace: "gitops",
+        kind: "Application",
+        name: input.deployArtifact.argoApplication.name
+      });
+    } else {
+      await opts.kubernetes.apply(
+        ARGO_NAMESPACE,
+        "Application",
+        input.deployArtifact.argoApplication.name,
+        input.deployArtifact.argoApplication.content
+      );
+      applied.push({
+        namespace: ARGO_NAMESPACE,
+        kind: "Application",
+        name: input.deployArtifact.argoApplication.name
+      });
+    }
 
     // DNS.
     await opts.cloudflare.upsertDnsRecord(input.apex, fqdn, "CNAME", opts.ingressTarget);
@@ -142,6 +189,10 @@ export async function runDeployFromArtifacts(
       // Roll back DNS first, then every applied manifest in REVERSE order.
       await opts.cloudflare.deleteDnsRecord(input.apex, fqdn).catch(() => {});
       for (const m of [...applied].reverse()) {
+        // Plan F.5 — skip synthetic gitops entries; we don't revert the git
+        // commit (that's F.6 territory). The IaC manifests that did land
+        // directly in k8s still get cleaned up.
+        if (m.namespace === "gitops") continue;
         await opts.kubernetes.delete(m.namespace, m.kind, m.name).catch(() => {});
       }
       throw new DeployError(
@@ -161,6 +212,10 @@ export async function runDeployFromArtifacts(
     if (failedSmokes.length > 0) {
       await opts.cloudflare.deleteDnsRecord(input.apex, fqdn).catch(() => {});
       for (const m of [...applied].reverse()) {
+        // Plan F.5 — skip synthetic gitops entries; we don't revert the git
+        // commit (that's F.6 territory). The IaC manifests that did land
+        // directly in k8s still get cleaned up.
+        if (m.namespace === "gitops") continue;
         await opts.kubernetes.delete(m.namespace, m.kind, m.name).catch(() => {});
       }
       const failedUrls = failedSmokes
@@ -187,6 +242,7 @@ export async function runDeployFromArtifacts(
     if (err instanceof DeployError) throw err;
     await opts.cloudflare.deleteDnsRecord(input.apex, fqdn).catch(() => {});
     for (const m of [...applied].reverse()) {
+      if (m.namespace === "gitops") continue;
       await opts.kubernetes.delete(m.namespace, m.kind, m.name).catch(() => {});
     }
     throw err;

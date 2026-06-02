@@ -36,6 +36,10 @@ export interface BuildAndPushImagesOptions {
   perBuildTimeoutMs?: number;
   /** Build only — don't push. Useful for local + tests. */
   skipPush?: boolean;
+  /** Plan F.5 — when > 1, builds run in batches of N concurrently via
+   *  Promise.all. Order of returned results matches order of input.
+   *  Default 1 = sequential (today's behavior). Values < 1 are clamped to 1. */
+  parallelism?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 600_000;
@@ -73,6 +77,61 @@ export const defaultCommandRunner: CommandRunner = (cmd, args, opts) =>
     });
   });
 
+/** Build + (optionally) push a single image. Fail-soft: returns an
+ *  ImageBuilderResult with ok=false rather than throwing. */
+async function buildAndPushOne(
+  img: DeployArtifact["imageBuilds"][number],
+  runner: CommandRunner,
+  cwd: string,
+  timeoutMs: number,
+  skipPush: boolean
+): Promise<ImageBuilderResult> {
+  // ── build ────────────────────────────────────────────────────────────────
+  const buildArgs = ["build", "-t", img.imageTag, "-f", img.dockerfilePath, cwd];
+  const buildRes = await runner("docker", buildArgs, { cwd, timeoutMs }).catch((err: Error) => ({
+    stdout: "",
+    stderr: err.message,
+    exitCode: -1
+  }));
+
+  if (buildRes.exitCode !== 0) {
+    return {
+      serviceName: img.serviceName,
+      imageTag: img.imageTag,
+      ok: false,
+      error: (buildRes.stderr || buildRes.stdout || `docker build exit ${buildRes.exitCode}`).trim()
+    };
+  }
+
+  // ── push (or skip) ───────────────────────────────────────────────────────
+  if (skipPush) {
+    return { serviceName: img.serviceName, imageTag: img.imageTag, ok: true };
+  }
+
+  const pushRes = await runner("docker", ["push", img.imageTag], { cwd, timeoutMs }).catch((err: Error) => ({
+    stdout: "",
+    stderr: err.message,
+    exitCode: -1
+  }));
+
+  if (pushRes.exitCode !== 0) {
+    return {
+      serviceName: img.serviceName,
+      imageTag: img.imageTag,
+      ok: false,
+      error: (pushRes.stderr || pushRes.stdout || `docker push exit ${pushRes.exitCode}`).trim()
+    };
+  }
+
+  const digestMatch = DIGEST_RE.exec(pushRes.stdout);
+  return {
+    serviceName: img.serviceName,
+    imageTag: img.imageTag,
+    ok: true,
+    ...(digestMatch?.[1] ? { digest: digestMatch[1] } : {})
+  };
+}
+
 export async function buildAndPushImages(
   images: DeployArtifact["imageBuilds"],
   opts: BuildAndPushImagesOptions = {}
@@ -80,57 +139,33 @@ export async function buildAndPushImages(
   const runner = opts.runner ?? defaultCommandRunner;
   const cwd = opts.cwd ?? process.cwd();
   const timeoutMs = opts.perBuildTimeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const results: ImageBuilderResult[] = [];
+  const skipPush = opts.skipPush ?? false;
+  // Plan F.5 — clamp to >=1 so callers passing 0 or negative get sequential
+  // (today's) behavior rather than zero-batch deadlock.
+  const parallelism = Math.max(1, Math.floor(opts.parallelism ?? 1));
 
-  for (const img of images) {
-    // ── build ──────────────────────────────────────────────────────────────
-    const buildArgs = ["build", "-t", img.imageTag, "-f", img.dockerfilePath, cwd];
-    const buildRes = await runner("docker", buildArgs, { cwd, timeoutMs }).catch((err: Error) => ({
-      stdout: "",
-      stderr: err.message,
-      exitCode: -1
-    }));
-
-    if (buildRes.exitCode !== 0) {
-      results.push({
-        serviceName: img.serviceName,
-        imageTag: img.imageTag,
-        ok: false,
-        error: (buildRes.stderr || buildRes.stdout || `docker build exit ${buildRes.exitCode}`).trim()
-      });
-      continue;
+  if (parallelism === 1) {
+    // Sequential — preserves Plan F.4's exact behavior. We keep this branch
+    // explicit (rather than fall through to the batched path with N=1) so the
+    // common case has no extra Promise.all overhead and the stack trace stays
+    // shallow.
+    const results: ImageBuilderResult[] = [];
+    for (const img of images) {
+      results.push(await buildAndPushOne(img, runner, cwd, timeoutMs, skipPush));
     }
-
-    // ── push (or skip) ─────────────────────────────────────────────────────
-    if (opts.skipPush) {
-      results.push({ serviceName: img.serviceName, imageTag: img.imageTag, ok: true });
-      continue;
-    }
-
-    const pushRes = await runner("docker", ["push", img.imageTag], { cwd, timeoutMs }).catch((err: Error) => ({
-      stdout: "",
-      stderr: err.message,
-      exitCode: -1
-    }));
-
-    if (pushRes.exitCode !== 0) {
-      results.push({
-        serviceName: img.serviceName,
-        imageTag: img.imageTag,
-        ok: false,
-        error: (pushRes.stderr || pushRes.stdout || `docker push exit ${pushRes.exitCode}`).trim()
-      });
-      continue;
-    }
-
-    const digestMatch = DIGEST_RE.exec(pushRes.stdout);
-    results.push({
-      serviceName: img.serviceName,
-      imageTag: img.imageTag,
-      ok: true,
-      ...(digestMatch?.[1] ? { digest: digestMatch[1] } : {})
-    });
+    return results;
   }
 
-  return results;
+  // Parallel — slice into batches of size N, await Promise.all per batch.
+  // Order of results matches order of input because Promise.all preserves
+  // input order and we concat batches in order.
+  const out: ImageBuilderResult[] = [];
+  for (let i = 0; i < images.length; i += parallelism) {
+    const batch = images.slice(i, i + parallelism);
+    const batchResults = await Promise.all(
+      batch.map((img) => buildAndPushOne(img, runner, cwd, timeoutMs, skipPush))
+    );
+    out.push(...batchResults);
+  }
+  return out;
 }
