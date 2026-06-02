@@ -98,11 +98,17 @@ export interface StartInput {
    *  workflow-engine so roles can record token usage and the engine can
    *  enforce a USD cost cap. Structural type (matches
    *  `LLMUsageTracker` from `@atlas/llm-provider`) so this package does
-   *  not need a new dependency. The ritual-engine accepts it for
-   *  forward-compat but does NOT yet read it — Plan G v1 only plumbs the
-   *  channel; role-level recording lands in a follow-up task. */
+   *  not need a new dependency. Plan G.4 Task 2: the engine now forwards
+   *  this into every `conductor.dispatch(...)` call's options so each role's
+   *  RoleInvocation.usageTracker is populated and per-role cost recording
+   *  actually splits by roleId (instead of collapsing into __unassigned__). */
   usageTracker?: {
-    record(provider: string, model: string, usage: { inputTokens: number; outputTokens: number }): void;
+    record(
+      provider: string,
+      model: string,
+      usage: { inputTokens: number; outputTokens: number },
+      opts?: { roleId?: string }
+    ): void;
     totalUsd(): number;
   };
 }
@@ -377,6 +383,9 @@ export class RitualEngine {
 
       for (const roleId of input.roleChain) {
         try {
+          // Plan G.4 Task 2 — every dispatch in the chain must forward the
+          // workflow-run usageTracker so each chained role's RoleInvocation
+          // sees it and can record per-role usage.
           const chainResult = await this.conductor.dispatch(
             {
               ritualId: ritualId as unknown as Parameters<typeof this.conductor.dispatch>[0]["ritualId"],
@@ -384,9 +393,11 @@ export class RitualEngine {
               userTurn: input.userTurn,
               projectId: input.projectId
             },
-            input.priorArtifact !== undefined
-              ? { forceRoleId: roleId, priorArtifact: input.priorArtifact }
-              : { forceRoleId: roleId }
+            {
+              forceRoleId: roleId,
+              ...(input.priorArtifact !== undefined ? { priorArtifact: input.priorArtifact } : {}),
+              ...(input.usageTracker !== undefined ? { usageTracker: input.usageTracker } : {})
+            }
           );
 
           record.roleEvents = [
@@ -447,7 +458,11 @@ export class RitualEngine {
     // sandbox files" section. Plan PFP: when artifactKindHint is set,
     // fold it into priorArtifact so role-architect can short-circuit the
     // artifactKind classification pass.
-    const dispatchOptions: { priorArtifact?: unknown; currentFiles?: ReadonlyArray<{ path: string; content?: string }> } = {};
+    const dispatchOptions: {
+      priorArtifact?: unknown;
+      currentFiles?: ReadonlyArray<{ path: string; content?: string }>;
+      usageTracker?: StartInput["usageTracker"];
+    } = {};
     const architectPriorArtifact = {
       ...(input.priorContext ? input.priorContext : {}),
       ...(input.artifactKindHint ? { artifactKindHint: input.artifactKindHint } : {}),
@@ -461,6 +476,10 @@ export class RitualEngine {
       dispatchOptions.priorArtifact = architectPriorArtifact;
     }
     if (input.currentFiles !== undefined) dispatchOptions.currentFiles = input.currentFiles;
+    // Plan G.4 Task 2 — forward the workflow-run usageTracker into every
+    // architect/researcher/designer/developer/chain dispatch below. Same
+    // exactOptionalPropertyTypes-safe conditional-set pattern as currentFiles.
+    if (input.usageTracker !== undefined) dispatchOptions.usageTracker = input.usageTracker;
 
     let result: Awaited<ReturnType<typeof this.conductor.dispatch>>;
     try {
@@ -639,7 +658,11 @@ export class RitualEngine {
                 userTurn: input.userTurn,
                 projectId: input.projectId
               },
-              { forceRoleId: "researcher", priorArtifact: { designIntent } }
+              {
+                forceRoleId: "researcher",
+                priorArtifact: { designIntent },
+                ...(input.usageTracker !== undefined ? { usageTracker: input.usageTracker } : {})
+              }
             );
             record.roleEvents = [
               ...(record.roleEvents ?? []),
@@ -664,7 +687,11 @@ export class RitualEngine {
               userTurn: input.userTurn,
               projectId: input.projectId
             },
-            { forceRoleId: "schema-architect", priorArtifact: { architectArtifact: artifact, brief, designIntent } }
+            {
+              forceRoleId: "schema-architect",
+              priorArtifact: { architectArtifact: artifact, brief, designIntent },
+              ...(input.usageTracker !== undefined ? { usageTracker: input.usageTracker } : {})
+            }
           );
           record.roleEvents = [
             ...(record.roleEvents ?? []),
@@ -722,7 +749,11 @@ export class RitualEngine {
                 userTurn: input.userTurn,
                 projectId: input.projectId
               },
-              { forceRoleId: "researcher", priorArtifact: { designIntent } }
+              {
+                forceRoleId: "researcher",
+                priorArtifact: { designIntent },
+                ...(input.usageTracker !== undefined ? { usageTracker: input.usageTracker } : {})
+              }
             );
             record.roleEvents = [
               ...(record.roleEvents ?? []),
@@ -751,7 +782,11 @@ export class RitualEngine {
               userTurn: input.userTurn,
               projectId: input.projectId
             },
-            { forceRoleId: "designer", priorArtifact: { artifact, brief, designIntent } }
+            {
+              forceRoleId: "designer",
+              priorArtifact: { artifact, brief, designIntent },
+              ...(input.usageTracker !== undefined ? { usageTracker: input.usageTracker } : {})
+            }
           );
           record.roleEvents = [
             ...(record.roleEvents ?? []),
@@ -820,7 +855,8 @@ export class RitualEngine {
                 },
                 {
                   forceRoleId: "asset-generator",
-                  priorArtifact: { proposal, brief, projectId: input.projectId }
+                  priorArtifact: { proposal, brief, projectId: input.projectId },
+                  ...(input.usageTracker !== undefined ? { usageTracker: input.usageTracker } : {})
                 }
               );
               record.roleEvents = [
@@ -873,7 +909,11 @@ export class RitualEngine {
             userTurn: input.userTurn,
             projectId: input.projectId
           },
-          { forceRoleId: "developer", priorArtifact: developerPriorArtifact }
+          {
+            forceRoleId: "developer",
+            priorArtifact: developerPriorArtifact,
+            ...(input.usageTracker !== undefined ? { usageTracker: input.usageTracker } : {})
+          }
         );
         record.developerOutput = (devResult.output.diff.kind === "patch")
           ? { diff: devResult.output.diff.body ?? "", summary: extractDeveloperSummary(devResult.output.events) }
@@ -952,7 +992,8 @@ export class RitualEngine {
                   priorArtifact: {
                     ...(record.sandboxApplyResult ?? {}),
                     ...record.developerOutput
-                  }
+                  },
+                  ...(input.usageTracker !== undefined ? { usageTracker: input.usageTracker } : {})
                 }
               );
 
