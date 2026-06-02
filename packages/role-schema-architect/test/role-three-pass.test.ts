@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+﻿import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SchemaArchitectRole } from "../src/role.js";
 import type { LLMProvider } from "@atlas/llm-provider";
 
@@ -57,9 +57,9 @@ describe("SchemaArchitectRole 3-pass branch", () => {
     const llm = {
       completeWithToolUse: vi
         .fn()
-        .mockResolvedValueOnce({ toolName: "emit_schema_proposal", input: validProposal() })
-        .mockResolvedValueOnce({ toolName: "emit_critique", input: validCritique() })
-        .mockResolvedValueOnce({ toolName: "emit_revised_schema_proposal", input: validProposal() })
+        .mockResolvedValueOnce({ toolName: "emit_schema_proposal", input: validProposal(), usage: { inputTokens: 0, outputTokens: 0 } })
+        .mockResolvedValueOnce({ toolName: "emit_critique", input: validCritique(), usage: { inputTokens: 0, outputTokens: 0 } })
+        .mockResolvedValueOnce({ toolName: "emit_revised_schema_proposal", input: validProposal(), usage: { inputTokens: 0, outputTokens: 0 } })
     } as unknown as LLMProvider;
     const role = new SchemaArchitectRole({ llm });
     await role.run(backendInvocation);
@@ -70,9 +70,9 @@ describe("SchemaArchitectRole 3-pass branch", () => {
     const llm = {
       completeWithToolUse: vi
         .fn()
-        .mockResolvedValueOnce({ toolName: "emit_schema_proposal", input: validProposal() })
-        .mockResolvedValueOnce({ toolName: "emit_critique", input: validCritique() })
-        .mockResolvedValueOnce({ toolName: "emit_revised_schema_proposal", input: validProposal() })
+        .mockResolvedValueOnce({ toolName: "emit_schema_proposal", input: validProposal(), usage: { inputTokens: 0, outputTokens: 0 } })
+        .mockResolvedValueOnce({ toolName: "emit_critique", input: validCritique(), usage: { inputTokens: 0, outputTokens: 0 } })
+        .mockResolvedValueOnce({ toolName: "emit_revised_schema_proposal", input: validProposal(), usage: { inputTokens: 0, outputTokens: 0 } })
     } as unknown as LLMProvider;
     const role = new SchemaArchitectRole({ llm });
     const out = await role.run(backendInvocation);
@@ -92,8 +92,8 @@ describe("SchemaArchitectRole 3-pass branch", () => {
     const llm = {
       completeWithToolUse: vi
         .fn()
-        .mockResolvedValueOnce({ toolName: "emit_schema_proposal", input: validProposal() })
-        .mockResolvedValueOnce({ toolName: "emit_critique", input: validCritique() })
+        .mockResolvedValueOnce({ toolName: "emit_schema_proposal", input: validProposal(), usage: { inputTokens: 0, outputTokens: 0 } })
+        .mockResolvedValueOnce({ toolName: "emit_critique", input: validCritique(), usage: { inputTokens: 0, outputTokens: 0 } })
         .mockResolvedValueOnce({
           toolName: "emit_revised_schema_proposal",
           input: { recommended: { id: "rec-only" } } // missing every required field
@@ -113,7 +113,7 @@ describe("SchemaArchitectRole 3-pass branch", () => {
     expect(caught).toBeDefined();
     expect(caught?.message).toMatch(/schema-mismatch|failed schema/);
     // The role catches inside revise and emits proposal.failed before throwing
-    // — we can't read out.events here because the throw aborts collection,
+    // â€” we can't read out.events here because the throw aborts collection,
     // but we DO verify that the error reason classification reaches the test.
     expect(events).toEqual([]);
   });
@@ -122,7 +122,7 @@ describe("SchemaArchitectRole 3-pass branch", () => {
     const llm = {
       completeWithToolUse: vi
         .fn()
-        .mockResolvedValueOnce({ toolName: "emit_schema_proposal", input: validProposal() })
+        .mockResolvedValueOnce({ toolName: "emit_schema_proposal", input: validProposal(), usage: { inputTokens: 0, outputTokens: 0 } })
         .mockRejectedValueOnce(new Error("503 critique upstream"))
     } as unknown as LLMProvider;
     const role = new SchemaArchitectRole({ llm });

@@ -15,7 +15,9 @@ export class AccessibilityGateRunner implements GateRunner {
   constructor(opts: AccessibilityGateRunnerOptions) { this.opts = opts; }
 
   async run(input: GateRunInput): Promise<GateResult> {
-    const report = await runAccessibilityCheck({
+    // Plan G.4 Task 3 — runAccessibilityCheck now returns { report, usage, model };
+    // the gate-runner only needs the report.
+    const { report } = await runAccessibilityCheck({
       llm: this.opts.llm,
       skills: this.opts.skills,
       diff: "",

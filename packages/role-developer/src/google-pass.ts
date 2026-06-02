@@ -1,9 +1,17 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { assembleDeveloperPrompt, getSandboxContextPromptFor } from "./assemble-prompt.js";
 import { withDefaults } from "./anthropic-pass.js";
 import { renderDeveloperUserTurn } from "./render-user-turn.js";
 import { DeveloperOutputSchema, type DeveloperOutput } from "./types.js";
+
+/** Plan G.4 Task 3 — return usage alongside DeveloperOutput so the caller
+ *  can record per-role token usage tagged with roleId="developer". */
+export interface GooglePassResult {
+  output: DeveloperOutput;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const DEVELOPER_GOOGLE_MODEL = "gemini-2.5-flash";
 
@@ -30,7 +38,7 @@ export interface GooglePassInput {
   targetTemplate?: string;
 }
 
-export async function googlePass(input: GooglePassInput): Promise<DeveloperOutput> {
+export async function googlePass(input: GooglePassInput): Promise<GooglePassResult> {
   const skillPrompt = assembleDeveloperPrompt(input.skills, ["tdd-feature", "edit-only-what-changed", "runnable-plan"]);
   const sandboxContext = getSandboxContextPromptFor(input.targetTemplate);
   const systemPrompt = `You are the Atlas Developer (Google Gemini pass). Generate a unified diff that implements the Architect's runnable plan.\n\n${sandboxContext}\n${skillPrompt}`;
@@ -39,10 +47,12 @@ export async function googlePass(input: GooglePassInput): Promise<DeveloperOutpu
     { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },
     { role: "user", content: renderDeveloperUserTurn(input.userTurn, input.architectArtifact) }
   ];
+  const model = input.model ?? DEVELOPER_GOOGLE_MODEL;
+  // Plan G.4 Task 3 — widened local return type to capture usage.
   const result = await (input.llm as unknown as {
-    completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+    completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
   }).completeWithToolUse(messages, {
-    model: input.model ?? DEVELOPER_GOOGLE_MODEL,
+    model,
     // See anthropic-pass for rationale: 8192 truncates mid-file on full-page
     // diffs. 32k gives full-page-plus-CSS headroom without hitting the cap.
     maxTokens: 32_000,
@@ -51,5 +61,9 @@ export async function googlePass(input: GooglePassInput): Promise<DeveloperOutpu
   });
   // Same defensive defaults as anthropicPass — see withDefaults() in
   // anthropic-pass.ts for the rationale.
-  return DeveloperOutputSchema.parse(withDefaults(result.input));
+  return {
+    output: DeveloperOutputSchema.parse(withDefaults(result.input)),
+    usage: result.usage,
+    model
+  };
 }

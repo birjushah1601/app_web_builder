@@ -8,7 +8,13 @@ const CATALOG_DIR = path.resolve(__dirname, "..", "catalog");
 
 const fakeLLM = (toolReply: unknown) =>
   ({
-    completeWithToolUse: vi.fn().mockResolvedValue({ toolName: "emit_brief", input: toolReply })
+    name: "anthropic",
+    completeWithToolUse: vi.fn().mockResolvedValue({
+      toolName: "emit_brief",
+      input: toolReply,
+      // Plan G.4 Task 3 — assembleBrief now surfaces usage to the role.
+      usage: { inputTokens: 0, outputTokens: 0 }
+    })
   } as unknown as { completeWithToolUse: (...args: unknown[]) => Promise<unknown> });
 
 const validBriefReply = (category: string) => ({

@@ -75,12 +75,21 @@ export class ArchitectRole implements Role {
     events.push({ eventType: "architect.pass1.started", payload: { ritualId: inv.ritualId } });
     let report: AmbiguityReport;
     try {
-      report = await triage({
+      const triageResult = await triage({
         userTurn: inv.userTurn,
         graphSlice: inv.graphSlice,
         llm: this.llm,
         triageModel: this.triageModel
       });
+      report = triageResult.report;
+      // Plan G.4 Task 3 — record per-role token usage tagged with this role's id
+      // so the workflow-engine's per-role cost breakdown actually splits.
+      inv.usageTracker?.record(
+        this.llm.name,
+        triageResult.model,
+        { inputTokens: triageResult.usage.inputTokens, outputTokens: triageResult.usage.outputTokens },
+        { roleId: this.id }
+      );
     } catch (err) {
       events.push({ eventType: "architect.pass1.failed", payload: { error: (err as Error).message } });
       throw err;
@@ -115,7 +124,7 @@ export class ArchitectRole implements Role {
       : inv.userTurn;
     let artifact: ArchitectOutput;
     try {
-      artifact = await deepPlan({
+      const deepResult = await deepPlan({
         userTurn: effectiveUserTurn,
         graphSlice: inv.graphSlice,
         ambiguity: report,
@@ -133,6 +142,14 @@ export class ArchitectRole implements Role {
         // `if (input.currentFiles !== undefined)` check stays consistent.
         ...(inv.currentFiles !== undefined ? { currentFiles: [...inv.currentFiles] } : {})
       });
+      artifact = deepResult.artifact;
+      // Plan G.4 Task 3 — record per-role usage for the deep-plan LLM call.
+      inv.usageTracker?.record(
+        this.llm.name,
+        deepResult.model,
+        { inputTokens: deepResult.usage.inputTokens, outputTokens: deepResult.usage.outputTokens },
+        { roleId: this.id }
+      );
     } catch (err) {
       events.push({ eventType: "architect.pass2.failed", payload: { error: (err as Error).message, scope: report.scope } });
       throw err;

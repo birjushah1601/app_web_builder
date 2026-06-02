@@ -35,7 +35,7 @@ describe("synthesizeDag — Task 7", () => {
       reasoning: "Separated API from UI for independent scaling"
     });
 
-    const output = await synthesizeDag({
+    const { output } = await synthesizeDag({
       userTurn: "build a SaaS platform with REST API and React frontend",
       triageReport: PASSED_TRIAGE,
       llm: provider

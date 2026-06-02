@@ -1,6 +1,14 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import { ReviewerVoteSchema, type DeveloperOutput, type ReviewerVote } from "./types.js";
 import { ReviewerFailedError } from "./errors.js";
+
+/** Plan G.4 Task 3 — return usage alongside ReviewerVote so the caller can
+ *  record per-role token usage tagged with roleId="developer". */
+export interface ReviewerVoteResult {
+  vote: ReviewerVote;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const DEVELOPER_REVIEWER_MODEL = "claude-sonnet-4-6";
 
@@ -20,7 +28,7 @@ export interface ReviewerInput {
   model?: string;
 }
 
-export async function reviewerVote(input: ReviewerInput): Promise<ReviewerVote> {
+export async function reviewerVote(input: ReviewerInput): Promise<ReviewerVoteResult> {
   const messages: LLMMessage[] = [
     {
       role: "system",
@@ -31,12 +39,13 @@ export async function reviewerVote(input: ReviewerInput): Promise<ReviewerVote> 
       content: `=== Anthropic output ===\n${JSON.stringify(input.anthropicOutput, null, 2)}\n\n=== Google output ===\n${JSON.stringify(input.googleOutput, null, 2)}`
     }
   ];
+  const model = input.model ?? DEVELOPER_REVIEWER_MODEL;
   let result;
   try {
     result = await (input.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
-      model: input.model ?? DEVELOPER_REVIEWER_MODEL,
+      model,
       maxTokens: 1024,
       tools: [{ name: "emit_reviewer_vote", description: "Emit the winning provider + reasoning", input_schema: REVIEWER_TOOL_SCHEMA }],
       toolChoice: { type: "tool", name: "emit_reviewer_vote" }
@@ -46,5 +55,5 @@ export async function reviewerVote(input: ReviewerInput): Promise<ReviewerVote> 
   }
   const parse = ReviewerVoteSchema.safeParse(result.input);
   if (!parse.success) throw new ReviewerFailedError("reviewer tool_use payload failed schema", { cause: parse.error });
-  return parse.data;
+  return { vote: parse.data, usage: result.usage, model };
 }

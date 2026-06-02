@@ -1,5 +1,13 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import { PlannerTriageReportSchema, type PlannerTriageReport } from "./types.js";
+
+/** Plan G.4 Task 3 — return usage alongside the parsed report so the role
+ *  can record per-role token usage tagged with roleId="workflow-planner". */
+export interface PlannerTriageResult {
+  report: PlannerTriageReport;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const PLANNER_TRIAGE_MODEL =
   process.env.ATLAS_LLM_TRIAGE_MODEL ?? "anthropic/claude-haiku-4.5";
@@ -85,7 +93,7 @@ export class PlannerTriageFailedError extends Error {
   }
 }
 
-export async function plannerTriage(input: PlannerTriageInput): Promise<PlannerTriageReport> {
+export async function plannerTriage(input: PlannerTriageInput): Promise<PlannerTriageResult> {
   const model = input.triageModel ?? PLANNER_TRIAGE_MODEL;
 
   const kindsContext = input.suggestedKinds?.length
@@ -97,13 +105,13 @@ export async function plannerTriage(input: PlannerTriageInput): Promise<PlannerT
     { role: "user", content: `Prompt: """${input.userTurn}"""${kindsContext}` }
   ];
 
-  let result: { toolName: string; input: unknown };
+  let result: { toolName: string; input: unknown; usage: LLMUsage };
   try {
     result = await (input.llm as unknown as {
       completeWithToolUse: (
         m: LLMMessage[],
         o: Record<string, unknown>
-      ) => Promise<{ toolName: string; input: unknown }>;
+      ) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
       model,
       maxTokens: 2048,
@@ -128,5 +136,5 @@ export async function plannerTriage(input: PlannerTriageInput): Promise<PlannerT
       { cause: parse.error }
     );
   }
-  return parse.data;
+  return { report: parse.data, usage: result.usage, model };
 }

@@ -36,7 +36,7 @@ describe("deepPlan (Pass 2 core)", () => {
     const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
     const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
 
-    const out = await deepPlan({
+    const { artifact: out } = await deepPlan({
       userTurn: "add forgot-password",
       graphSlice: { bytes: "{}", hash: validHash },
       ambiguity: { passed: true, scope: "new-feature", questions: [] },
@@ -87,7 +87,7 @@ describe("deepPlan (Pass 2 core)", () => {
     const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
 
     const inputGraphSlice = { bytes: '{"k":"v"}', hash: validHash };
-    const out = await deepPlan({
+    const { artifact: out } = await deepPlan({
       userTurn: "add forgot-password",
       graphSlice: inputGraphSlice,
       ambiguity: { passed: true, scope: "new-feature", questions: [] },

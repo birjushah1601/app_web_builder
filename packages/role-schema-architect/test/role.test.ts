@@ -5,7 +5,13 @@ import type { LLMProvider } from "@atlas/llm-provider";
 
 const fakeLLM = (input: unknown): LLMProvider =>
   ({
-    completeWithToolUse: vi.fn().mockResolvedValue({ toolName: "emit_schema_proposal", input })
+    name: "anthropic",
+    completeWithToolUse: vi.fn().mockResolvedValue({
+      toolName: "emit_schema_proposal",
+      input,
+      // Plan G.4 Task 3 — assembleProposal now surfaces usage to the role.
+      usage: { inputTokens: 0, outputTokens: 0 }
+    })
   } as unknown as LLMProvider);
 
 const validProposal = () => {

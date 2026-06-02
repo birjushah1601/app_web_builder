@@ -1,4 +1,4 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { assembleDeveloperPrompt, getSandboxContextPromptFor } from "./assemble-prompt.js";
 import { renderDeveloperUserTurn } from "./render-user-turn.js";
@@ -35,7 +35,15 @@ export interface AnthropicPassInput {
   onTokenDelta?: (chunk: string) => void;
 }
 
-export async function anthropicPass(input: AnthropicPassInput): Promise<DeveloperOutput> {
+/** Plan G.4 Task 3 — return usage alongside DeveloperOutput so the caller
+ *  can record per-role token usage tagged with roleId="developer". */
+export interface AnthropicPassResult {
+  output: DeveloperOutput;
+  usage: LLMUsage;
+  model: string;
+}
+
+export async function anthropicPass(input: AnthropicPassInput): Promise<AnthropicPassResult> {
   const skillPrompt = assembleDeveloperPrompt(input.skills, ["tdd-feature", "edit-only-what-changed", "runnable-plan"]);
   const sandboxContext = getSandboxContextPromptFor(input.targetTemplate);
   const systemPrompt = `You are the Atlas Developer (Anthropic Sonnet pass). Generate a unified diff that implements the Architect's runnable plan.\n\n${sandboxContext}\n${skillPrompt}`;
@@ -59,13 +67,16 @@ export async function anthropicPass(input: AnthropicPassInput): Promise<Develope
     tools: [{ name: "emit_developer_output", description: "Emit the diff + summary + tests", input_schema: DEVELOPER_TOOL_SCHEMA }],
     toolChoice: { type: "tool" as const, name: "emit_developer_output" }
   };
+  // Plan G.4 Task 3 — widened to include `usage` so the caller can record
+  // per-role spend. Both call variants on the provider return ToolUseResult
+  // which carries usage today.
   const llmAny = input.llm as unknown as {
-    completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+    completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     completeWithToolUseStreaming?: (
       m: LLMMessage[],
       o: Record<string, unknown>,
       cb: (chunk: string) => void
-    ) => Promise<{ toolName: string; input: unknown }>;
+    ) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
   };
   const result = input.onTokenDelta && typeof llmAny.completeWithToolUseStreaming === "function"
     ? await llmAny.completeWithToolUseStreaming(messages, toolUseOptions, input.onTokenDelta)
@@ -75,7 +86,11 @@ export async function anthropicPass(input: AnthropicPassInput): Promise<Develope
   // Default both to [] when missing so DeveloperOutputSchema.parse succeeds.
   // The diff and summary are still required — those carry the model's actual
   // work; we don't paper over their absence.
-  return DeveloperOutputSchema.parse(withDefaults(result.input));
+  return {
+    output: DeveloperOutputSchema.parse(withDefaults(result.input)),
+    usage: result.usage,
+    model: toolUseOptions.model
+  };
 }
 
 /** Defensive defaults for the two array fields. Models against

@@ -1,8 +1,16 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { assembleMigrationPlannerPrompt } from "./assemble-prompt.js";
 import { MigrationPlanGenerationError } from "./errors.js";
 import { MigrationPlanSchema, type MigrationPlan } from "./types.js";
+
+/** Plan G.4 Task 3 — return usage alongside the parsed plan so the role
+ *  can record per-role token usage tagged with roleId="migration-planner". */
+export interface GenerateMigrationPlanResult {
+  plan: MigrationPlan;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const MIGRATION_PLANNER_MODEL = "claude-opus-4-7";
 
@@ -70,7 +78,7 @@ export interface GeneratePlanInput {
   model?: string;
 }
 
-export async function generateMigrationPlan(input: GeneratePlanInput): Promise<MigrationPlan> {
+export async function generateMigrationPlan(input: GeneratePlanInput): Promise<GenerateMigrationPlanResult> {
   const skillPrompt = assembleMigrationPlannerPrompt(input.skills, [...MIGRATION_PLANNER_SKILLS]);
   const systemPrompt = `You are the Atlas Migration Planner role. Read the source + target WorkloadTopology nodes from the graph slice and emit a 5-stage zero-downtime migration plan via the emit_migration_plan tool. Stages MUST be in order: dual-run, traffic-shift, verify, cutover, decommission. totalEstimateHours MUST equal the sum of stage durations.\n\n${skillPrompt}`;
   const messages: LLMMessage[] = [
@@ -84,6 +92,7 @@ export async function generateMigrationPlan(input: GeneratePlanInput): Promise<M
       content: `Plan a migration from source topology "${input.sourceTopologyRef}" to target topology "${input.targetTopologyRef}".`
     }
   ];
+  const model = input.model ?? MIGRATION_PLANNER_MODEL;
   let result;
   try {
     result = await (
@@ -91,10 +100,10 @@ export async function generateMigrationPlan(input: GeneratePlanInput): Promise<M
         completeWithToolUse: (
           m: LLMMessage[],
           o: Record<string, unknown>
-        ) => Promise<{ toolName: string; input: unknown }>;
+        ) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
       }
     ).completeWithToolUse(messages, {
-      model: input.model ?? MIGRATION_PLANNER_MODEL,
+      model,
       maxTokens: 8192,
       tools: [
         {
@@ -114,5 +123,5 @@ export async function generateMigrationPlan(input: GeneratePlanInput): Promise<M
       cause: parse.error
     });
   }
-  return parse.data;
+  return { plan: parse.data, usage: result.usage, model };
 }

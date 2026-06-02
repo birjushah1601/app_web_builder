@@ -39,12 +39,17 @@ export class WorkflowPlannerRole implements Role {
 
     let triageReport;
     try {
-      triageReport = await plannerTriage({
+      const triageResult = await plannerTriage({
         userTurn: inv.userTurn,
         suggestedKinds,
         llm: this.llm,
         triageModel: this.triageModel
       });
+      triageReport = triageResult.report;
+      // Plan G.4 Task 3 — record per-role usage tagged with this role's id.
+      inv.usageTracker?.record(this.llm.name, triageResult.model,
+        { inputTokens: triageResult.usage.inputTokens, outputTokens: triageResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       events.push({
         eventType: "workflow_planner.pass1.failed",
@@ -84,13 +89,18 @@ export class WorkflowPlannerRole implements Role {
 
     let dagOutput;
     try {
-      dagOutput = await synthesizeDag({
+      const dagResult = await synthesizeDag({
         userTurn: inv.userTurn,
         triageReport,
         suggestedKinds,
         llm: this.llm,
         synthModel: this.synthModel
       });
+      dagOutput = dagResult.output;
+      // Plan G.4 Task 3 — record DAG-synthesis usage.
+      inv.usageTracker?.record(this.llm.name, dagResult.model,
+        { inputTokens: dagResult.usage.inputTokens, outputTokens: dagResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       events.push({
         eventType: "workflow_planner.pass2.failed",

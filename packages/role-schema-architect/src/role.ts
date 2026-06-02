@@ -47,7 +47,12 @@ export class SchemaArchitectRole implements Role {
 
     let draft: SchemaProposal;
     try {
-      draft = await assembleProposal({ llm: this.llm, designIntent, brief, architectArtifact });
+      const draftResult = await assembleProposal({ llm: this.llm, designIntent, brief, architectArtifact });
+      draft = draftResult.proposal;
+      // Plan G.4 Task 3 — record per-role usage tagged with roleId="schema-architect".
+      inv.usageTracker?.record(this.llm.name, draftResult.model,
+        { inputTokens: draftResult.usage.inputTokens, outputTokens: draftResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       const reason = err instanceof SchemaArchitectFailedError ? err.reason : "llm-error";
       events.push({ eventType: "schema_architect.proposal.failed", payload: { error: (err as Error).message, reason } });
@@ -65,7 +70,11 @@ export class SchemaArchitectRole implements Role {
     events.push({ eventType: "schema_architect.critique.started", payload: {} });
     let critique: Critique;
     try {
-      critique = await this.critique(draft);
+      const critiqueResult = await this.critique(draft);
+      critique = critiqueResult.critique;
+      inv.usageTracker?.record(this.llm.name, critiqueResult.model,
+        { inputTokens: critiqueResult.usage.inputTokens, outputTokens: critiqueResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       const reason = err instanceof SchemaArchitectFailedError ? err.reason : "llm-error";
       events.push({ eventType: "schema_architect.proposal.failed", payload: { error: (err as Error).message, reason } });
@@ -76,7 +85,11 @@ export class SchemaArchitectRole implements Role {
     events.push({ eventType: "schema_architect.revise.started", payload: {} });
     let final: SchemaProposal;
     try {
-      final = await this.revise(draft, critique);
+      const reviseResult = await this.revise(draft, critique);
+      final = reviseResult.proposal;
+      inv.usageTracker?.record(this.llm.name, reviseResult.model,
+        { inputTokens: reviseResult.usage.inputTokens, outputTokens: reviseResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       const reason = err instanceof SchemaArchitectFailedError ? err.reason : "llm-error";
       events.push({ eventType: "schema_architect.proposal.failed", payload: { error: (err as Error).message, reason } });
@@ -89,40 +102,42 @@ export class SchemaArchitectRole implements Role {
     return { events, diff: { kind: "none" } };
   }
 
-  private async critique(draft: SchemaProposal): Promise<Critique> {
+  private async critique(draft: SchemaProposal): Promise<{ critique: Critique; usage: import("@atlas/llm-provider").LLMUsage; model: string }> {
     const messages: LLMMessage[] = [
       { role: "system", content: CRITIQUE_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
       { role: "user", content: `Draft proposal:\n${JSON.stringify(draft, null, 2)}` }
     ];
+    const model = this.critiqueModel ?? process.env.ATLAS_LLM_SCHEMA_CRITIQUE_MODEL ?? "anthropic/claude-haiku-4.5";
     const result = await (this.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: import("@atlas/llm-provider").LLMUsage }>;
     }).completeWithToolUse(messages, {
-      model: this.critiqueModel ?? process.env.ATLAS_LLM_SCHEMA_CRITIQUE_MODEL ?? "anthropic/claude-haiku-4.5",
+      model,
       maxTokens: 1024,
       tools: [{ name: "emit_critique", description: "Emit critique", input_schema: CRITIQUE_TOOL_SCHEMA }],
       toolChoice: { type: "tool", name: "emit_critique" }
     });
     const parsed = CritiqueSchema.safeParse(result.input);
     if (!parsed.success) throw new SchemaArchitectFailedError(`critique payload failed schema: ${parsed.error.message}`, { reason: "schema-mismatch", cause: parsed.error });
-    return parsed.data;
+    return { critique: parsed.data, usage: result.usage, model };
   }
 
-  private async revise(draft: SchemaProposal, critique: Critique): Promise<SchemaProposal> {
+  private async revise(draft: SchemaProposal, critique: Critique): Promise<{ proposal: SchemaProposal; usage: import("@atlas/llm-provider").LLMUsage; model: string }> {
     const messages: LLMMessage[] = [
       { role: "system", content: REVISE_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
       { role: "user", content: `Draft:\n${JSON.stringify(draft, null, 2)}\n\nCritique:\n${JSON.stringify(critique, null, 2)}` }
     ];
+    const model = this.reviseModel ?? process.env.ATLAS_LLM_SCHEMA_REVISE_MODEL ?? "anthropic/claude-haiku-4.5";
     const result = await (this.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: import("@atlas/llm-provider").LLMUsage }>;
     }).completeWithToolUse(messages, {
-      model: this.reviseModel ?? process.env.ATLAS_LLM_SCHEMA_REVISE_MODEL ?? "anthropic/claude-haiku-4.5",
+      model,
       maxTokens: 8192,
       tools: [{ name: "emit_revised_schema_proposal", description: "Emit revised proposal", input_schema: REVISED_PROPOSAL_TOOL_SCHEMA }],
       toolChoice: { type: "tool", name: "emit_revised_schema_proposal" }
     });
     const parsed = SchemaProposalSchema.safeParse(result.input);
     if (!parsed.success) throw new SchemaArchitectFailedError(`revised proposal failed schema: ${parsed.error.message}`, { reason: "schema-mismatch", cause: parsed.error });
-    return parsed.data;
+    return { proposal: parsed.data, usage: result.usage, model };
   }
 }
 

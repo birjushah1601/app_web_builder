@@ -23,7 +23,7 @@ describe("googlePass", () => {
     const llm = new GoogleProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
     const skills = createRegistryWithOverrides(loadSkillsFromDir(fixtureDir), []);
 
-    const result = await googlePass({
+    const { output: result } = await googlePass({
       llm,
       skills,
       userTurn: "rename foo to bar",

@@ -4,13 +4,18 @@ import { DesignerRole } from "../src/role.js";
 describe("DesignerRole — three-pass when ATLAS_FF_DESIGNER_CRITIQUE=true", () => {
   it("calls draftProposal then critiqueDraft then reviseDraft in order", async () => {
     const calls: string[] = [];
+    // Plan G.4 Task 3 — every tool-use return must include `usage` so the
+    // role can record per-role spend.
+    const usage = { inputTokens: 0, outputTokens: 0 };
     const llm = {
+      name: "anthropic",
       completeWithToolUse: async (_msgs: unknown, opts: { tools?: Array<{ name: string }> }) => {
         const toolName = opts.tools?.[0]?.name ?? "unknown";
         calls.push(toolName);
         if (toolName === "emit_proposal") {
           return {
             toolName: "emit_proposal",
+            usage,
             input: {
               recommended: {
                 id: "draft-1",
@@ -69,12 +74,14 @@ describe("DesignerRole — three-pass when ATLAS_FF_DESIGNER_CRITIQUE=true", () 
         if (toolName === "emit_critique") {
           return {
             toolName: "emit_critique",
+            usage,
             input: { findings: [{ axis: "palette", score: 2, suggestion: "more ambition" }] }
           };
         }
         if (toolName === "emit_revised_proposal") {
           return {
             toolName: "emit_revised_proposal",
+            usage,
             input: {
               recommended: {
                 id: "final-1",
@@ -177,12 +184,15 @@ describe("DesignerRole — three-pass when ATLAS_FF_DESIGNER_CRITIQUE=true", () 
 
   it("skips critique+revise when flag off, emits draft as final", async () => {
     const calls: string[] = [];
+    const usage = { inputTokens: 0, outputTokens: 0 };
     const llm = {
+      name: "anthropic",
       completeWithToolUse: async (_msgs: unknown, opts: { tools?: Array<{ name: string }> }) => {
         const toolName = opts.tools?.[0]?.name ?? "unknown";
         calls.push(toolName);
         return {
           toolName: "emit_proposal",
+          usage,
           input: {
             recommended: {
               id: "draft-only",

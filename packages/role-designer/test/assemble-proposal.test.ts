@@ -6,7 +6,13 @@ import { DesignerFailedError } from "../src/errors.js";
 
 const fakeLLM = (toolReply: unknown) =>
   ({
-    completeWithToolUse: vi.fn().mockResolvedValue({ toolName: "emit_proposal", input: toolReply })
+    name: "anthropic",
+    completeWithToolUse: vi.fn().mockResolvedValue({
+      toolName: "emit_proposal",
+      input: toolReply,
+      // Plan G.4 Task 3 — assembleProposal now surfaces usage to callers.
+      usage: { inputTokens: 0, outputTokens: 0 }
+    })
   } as unknown as { completeWithToolUse: (...args: unknown[]) => Promise<unknown> });
 
 const tokens = {
@@ -54,7 +60,7 @@ const sampleBrief: InspirationBrief = {
 describe("assembleProposal", () => {
   it("returns a Zod-valid DesignProposal on happy path", async () => {
     const llm = fakeLLM(validProposalReply);
-    const proposal = await assembleProposal({
+    const { proposal } = await assembleProposal({
       llm: llm as never,
       designIntent: { category: "restaurant-landing", audienceCues: ["fine-dining"] },
       brief: sampleBrief,
@@ -98,7 +104,7 @@ describe("assembleProposal", () => {
 
   it("works when brief is null (graceful degrade)", async () => {
     const llm = fakeLLM(validProposalReply);
-    const proposal = await assembleProposal({
+    const { proposal } = await assembleProposal({
       llm: llm as never,
       designIntent: { category: "battle-mech-configurator", audienceCues: [] },
       brief: null,

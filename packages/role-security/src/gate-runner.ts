@@ -15,7 +15,10 @@ export class SecurityGateRunner implements GateRunner {
   constructor(opts: SecurityGateRunnerOptions) { this.opts = opts; }
 
   async run(input: GateRunInput): Promise<GateResult> {
-    const report = await runSecurityCheck({
+    // Plan G.4 Task 3 — runSecurityCheck now returns { report, usage, model };
+    // the gate-runner only needs the report (it has no inv.usageTracker to
+    // record into, as it's called from the gate scheduler, not the role).
+    const { report } = await runSecurityCheck({
       llm: this.opts.llm,
       skills: this.opts.skills,
       diff: "",

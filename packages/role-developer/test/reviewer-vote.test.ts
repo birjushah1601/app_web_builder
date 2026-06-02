@@ -14,7 +14,7 @@ describe("reviewerVote", () => {
     const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
     const llm = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
 
-    const vote = await reviewerVote({
+    const { vote } = await reviewerVote({
       llm,
       anthropicOutput: { diff: "anth diff", summary: "a", testsAdded: [], filesModified: ["x.ts"] },
       googleOutput: { diff: "gog diff", summary: "g", testsAdded: [], filesModified: ["x.ts"] }

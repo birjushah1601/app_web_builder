@@ -19,13 +19,18 @@ export class SecurityRole implements Role {
     events.push({ eventType: "security.started", payload: { ritualId: inv.ritualId } });
 
     try {
-      const report = await runSecurityCheck({
+      const checkResult = await runSecurityCheck({
         llm: this.opts.llm,
         skills: this.opts.skills,
         diff: inv.userTurn,
         graphSlice: inv.graphSlice,
         model: this.opts.model
       });
+      const report = checkResult.report;
+      // Plan G.4 Task 3 — record per-role usage tagged with roleId="security".
+      inv.usageTracker?.record(this.opts.llm.name, checkResult.model,
+        { inputTokens: checkResult.usage.inputTokens, outputTokens: checkResult.usage.outputTokens },
+        { roleId: this.id });
       if (report.passed) {
         events.push({ eventType: "security.passed", payload: { skillsRun: report.skillsRun, issueCount: report.issues.length } });
       } else {

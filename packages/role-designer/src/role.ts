@@ -57,7 +57,12 @@ export class DesignerRole implements Role {
     // ─── Pass 1: draft (always runs — extracted from old single-pass body) ───
     let draft: DesignProposal;
     try {
-      draft = await this.draftProposal(designIntent, brief, architectArtifact);
+      const draftResult = await this.draftProposal(designIntent, brief, architectArtifact);
+      draft = draftResult.proposal;
+      // Plan G.4 Task 3 — record per-role usage tagged with this role's id.
+      inv.usageTracker?.record(this.llm.name, draftResult.model,
+        { inputTokens: draftResult.usage.inputTokens, outputTokens: draftResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       const reason = err instanceof DesignerFailedError ? err.reason : "unknown";
       events.push({
@@ -91,7 +96,12 @@ export class DesignerRole implements Role {
     events.push({ eventType: "designer.critique.started", payload: {} });
     let critique: Critique;
     try {
-      critique = await this.critiqueDraft(draft, brief);
+      const critiqueResult = await this.critiqueDraft(draft, brief);
+      critique = critiqueResult.critique;
+      // Plan G.4 Task 3 — record per-role usage for the critique LLM call.
+      inv.usageTracker?.record(this.llm.name, critiqueResult.model,
+        { inputTokens: critiqueResult.usage.inputTokens, outputTokens: critiqueResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       const reason = err instanceof DesignerFailedError ? err.reason : "unknown";
       events.push({
@@ -106,7 +116,12 @@ export class DesignerRole implements Role {
     events.push({ eventType: "designer.revise.started", payload: {} });
     let finalProposal: DesignProposal;
     try {
-      finalProposal = await this.reviseDraft(draft, critique);
+      const reviseResult = await this.reviseDraft(draft, critique);
+      finalProposal = reviseResult.proposal;
+      // Plan G.4 Task 3 — record per-role usage for the revise LLM call.
+      inv.usageTracker?.record(this.llm.name, reviseResult.model,
+        { inputTokens: reviseResult.usage.inputTokens, outputTokens: reviseResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       const reason = err instanceof DesignerFailedError ? err.reason : "unknown";
       events.push({
@@ -134,19 +149,20 @@ export class DesignerRole implements Role {
     designIntent: DesignIntent,
     brief: InspirationBrief | null,
     architectArtifact: unknown
-  ): Promise<DesignProposal> {
-    return assembleProposal({
+  ): Promise<{ proposal: DesignProposal; usage: { inputTokens: number; outputTokens: number }; model: string }> {
+    const r = await assembleProposal({
       llm: this.llm,
       designIntent,
       brief,
       architectArtifact
     });
+    return { proposal: r.proposal, usage: { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens }, model: r.model };
   }
 
   private async critiqueDraft(
     draft: DesignProposal,
     brief: InspirationBrief | null
-  ): Promise<Critique> {
+  ): Promise<{ critique: Critique; usage: import("@atlas/llm-provider").LLMUsage; model: string }> {
     const messages: LLMMessage[] = [
       {
         role: "system",
@@ -161,15 +177,17 @@ export class DesignerRole implements Role {
       }
     ];
 
-    let result: { toolName: string; input: unknown };
+    const critiqueModel = this.critiqueModel ?? process.env.ATLAS_LLM_CRITIQUE_MODEL ?? "anthropic/claude-haiku-4.5";
+    // Plan G.4 Task 3 — widened to include `usage` so the caller records per-role spend.
+    let result: { toolName: string; input: unknown; usage: import("@atlas/llm-provider").LLMUsage };
     try {
       result = await (this.llm as unknown as {
         completeWithToolUse: (
           m: LLMMessage[],
           o: Record<string, unknown>
-        ) => Promise<{ toolName: string; input: unknown }>;
+        ) => Promise<{ toolName: string; input: unknown; usage: import("@atlas/llm-provider").LLMUsage }>;
       }).completeWithToolUse(messages, {
-        model: this.critiqueModel ?? process.env.ATLAS_LLM_CRITIQUE_MODEL ?? "anthropic/claude-haiku-4.5",
+        model: critiqueModel,
         maxTokens: 1024,
         tools: [
           {
@@ -194,10 +212,10 @@ export class DesignerRole implements Role {
         reason: "schema-mismatch"
       });
     }
-    return parsed.data;
+    return { critique: parsed.data, usage: result.usage, model: critiqueModel };
   }
 
-  private async reviseDraft(draft: DesignProposal, critique: Critique): Promise<DesignProposal> {
+  private async reviseDraft(draft: DesignProposal, critique: Critique): Promise<{ proposal: DesignProposal; usage: import("@atlas/llm-provider").LLMUsage; model: string }> {
     const messages: LLMMessage[] = [
       {
         role: "system",
@@ -210,15 +228,16 @@ export class DesignerRole implements Role {
       }
     ];
 
-    let result: { toolName: string; input: unknown };
+    const reviseModel = process.env.ATLAS_LLM_DESIGNER_REVISE_MODEL ?? "anthropic/claude-haiku-4.5";
+    let result: { toolName: string; input: unknown; usage: import("@atlas/llm-provider").LLMUsage };
     try {
       result = await (this.llm as unknown as {
         completeWithToolUse: (
           m: LLMMessage[],
           o: Record<string, unknown>
-        ) => Promise<{ toolName: string; input: unknown }>;
+        ) => Promise<{ toolName: string; input: unknown; usage: import("@atlas/llm-provider").LLMUsage }>;
       }).completeWithToolUse(messages, {
-        model: process.env.ATLAS_LLM_DESIGNER_REVISE_MODEL ?? "anthropic/claude-haiku-4.5",
+        model: reviseModel,
         maxTokens: 4096,
         tools: [
           {
@@ -243,7 +262,7 @@ export class DesignerRole implements Role {
         reason: "schema-mismatch"
       });
     }
-    return parsed.data;
+    return { proposal: parsed.data, usage: result.usage, model: reviseModel };
   }
 }
 

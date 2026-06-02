@@ -1,6 +1,14 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import { DagSynthesisOutputSchema, type DagSynthesisOutput, ALLOWED_ARTIFACT_KINDS } from "./types.js";
 import type { PlannerTriageReport } from "./types.js";
+
+/** Plan G.4 Task 3 — return usage alongside the parsed DAG so the role
+ *  can record per-role token usage tagged with roleId="workflow-planner". */
+export interface SynthesizeDagResult {
+  output: DagSynthesisOutput;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const PLANNER_SYNTH_MODEL =
   process.env.ATLAS_LLM_DEEP_MODEL ?? "anthropic/claude-opus-4-5";
@@ -106,7 +114,7 @@ export class DagSynthesisFailedError extends Error {
   }
 }
 
-export async function synthesizeDag(input: SynthesizeDagInput): Promise<DagSynthesisOutput> {
+export async function synthesizeDag(input: SynthesizeDagInput): Promise<SynthesizeDagResult> {
   const model = input.synthModel ?? PLANNER_SYNTH_MODEL;
 
   const kindsHint = input.suggestedKinds?.length
@@ -131,13 +139,13 @@ export async function synthesizeDag(input: SynthesizeDagInput): Promise<DagSynth
     { role: "user", content: userContent }
   ];
 
-  let result: { toolName: string; input: unknown };
+  let result: { toolName: string; input: unknown; usage: LLMUsage };
   try {
     result = await (input.llm as unknown as {
       completeWithToolUse: (
         m: LLMMessage[],
         o: Record<string, unknown>
-      ) => Promise<{ toolName: string; input: unknown }>;
+      ) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
       model,
       maxTokens: 8192,
@@ -162,5 +170,5 @@ export async function synthesizeDag(input: SynthesizeDagInput): Promise<DagSynth
       { cause: parse.error }
     );
   }
-  return parse.data;
+  return { output: parse.data, usage: result.usage, model };
 }

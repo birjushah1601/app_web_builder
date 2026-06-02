@@ -27,7 +27,7 @@ describe("triage (Pass 1 blocker path)", () => {
     const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
     const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
 
-    const report = await triage({
+    const { report } = await triage({
       userTurn: "build me an app that stores customer health data",
       graphSlice: { bytes: "{}", hash: "sha256:zero" },
       llm: provider
@@ -102,7 +102,7 @@ describe("triage (Pass 1 blocker path)", () => {
     const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
     const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
 
-    const report = await triage({
+    const { report } = await triage({
       userTurn: "build a checkout flow",
       graphSlice: { bytes: "{}", hash: "sha256:zero" },
       llm: provider

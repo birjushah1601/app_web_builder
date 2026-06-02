@@ -1,8 +1,16 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { assembleSecurityPrompt } from "./assemble-prompt.js";
 import { SecurityCheckFailedError } from "./errors.js";
 import { SecurityReportSchema, type SecurityReport } from "./types.js";
+
+/** Plan G.4 Task 3 — return usage alongside the report so the role can
+ *  record per-role token usage tagged with roleId="security". */
+export interface SecurityCheckResult {
+  report: SecurityReport;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const SECURITY_MODEL = "claude-opus-4-7";
 
@@ -37,7 +45,7 @@ export interface SecurityCheckInput {
   model?: string;
 }
 
-export async function runSecurityCheck(input: SecurityCheckInput): Promise<SecurityReport> {
+export async function runSecurityCheck(input: SecurityCheckInput): Promise<SecurityCheckResult> {
   const skillPrompt = assembleSecurityPrompt(input.skills, ["audit-rls", "cors-policy", "secrets-scan", "cve-check"]);
   const systemPrompt = `You are the Atlas L4 Security gate. Run the 4 security skills over the proposed diff + graph slice. Emit a SecurityReport via the emit_security_report tool. Any critical issue forces passed=false.\n\n${skillPrompt}`;
   const messages: LLMMessage[] = [
@@ -45,12 +53,13 @@ export async function runSecurityCheck(input: SecurityCheckInput): Promise<Secur
     { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },
     { role: "user", content: `=== Proposed diff ===\n${input.diff}` }
   ];
+  const model = input.model ?? SECURITY_MODEL;
   let result;
   try {
     result = await (input.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
-      model: input.model ?? SECURITY_MODEL,
+      model,
       maxTokens: 4096,
       tools: [{ name: "emit_security_report", description: "Emit the L4 security gate report", input_schema: SECURITY_TOOL_SCHEMA }],
       toolChoice: { type: "tool", name: "emit_security_report" }
@@ -60,5 +69,5 @@ export async function runSecurityCheck(input: SecurityCheckInput): Promise<Secur
   }
   const parse = SecurityReportSchema.safeParse(result.input);
   if (!parse.success) throw new SecurityCheckFailedError("security tool_use payload failed schema", { cause: parse.error });
-  return parse.data;
+  return { report: parse.data, usage: result.usage, model };
 }

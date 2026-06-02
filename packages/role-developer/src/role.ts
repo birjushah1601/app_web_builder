@@ -71,6 +71,10 @@ export class DeveloperRole implements Role {
       : inv.userTurn;
 
     const onCandidateDelta = this.opts.onCandidateDelta;
+    // Plan G.4 Task 3 — both passes now return { output, usage, model } so
+    // the role can record per-role spend after each pass completes. Wrapping
+    // the result in the ok/error tagged union keeps the existing winner-pick
+    // logic untouched; the .output property is preserved for it.
     const runAnthropic = () => anthropicPass({
       llm: this.opts.anthropic, skills: this.opts.skills,
       userTurn: effectiveUserTurn, architectArtifact, graphSlice: inv.graphSlice,
@@ -79,7 +83,15 @@ export class DeveloperRole implements Role {
       ...(onCandidateDelta !== undefined
         ? { onTokenDelta: (chunk: string) => onCandidateDelta(inv.ritualId, "anthropic", chunk) }
         : {})
-    }).then((output): { provider: "anthropic"; status: "ok"; output: DeveloperOutput } => ({ provider: "anthropic", status: "ok", output }))
+    }).then((r): { provider: "anthropic"; status: "ok"; output: DeveloperOutput; usage: { inputTokens: number; outputTokens: number }; model: string } => {
+      // Record per-role usage right after the pass succeeds so the workflow-
+      // engine's tracker buckets cost under roleId="developer" instead of
+      // collapsing into __unassigned__.
+      inv.usageTracker?.record(this.opts.anthropic.name, r.model,
+        { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens },
+        { roleId: this.id });
+      return { provider: "anthropic", status: "ok", output: r.output, usage: r.usage, model: r.model };
+    })
       .catch((err: Error): { provider: "anthropic"; status: "error"; error: Error } => ({ provider: "anthropic", status: "error", error: err }));
 
     const runGoogle = () => googlePass({
@@ -87,7 +99,12 @@ export class DeveloperRole implements Role {
       userTurn: effectiveUserTurn, architectArtifact, graphSlice: inv.graphSlice,
       model: this.opts.googleModel ?? DEVELOPER_GOOGLE_MODEL,
       targetTemplate: this.opts.targetTemplate
-    }).then((output): { provider: "google"; status: "ok"; output: DeveloperOutput } => ({ provider: "google", status: "ok", output }))
+    }).then((r): { provider: "google"; status: "ok"; output: DeveloperOutput; usage: { inputTokens: number; outputTokens: number }; model: string } => {
+      inv.usageTracker?.record(this.opts.google.name, r.model,
+        { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens },
+        { roleId: this.id });
+      return { provider: "google", status: "ok", output: r.output, usage: r.usage, model: r.model };
+    })
       .catch((err: Error): { provider: "google"; status: "error"; error: Error } => ({ provider: "google", status: "error", error: err }));
 
     // parallel: both passes fire concurrently (best with distinct providers).
@@ -112,12 +129,17 @@ export class DeveloperRole implements Role {
     if (anthropicResult.status === "ok" && googleResult.status === "ok") {
       let vote;
       try {
-        vote = await reviewerVote({
+        const reviewResult = await reviewerVote({
           llm: this.opts.reviewer,
           anthropicOutput: anthropicResult.output,
           googleOutput: googleResult.output,
           model: this.opts.reviewerModel ?? DEVELOPER_REVIEWER_MODEL
         });
+        vote = reviewResult.vote;
+        // Plan G.4 Task 3 — record reviewer-pass usage.
+        inv.usageTracker?.record(this.opts.reviewer.name, reviewResult.model,
+          { inputTokens: reviewResult.usage.inputTokens, outputTokens: reviewResult.usage.outputTokens },
+          { roleId: this.id });
         events.push({ eventType: "developer.reviewer.voted", payload: { winner: vote.winner, reasoning: vote.reasoning } });
       } catch (err) {
         // Reviewer failure → default to Anthropic per OQ4
@@ -179,6 +201,10 @@ export class DeveloperRole implements Role {
 
     const model = this.opts.anthropicModel ?? DEVELOPER_ANTHROPIC_MODEL;
     const completion = await this.opts.anthropic.complete(messages, { model, maxTokens: 8_000 });
+    // Plan G.4 Task 3 — record per-role usage for the focused-refine call.
+    inv.usageTracker?.record(this.opts.anthropic.name, model,
+      { inputTokens: completion.usage.inputTokens, outputTokens: completion.usage.outputTokens },
+      { roleId: this.id });
 
     // Extract the diff from the fenced ```diff block in the response.
     const raw = completion.content;

@@ -17,7 +17,9 @@ export class BrowserVerificationGateRunner implements GateRunner {
   }
 
   async run(input: GateRunInput): Promise<GateResult> {
-    const report = await runBrowserCheck({
+    // Plan G.4 Task 3 — runBrowserCheck now returns { report, usage, model };
+    // the gate-runner only needs the report.
+    const { report } = await runBrowserCheck({
       llm: this.opts.llm,
       skills: this.opts.skills,
       diff: "",

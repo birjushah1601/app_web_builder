@@ -1,8 +1,16 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import type { InspirationBrief, DesignIntent } from "@atlas/role-researcher";
 import { DesignProposalSchema, DesignDirectionSchema, type DesignProposal } from "./types.js";
 export { DesignDirectionSchema };
 import { DesignerFailedError } from "./errors.js";
+
+/** Plan G.4 Task 3 — return usage alongside the parsed proposal so the
+ *  caller can record per-role token usage tagged with roleId="designer". */
+export interface AssembleProposalResult {
+  proposal: DesignProposal;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const DESIGNER_PROPOSAL_MODEL = "claude-sonnet-4";
 
@@ -136,7 +144,7 @@ export interface AssembleProposalInput {
   architectArtifact: unknown;
 }
 
-export async function assembleProposal(input: AssembleProposalInput): Promise<DesignProposal> {
+export async function assembleProposal(input: AssembleProposalInput): Promise<AssembleProposalResult> {
   const userTurn = renderUserTurn(input);
 
   const messages: LLMMessage[] = [
@@ -144,10 +152,10 @@ export async function assembleProposal(input: AssembleProposalInput): Promise<De
     { role: "user", content: userTurn }
   ];
 
-  let result: { toolName: string; input: unknown };
+  let result: { toolName: string; input: unknown; usage: LLMUsage };
   try {
     result = await (input.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
       model: DESIGNER_PROPOSAL_MODEL,
       maxTokens: 8192,
@@ -174,7 +182,7 @@ export async function assembleProposal(input: AssembleProposalInput): Promise<De
       reason: "schema-mismatch"
     });
   }
-  return parsed.data;
+  return { proposal: parsed.data, usage: result.usage, model: DESIGNER_PROPOSAL_MODEL };
 }
 
 function formatPaletteAnchor(brief: InspirationBrief): string {

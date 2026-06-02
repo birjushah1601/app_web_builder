@@ -21,7 +21,7 @@ describe("runSecurityCheck", () => {
     const llm = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
     const skills = createRegistryWithOverrides(loadSkillsFromDir(fixtureDir), []);
 
-    const report = await runSecurityCheck({ llm, skills, diff: "@@ trivial", graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) } });
+    const { report } = await runSecurityCheck({ llm, skills, diff: "@@ trivial", graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) } });
     expect(report.passed).toBe(true);
     expect(report.issues).toHaveLength(0);
     expect(report.skillsRun).toContain("audit-rls");
@@ -41,7 +41,7 @@ describe("runSecurityCheck", () => {
     const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
     const llm = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
     const skills = createRegistryWithOverrides(loadSkillsFromDir(fixtureDir), []);
-    const report = await runSecurityCheck({ llm, skills, diff: "@@", graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) } });
+    const { report } = await runSecurityCheck({ llm, skills, diff: "@@", graphSlice: { bytes: "{}", hash: "sha256:" + "0".repeat(64) } });
     expect(report.passed).toBe(false);
     expect(report.issues[0].severity).toBe("critical");
   });

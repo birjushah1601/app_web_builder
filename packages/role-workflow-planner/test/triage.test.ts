@@ -21,7 +21,7 @@ describe("plannerTriage — Task 6", () => {
   it("returns passed=true when LLM emits 0 blocker questions", async () => {
     const { provider, sdkCreate } = makeProvider({ passed: true, questions: [] });
 
-    const report = await plannerTriage({
+    const { report } = await plannerTriage({
       userTurn: "build a SaaS platform with login and billing",
       llm: provider
     });
@@ -51,7 +51,7 @@ describe("plannerTriage — Task 6", () => {
       ]
     });
 
-    const report = await plannerTriage({
+    const { report } = await plannerTriage({
       userTurn: "build a SaaS with Stripe-powered billing",
       llm: provider
     });

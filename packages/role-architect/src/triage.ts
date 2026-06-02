@@ -1,6 +1,15 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import { AmbiguityReportSchema, type AmbiguityReport } from "./types.js";
 import { TriageFailedError } from "./errors.js";
+
+/** Plan G.4 Task 3 — triage returns usage alongside the parsed report so the
+ *  role can call inv.usageTracker?.record(...) tagged with roleId="architect".
+ *  Older callers can still read .report; usage is additive and never undefined. */
+export interface TriageResult {
+  report: AmbiguityReport;
+  usage: LLMUsage;
+  model: string;
+}
 
 // OpenRouter-format default — anthropic/claude-haiku-4.5. Operators can
 // override via ATLAS_LLM_TRIAGE_MODEL; atlas-web's engine factory passes
@@ -96,7 +105,7 @@ const AMBIGUITY_TOOL_SCHEMA = {
   required: ["passed", "scope", "questions"]
 } as const;
 
-export async function triage(input: TriageInput): Promise<AmbiguityReport> {
+export async function triage(input: TriageInput): Promise<TriageResult> {
   const model = input.triageModel ?? ARCHITECT_TRIAGE_MODEL;
   const messages: LLMMessage[] = [
     { role: "system", content: TRIAGE_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
@@ -106,8 +115,13 @@ export async function triage(input: TriageInput): Promise<AmbiguityReport> {
 
   let result;
   try {
+    // Plan G.4 Task 3 — widened local return type to include `usage` (which
+    // ToolUseResult always carries) so the caller can record per-role spend.
     result = await (input.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (
+        m: LLMMessage[],
+        o: Record<string, unknown>
+      ) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
       model,
       maxTokens: 4096,
@@ -135,5 +149,5 @@ export async function triage(input: TriageInput): Promise<AmbiguityReport> {
       { cause: parse.error }
     );
   }
-  return parse.data;
+  return { report: parse.data, usage: result.usage, model };
 }

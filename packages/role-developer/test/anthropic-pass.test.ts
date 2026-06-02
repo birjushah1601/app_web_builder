@@ -21,7 +21,7 @@ describe("anthropicPass", () => {
     const llm = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
     const skills = createRegistryWithOverrides(loadSkillsFromDir(fixtureDir), []);
 
-    const result = await anthropicPass({
+    const { output: result } = await anthropicPass({
       llm,
       skills,
       userTurn: "rename foo to bar",

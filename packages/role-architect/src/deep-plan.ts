@@ -1,4 +1,4 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import { buildPromptCacheBlocks } from "@atlas/conductor";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { isPriorRitualContext, type PriorRitualContext } from "@atlas/ritual-engine";
@@ -249,7 +249,15 @@ const DEEP_PLAN_TOOL_SCHEMA = {
   required: ["scope"]
 } as const;
 
-export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
+/** Plan G.4 Task 3 — deepPlan returns usage alongside the parsed artifact so
+ *  the role can call inv.usageTracker?.record(...) tagged with roleId="architect". */
+export interface DeepPlanResult {
+  artifact: ArchitectOutput;
+  usage: LLMUsage;
+  model: string;
+}
+
+export async function deepPlan(input: DeepPlanInput): Promise<DeepPlanResult> {
   let skillPrompt: string;
   try {
     skillPrompt = assembleArchitectPrompt(input.skills, ["brainstorm", "spec-graph", "runnable-plan"]);
@@ -276,8 +284,13 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
 
   let result;
   try {
+    // Plan G.4 Task 3 — widened local return type to include `usage` so the
+    // caller can record per-role spend.
     result = await (input.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (
+        m: LLMMessage[],
+        o: Record<string, unknown>
+      ) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
       model,
       maxTokens: 8192,
@@ -318,7 +331,7 @@ export async function deepPlan(input: DeepPlanInput): Promise<ArchitectOutput> {
       { cause: parse.error, scope: input.ambiguity.scope }
     );
   }
-  return parse.data;
+  return { artifact: parse.data, usage: result.usage, model };
 }
 
 /** Build empty-but-valid defaults for each scope variant, then overlay the

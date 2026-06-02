@@ -82,12 +82,17 @@ export class ResearcherRole implements Role {
 
     let brief: InspirationBrief;
     try {
-      brief = await assembleBrief({
+      const briefResult = await assembleBrief({
         llm: this.llm,
         designIntent,
         localEntry,
         webHits
       });
+      brief = briefResult.brief;
+      // Plan G.4 Task 3 — record per-role usage tagged with this role's id.
+      inv.usageTracker?.record(this.llm.name, briefResult.model,
+        { inputTokens: briefResult.usage.inputTokens, outputTokens: briefResult.usage.outputTokens },
+        { roleId: this.id });
     } catch (err) {
       events.push({ eventType: "researcher.brief.failed", payload: { error: (err as Error).message } });
       throw err;

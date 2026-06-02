@@ -1,8 +1,16 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import type { DesignIntent, InspirationBrief } from "@atlas/role-researcher";
 import { SchemaArchitectFailedError } from "./errors.js";
 import { SchemaProposalSchema, type SchemaProposal } from "./types.js";
 import { generateMigrationHints } from "./migration-hints.js";
+
+/** Plan G.4 Task 3 — return usage so the role can record per-role spend
+ *  tagged with roleId="schema-architect". */
+export interface AssembleProposalResult {
+  proposal: SchemaProposal;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const DESIGNER_PROPOSAL_MODEL = "claude-sonnet-4.5";
 
@@ -168,7 +176,7 @@ export interface AssembleProposalInput {
   model?: string;
 }
 
-export async function assembleProposal(input: AssembleProposalInput): Promise<SchemaProposal> {
+export async function assembleProposal(input: AssembleProposalInput): Promise<AssembleProposalResult> {
   const userTurn = renderUserTurn(input.designIntent, input.brief, input.architectArtifact);
 
   const messages: LLMMessage[] = [
@@ -176,12 +184,13 @@ export async function assembleProposal(input: AssembleProposalInput): Promise<Sc
     { role: "user", content: userTurn }
   ];
 
-  let result: { toolName: string; input: unknown };
+  const model = input.model ?? process.env.ATLAS_LLM_SCHEMA_ARCHITECT_MODEL ?? DESIGNER_PROPOSAL_MODEL;
+  let result: { toolName: string; input: unknown; usage: LLMUsage };
   try {
     result = await (input.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
-      model: input.model ?? process.env.ATLAS_LLM_SCHEMA_ARCHITECT_MODEL ?? DESIGNER_PROPOSAL_MODEL,
+      model,
       maxTokens: 8192,
       tools: [{ name: "emit_schema_proposal", description: "Emit schema proposal", input_schema: PROPOSAL_TOOL_SCHEMA }],
       toolChoice: { type: "tool", name: "emit_schema_proposal" }
@@ -210,7 +219,7 @@ export async function assembleProposal(input: AssembleProposalInput): Promise<Sc
     }
   }
 
-  return parsed.data;
+  return { proposal: parsed.data, usage: result.usage, model };
 }
 
 function renderUserTurn(designIntent: DesignIntent, brief: InspirationBrief | null, architectArtifact: unknown): string {

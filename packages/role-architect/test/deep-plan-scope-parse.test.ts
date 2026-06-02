@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Registry } from "prom-client";
@@ -27,7 +27,7 @@ const skills = createRegistryWithOverrides(loadSkillsFromDir(fixtureDir), []);
 
 describe("deepPlan scope variants", () => {
   it("parses new-app scope", async () => {
-    const out = await deepPlan({
+    const { artifact: out } = await deepPlan({
       userTurn: "create",
       graphSlice: slice,
       ambiguity: { passed: true, scope: "new-app", questions: [] },
@@ -43,7 +43,7 @@ describe("deepPlan scope variants", () => {
   });
 
   it("parses bug-fix scope", async () => {
-    const out = await deepPlan({
+    const { artifact: out } = await deepPlan({
       userTurn: "debug",
       graphSlice: slice,
       ambiguity: { passed: true, scope: "bug-fix", questions: [] },
@@ -67,7 +67,7 @@ describe("deepPlan scope variants", () => {
   });
 
   it("parses dep-upgrade scope", async () => {
-    const out = await deepPlan({
+    const { artifact: out } = await deepPlan({
       userTurn: "upgrade",
       graphSlice: slice,
       ambiguity: { passed: true, scope: "dep-upgrade", questions: [] },
@@ -83,7 +83,7 @@ describe("deepPlan scope variants", () => {
   });
 
   it("parses refactor scope", async () => {
-    const out = await deepPlan({
+    const { artifact: out } = await deepPlan({
       userTurn: "refactor",
       graphSlice: slice,
       ambiguity: { passed: true, scope: "refactor", questions: [] },
@@ -100,7 +100,7 @@ describe("deepPlan scope variants", () => {
   });
 
   it("parses ship scope", async () => {
-    const out = await deepPlan({
+    const { artifact: out } = await deepPlan({
       userTurn: "ship",
       graphSlice: slice,
       ambiguity: { passed: true, scope: "ship", questions: [] },
@@ -116,7 +116,7 @@ describe("deepPlan scope variants", () => {
   });
 
   it("parses migrate scope", async () => {
-    const out = await deepPlan({
+    const { artifact: out } = await deepPlan({
       userTurn: "migrate",
       graphSlice: slice,
       ambiguity: { passed: true, scope: "migrate", questions: [] },

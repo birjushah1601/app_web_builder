@@ -1,8 +1,16 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { assembleBrowserVerificationPrompt } from "./assemble-prompt.js";
 import { BrowserCheckFailedError } from "./errors.js";
 import { BrowserVerificationReportSchema, type BrowserVerificationReport } from "./types.js";
+
+/** Plan G.4 Task 3 — return usage alongside the report so the role can
+ *  record per-role token usage tagged with roleId="browser-verification". */
+export interface BrowserCheckResult {
+  report: BrowserVerificationReport;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const BROWSER_VERIFICATION_MODEL = "claude-sonnet-4-6";
 
@@ -44,7 +52,7 @@ export interface BrowserCheckInput {
   model?: string;
 }
 
-export async function runBrowserCheck(input: BrowserCheckInput): Promise<BrowserVerificationReport> {
+export async function runBrowserCheck(input: BrowserCheckInput): Promise<BrowserCheckResult> {
   const skillPrompt = assembleBrowserVerificationPrompt(input.skills, [...BROWSER_SKILLS]);
   const systemPrompt = `You are the Atlas L3 Browser Verification gate. Run the 4 browser-verification skills over the proposed diff + graph slice. Emit a BrowserVerificationReport via the emit_browser_verification_report tool. Any critical issue forces passed=false.\n\n${skillPrompt}`;
   const messages: LLMMessage[] = [
@@ -52,6 +60,7 @@ export async function runBrowserCheck(input: BrowserCheckInput): Promise<Browser
     { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },
     { role: "user", content: `=== Proposed diff ===\n${input.diff}` }
   ];
+  const model = input.model ?? BROWSER_VERIFICATION_MODEL;
   let result;
   try {
     result = await (
@@ -59,10 +68,10 @@ export async function runBrowserCheck(input: BrowserCheckInput): Promise<Browser
         completeWithToolUse: (
           m: LLMMessage[],
           o: Record<string, unknown>
-        ) => Promise<{ toolName: string; input: unknown }>;
+        ) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
       }
     ).completeWithToolUse(messages, {
-      model: input.model ?? BROWSER_VERIFICATION_MODEL,
+      model,
       maxTokens: 4096,
       tools: [
         {
@@ -82,5 +91,5 @@ export async function runBrowserCheck(input: BrowserCheckInput): Promise<Browser
       cause: parse.error
     });
   }
-  return parse.data;
+  return { report: parse.data, usage: result.usage, model };
 }

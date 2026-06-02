@@ -1,8 +1,16 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import type { SkillRegistry } from "@atlas/skill-runtime";
 import { assembleAccessibilityPrompt } from "./assemble-prompt.js";
 import { AccessibilityCheckFailedError } from "./errors.js";
 import { AccessibilityReportSchema, type AccessibilityReport } from "./types.js";
+
+/** Plan G.4 Task 3 — return usage so the role can record per-role spend
+ *  tagged with roleId="accessibility". */
+export interface AccessibilityCheckResult {
+  report: AccessibilityReport;
+  usage: LLMUsage;
+  model: string;
+}
 
 export const ACCESSIBILITY_MODEL = "claude-sonnet-4-6";
 
@@ -37,7 +45,7 @@ export interface AccessibilityCheckInput {
   model?: string;
 }
 
-export async function runAccessibilityCheck(input: AccessibilityCheckInput): Promise<AccessibilityReport> {
+export async function runAccessibilityCheck(input: AccessibilityCheckInput): Promise<AccessibilityCheckResult> {
   const skillPrompt = assembleAccessibilityPrompt(input.skills, ["wcag-audit", "rtl-layout", "keyboard-nav", "contrast-check"]);
   const systemPrompt = `You are the Atlas L5 Accessibility gate. Run the 4 accessibility skills over the proposed diff + graph slice. Emit an AccessibilityReport via the emit_accessibility_report tool. Any critical issue forces passed=false.\n\n${skillPrompt}`;
   const messages: LLMMessage[] = [
@@ -45,12 +53,13 @@ export async function runAccessibilityCheck(input: AccessibilityCheckInput): Pro
     { role: "system", content: `<graph-slice hash="${input.graphSlice.hash}">\n${input.graphSlice.bytes}\n</graph-slice>` },
     { role: "user", content: `=== Proposed diff ===\n${input.diff}` }
   ];
+  const model = input.model ?? ACCESSIBILITY_MODEL;
   let result;
   try {
     result = await (input.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
-      model: input.model ?? ACCESSIBILITY_MODEL,
+      model,
       maxTokens: 4096,
       tools: [{ name: "emit_accessibility_report", description: "Emit the L5 accessibility gate report", input_schema: ACCESSIBILITY_TOOL_SCHEMA }],
       toolChoice: { type: "tool", name: "emit_accessibility_report" }
@@ -64,5 +73,5 @@ export async function runAccessibilityCheck(input: AccessibilityCheckInput): Pro
     console.error("[role-accessibility] zod issues:    ", JSON.stringify(parse.error.issues));
     throw new AccessibilityCheckFailedError("accessibility tool_use payload failed schema", { cause: parse.error });
   }
-  return parse.data;
+  return { report: parse.data, usage: result.usage, model };
 }

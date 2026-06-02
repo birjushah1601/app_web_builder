@@ -19,13 +19,18 @@ export class AccessibilityRole implements Role {
     events.push({ eventType: "accessibility.started", payload: { ritualId: inv.ritualId } });
 
     try {
-      const report = await runAccessibilityCheck({
+      const checkResult = await runAccessibilityCheck({
         llm: this.opts.llm,
         skills: this.opts.skills,
         diff: inv.userTurn,
         graphSlice: inv.graphSlice,
         model: this.opts.model
       });
+      const report = checkResult.report;
+      // Plan G.4 Task 3 — record per-role usage tagged with roleId="accessibility".
+      inv.usageTracker?.record(this.opts.llm.name, checkResult.model,
+        { inputTokens: checkResult.usage.inputTokens, outputTokens: checkResult.usage.outputTokens },
+        { roleId: this.id });
       if (report.passed) {
         events.push({ eventType: "accessibility.passed", payload: { skillsRun: report.skillsRun, issueCount: report.issues.length } });
       } else {

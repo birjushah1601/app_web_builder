@@ -43,7 +43,7 @@ export class MigrationPlannerRole implements Role {
     }
 
     try {
-      const plan = await generateMigrationPlan({
+      const planResult = await generateMigrationPlan({
         llm: this.opts.llm,
         skills: this.opts.skills,
         sourceTopologyRef: parsed.sourceTopologyRef,
@@ -51,6 +51,11 @@ export class MigrationPlannerRole implements Role {
         graphSlice: inv.graphSlice,
         model: this.opts.model ?? MIGRATION_PLANNER_MODEL
       });
+      const plan = planResult.plan;
+      // Plan G.4 Task 3 — record per-role usage tagged with roleId="migration-planner".
+      inv.usageTracker?.record(this.opts.llm.name, planResult.model,
+        { inputTokens: planResult.usage.inputTokens, outputTokens: planResult.usage.outputTokens },
+        { roleId: this.id });
       events.push({
         eventType: "migration-planner.plan-generated",
         payload: {

@@ -25,13 +25,17 @@ describe("triage (Pass 1 happy path)", () => {
     const sdk = { messages: { create: sdkCreate, stream: vi.fn() } } as never;
     const provider = new AnthropicProvider({ sdk, metrics: createProviderMetrics(new Registry()) });
 
-    const report = await triage({
+    const result = await triage({
       userTurn: "add forgot-password",
       graphSlice: { bytes: "{}", hash: "sha256:zero" },
       llm: provider
     });
 
-    expect(report).toMatchObject({ passed: true, scope: "new-feature" });
+    // Plan G.4 Task 3 — triage now returns { report, usage, model } so the
+    // caller can record per-role token usage.
+    expect(result.report).toMatchObject({ passed: true, scope: "new-feature" });
+    expect(result.usage).toEqual({ inputTokens: 20, outputTokens: 10 });
+    expect(result.model).toBe(ARCHITECT_TRIAGE_MODEL);
 
     expect(sdkCreate).toHaveBeenCalledOnce();
     const call = sdkCreate.mock.calls[0][0] as Record<string, unknown>;

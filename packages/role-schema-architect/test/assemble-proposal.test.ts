@@ -4,7 +4,13 @@ import type { LLMProvider } from "@atlas/llm-provider";
 
 const fakeLLM = (input: unknown): LLMProvider =>
   ({
-    completeWithToolUse: vi.fn().mockResolvedValue({ toolName: "emit_schema_proposal", input })
+    name: "anthropic",
+    completeWithToolUse: vi.fn().mockResolvedValue({
+      toolName: "emit_schema_proposal",
+      input,
+      // Plan G.4 Task 3 — assembleProposal now surfaces usage to the role.
+      usage: { inputTokens: 0, outputTokens: 0 }
+    })
   } as unknown as LLMProvider);
 
 const dir = (id: string) => ({
@@ -57,7 +63,7 @@ describe("PROPOSAL_TOOL_SCHEMA", () => {
 describe("assembleProposal", () => {
   it("calls completeWithToolUse and returns a parsed proposal", async () => {
     const llm = fakeLLM(validProposalInput());
-    const result = await assembleProposal({
+    const { proposal: result } = await assembleProposal({
       llm,
       designIntent: { category: "saas-app" } as never,
       brief: null,

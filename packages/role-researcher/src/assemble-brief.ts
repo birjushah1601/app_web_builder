@@ -1,8 +1,16 @@
-import type { LLMMessage, LLMProvider } from "@atlas/llm-provider";
+import type { LLMMessage, LLMProvider, LLMUsage } from "@atlas/llm-provider";
 import { InspirationBriefSchema, type DesignIntent, type InspirationBrief } from "./types.js";
 import type { CatalogEntry } from "./local-catalog.js";
 import type { WebHit } from "./web-fetch.js";
 import { ResearcherFailedError } from "./errors.js";
+
+/** Plan G.4 Task 3 — return usage alongside the parsed brief so the caller
+ *  can record per-role token usage tagged with roleId="researcher". */
+export interface AssembleBriefResult {
+  brief: InspirationBrief;
+  usage: LLMUsage;
+  model: string;
+}
 
 // Plan PFP: model ID must be valid on whichever provider is in use. The
 // previous hardcoded "claude-haiku-4-5" is the Anthropic-direct ID and 400s
@@ -65,7 +73,7 @@ interface AssembleBriefInput {
   webHits: WebHit[];
 }
 
-export async function assembleBrief(input: AssembleBriefInput): Promise<InspirationBrief> {
+export async function assembleBrief(input: AssembleBriefInput): Promise<AssembleBriefResult> {
   const userTurn = renderUserTurn(input);
 
   const messages: LLMMessage[] = [
@@ -73,10 +81,10 @@ export async function assembleBrief(input: AssembleBriefInput): Promise<Inspirat
     { role: "user", content: userTurn }
   ];
 
-  let result: { toolName: string; input: unknown };
+  let result: { toolName: string; input: unknown; usage: LLMUsage };
   try {
     result = await (input.llm as unknown as {
-      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown }>;
+      completeWithToolUse: (m: LLMMessage[], o: Record<string, unknown>) => Promise<{ toolName: string; input: unknown; usage: LLMUsage }>;
     }).completeWithToolUse(messages, {
       model: RESEARCHER_BRIEF_MODEL,
       maxTokens: 4096,
@@ -103,7 +111,7 @@ export async function assembleBrief(input: AssembleBriefInput): Promise<Inspirat
       category: input.designIntent.category
     });
   }
-  return parsed.data;
+  return { brief: parsed.data, usage: result.usage, model: RESEARCHER_BRIEF_MODEL };
 }
 
 function renderUserTurn(input: AssembleBriefInput): string {
