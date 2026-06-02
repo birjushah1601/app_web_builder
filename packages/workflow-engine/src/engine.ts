@@ -78,6 +78,11 @@ export interface IWorkflowRunRepo {
      *  builder prefers the live tracker when present; falls back to this
      *  column otherwise. Same string-or-number normalization as costCapUsd. */
     totalCostUsd?: number | string | null;
+    /** Plan G.3 — frozen per-role breakdown persisted by onSchedulerExit
+     *  alongside totalCostUsd. Live tracker takes precedence in
+     *  buildSnapshot; this column is the post-cleanup fallback.
+     *  JSONB → unknown (validated shape-wise in the snapshot builder). */
+    costBreakdown?: unknown;
     createdAt: Date | string;
     updatedAt: Date | string;
   } | undefined>;
@@ -93,6 +98,15 @@ export interface IWorkflowRunRepo {
    *  in-memory fakes without the method continue to work (the persisted
    *  fallback in buildSnapshot is a no-op for them). */
   updateTotalCostUsd?(id: string, totalCostUsd: number): Promise<void>;
+  /** Plan G.3 — freezes the per-role cost breakdown onto the run row.
+   *  Called in onSchedulerExit next to updateTotalCostUsd. Optional on
+   *  the interface so pre-G.3 in-memory fakes continue to work; legacy
+   *  repos that don't implement it skip the freeze and the snapshot
+   *  reverts to undefined after the live tracker is released. */
+  updateCostBreakdown?(
+    id: string,
+    breakdown: Array<{ roleId: string; totalUsd: number; callCount: number }>
+  ): Promise<void>;
 }
 
 export interface IWorkflowNodeRepo {
@@ -694,6 +708,20 @@ export class WorkflowEngine {
             );
           }
         }
+        // Plan G.3 — freeze the per-role breakdown alongside the total.
+        // Same swallow-on-error pattern as totalCostUsd: a failed write
+        // degrades gracefully (snapshot reverts to undefined post-cleanup),
+        // and the scheduler must not crash on shutdown.
+        if (t !== undefined && typeof runRepo.updateCostBreakdown === "function") {
+          try {
+            await runRepo.updateCostBreakdown(workflowRunId, t.breakdown());
+          } catch (err) {
+            console.error(
+              "[workflow-engine] failed to persist costBreakdown on scheduler exit:",
+              err
+            );
+          }
+        }
         this.usageTrackers.delete(workflowRunId);
       }
     };
@@ -1154,6 +1182,49 @@ export class WorkflowEngine {
       }
     }
 
+    // Plan G.3 — per-role cost breakdown. Same precedence rules as
+    // totalCostUsd: live tracker beats persisted column. The persisted
+    // column is JSONB → arrives as `unknown`; we shape-validate (array of
+    // objects with the right keys) and drop anything that doesn't match
+    // rather than throwing. Empty arrays are valid and surface as
+    // `costBreakdown: []` so the UI can distinguish "no recorded usage"
+    // from "no tracker / legacy row".
+    let costBreakdown:
+      | Array<{ roleId: string; totalUsd: number; callCount: number }>
+      | undefined;
+    if (tracker !== undefined) {
+      costBreakdown = tracker.breakdown();
+    } else {
+      const raw = (runRow as { costBreakdown?: unknown }).costBreakdown;
+      if (Array.isArray(raw)) {
+        const validated: Array<{
+          roleId: string;
+          totalUsd: number;
+          callCount: number;
+        }> = [];
+        let allOk = true;
+        for (const entry of raw) {
+          if (
+            entry &&
+            typeof entry === "object" &&
+            typeof (entry as { roleId?: unknown }).roleId === "string" &&
+            typeof (entry as { totalUsd?: unknown }).totalUsd === "number" &&
+            typeof (entry as { callCount?: unknown }).callCount === "number"
+          ) {
+            validated.push({
+              roleId: (entry as { roleId: string }).roleId,
+              totalUsd: (entry as { totalUsd: number }).totalUsd,
+              callCount: (entry as { callCount: number }).callCount
+            });
+          } else {
+            allOk = false;
+            break;
+          }
+        }
+        if (allOk) costBreakdown = validated;
+      }
+    }
+
     return {
       id: runRow.id,
       projectId: runRow.projectId,
@@ -1170,6 +1241,7 @@ export class WorkflowEngine {
         ? { costCapUsd }
         : {}),
       ...(totalCostUsd !== undefined ? { totalCostUsd } : {}),
+      ...(costBreakdown !== undefined ? { costBreakdown } : {}),
       createdAt,
       updatedAt
     };

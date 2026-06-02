@@ -61,4 +61,80 @@ describe("Workflow Zod types", () => {
     const ok = WorkflowRunSchema.safeParse(run);
     expect(ok.success).toBe(true);
   });
+
+  it("WorkflowRunSchema accepts a costBreakdown array (Plan G.3)", () => {
+    const run = {
+      id: "00000000-0000-0000-0000-000000000001",
+      projectId: "00000000-0000-0000-0000-000000000002",
+      userId: "user_test",
+      prompt: "p",
+      status: "completed",
+      nodes: [],
+      edges: [],
+      dependencyProfile: { schemaVersion: "1" },
+      costBreakdown: [
+        { roleId: "developer", totalUsd: 2.13, callCount: 12 },
+        { roleId: "architect", totalUsd: 0.45, callCount: 3 }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const ok = WorkflowRunSchema.safeParse(run);
+    expect(ok.success).toBe(true);
+  });
+
+  it("WorkflowRunSchema accepts an empty costBreakdown array (Plan G.3)", () => {
+    const run = {
+      id: "00000000-0000-0000-0000-000000000001",
+      projectId: "00000000-0000-0000-0000-000000000002",
+      userId: "user_test",
+      prompt: "p",
+      status: "completed",
+      nodes: [],
+      edges: [],
+      dependencyProfile: { schemaVersion: "1" },
+      costBreakdown: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const ok = WorkflowRunSchema.safeParse(run);
+    expect(ok.success).toBe(true);
+  });
+
+  it("WorkflowRunSchema rejects a costBreakdown with negative totalUsd (Plan G.3)", () => {
+    const run = {
+      id: "00000000-0000-0000-0000-000000000001",
+      projectId: "00000000-0000-0000-0000-000000000002",
+      userId: "user_test",
+      prompt: "p",
+      status: "completed",
+      nodes: [],
+      edges: [],
+      dependencyProfile: { schemaVersion: "1" },
+      costBreakdown: [
+        { roleId: "developer", totalUsd: -1, callCount: 1 }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const result = WorkflowRunSchema.safeParse(run);
+    expect(result.success).toBe(false);
+  });
+
+  it("WorkflowRunSchema legacy runs without costBreakdown still parse (Plan G.3)", () => {
+    const run = {
+      id: "00000000-0000-0000-0000-000000000001",
+      projectId: "00000000-0000-0000-0000-000000000002",
+      userId: "user_test",
+      prompt: "p",
+      status: "completed",
+      nodes: [],
+      edges: [],
+      dependencyProfile: { schemaVersion: "1" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const ok = WorkflowRunSchema.safeParse(run);
+    expect(ok.success).toBe(true);
+  });
 });

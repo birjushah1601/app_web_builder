@@ -168,6 +168,16 @@ export const WorkflowRunSchema = z.object({
   // Reflects the per-run usage tracker's current total. Optional —
   // omitted when no tracker exists (e.g. terminal cleanup or pre-Plan G).
   totalCostUsd: z.number().nonnegative().optional(),
+  // Plan G.3 — per-role spend breakdown. Reflects the live tracker
+  // during execution; after the scheduler exits, the engine freezes
+  // tracker.breakdown() onto the workflow_runs.cost_breakdown column
+  // and buildSnapshot prefers the persisted value. Empty array = no
+  // recorded usage; omitted entirely = legacy run / no tracker.
+  costBreakdown: z.array(z.object({
+    roleId: z.string().min(1),
+    totalUsd: z.number().nonnegative(),
+    callCount: z.number().int().nonnegative()
+  })).optional(),
   concurrencyCap: z.number().int().positive().optional(),
   createdAt: z.string(),
   updatedAt: z.string()

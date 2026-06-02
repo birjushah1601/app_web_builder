@@ -201,6 +201,46 @@ describe("WorkflowRunRepo.updateCostCap (Plan G.2)", () => {
   });
 });
 
+describe("WorkflowRunRepo.updateCostBreakdown (Plan G.3)", () => {
+  let db: Database;
+  let repo: WorkflowRunRepo;
+
+  beforeAll(() => {
+    db = createDatabase(process.env.DATABASE_URL_TEST!);
+    repo = new WorkflowRunRepo(db.pool);
+  });
+
+  beforeEach(async () => {
+    await truncateAllTables(db);
+  });
+
+  afterAll(async () => {
+    await db.pool.end();
+  });
+
+  it("persists the per-role breakdown to the run row", async () => {
+    const projectId = await seedProject(db);
+    const inserted = await repo.insert(makeInput(projectId));
+
+    const breakdown = [
+      { roleId: "developer", totalUsd: 2.13, callCount: 12 },
+      { roleId: "architect", totalUsd: 0.45, callCount: 3 }
+    ];
+    await repo.updateCostBreakdown(inserted.id, breakdown);
+    const updated = await repo.findById(inserted.id);
+    expect(updated!.costBreakdown).toEqual(breakdown);
+  });
+
+  it("persists an empty array (recorded usage = none)", async () => {
+    const projectId = await seedProject(db);
+    const inserted = await repo.insert(makeInput(projectId));
+
+    await repo.updateCostBreakdown(inserted.id, []);
+    const updated = await repo.findById(inserted.id);
+    expect(updated!.costBreakdown).toEqual([]);
+  });
+});
+
 describe("WorkflowRunRepo.updateTotalCostUsd (Plan G.2)", () => {
   let db: Database;
   let repo: WorkflowRunRepo;

@@ -69,6 +69,11 @@ export function WorkflowHeader({ snapshot, projectId }: WorkflowHeaderProps) {
   const totalCostUsd = snapshot.totalCostUsd;
   const costCapUsd = snapshot.costCapUsd;
   const showCost = totalCostUsd !== undefined;
+  // Plan G.3 — per-role cost breakdown. Render a <details>/<summary>
+  // disclosure ONLY when there's actually something to show; empty arrays
+  // and undefined both fall through to "no disclosure".
+  const costBreakdown = snapshot.costBreakdown;
+  const showBreakdown = !!costBreakdown && costBreakdown.length > 0;
 
   return (
     <header
@@ -90,6 +95,29 @@ export function WorkflowHeader({ snapshot, projectId }: WorkflowHeaderProps) {
             ? `$${totalCostUsd.toFixed(2)} / $${costCapUsd.toFixed(2)}`
             : `$${totalCostUsd.toFixed(2)}`}
         </span>
+      )}
+      {showBreakdown && (
+        <details
+          data-testid="workflow-cost-breakdown"
+          className="text-[11px]"
+        >
+          <summary className="cursor-pointer select-none text-slate-600 hover:text-slate-900">
+            by role
+          </summary>
+          <ul className="absolute right-2 z-10 mt-1 min-w-[180px] rounded-md border border-slate-200 bg-white p-2 shadow-md">
+            {costBreakdown!.map((row) => (
+              <li
+                key={row.roleId}
+                data-testid="workflow-cost-breakdown-row"
+                className="flex items-center justify-between gap-3 py-0.5 font-mono tabular-nums"
+              >
+                <span className="text-slate-700">{row.roleId}</span>
+                <span className="text-slate-900">${row.totalUsd.toFixed(2)}</span>
+                <span className="text-slate-500">({row.callCount})</span>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       <span
         data-testid="workflow-status-badge"

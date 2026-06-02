@@ -16,6 +16,10 @@ export const workflowRuns = pgTable(
     // Plan G.2 — frozen final USD cost, written in onSchedulerExit before the
     // per-run LLMUsageTracker is released. Null until first terminal status.
     totalCostUsd: numeric("total_cost_usd"),
+    // Plan G.3 — per-role spend breakdown frozen alongside totalCostUsd.
+    // Shape: Array<{ roleId: string, totalUsd: number, callCount: number }>.
+    // Null until first terminal status (or for legacy rows pre-G.3).
+    costBreakdown: jsonb("cost_breakdown"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
