@@ -9,3 +9,9 @@ export * from "./manifests/argo-application.js";
 export * from "./manifests/cert-manager-cert.js";
 export * from "./reconcile.js";
 export * from "./orchestrator.js";
+export {
+  runDeployFromArtifacts,
+  type DeployFromArtifactsInput,
+  type DeployFromArtifactsResult,
+  type DeployFromArtifactsOptions
+} from "./deploy-from-artifacts.js";
