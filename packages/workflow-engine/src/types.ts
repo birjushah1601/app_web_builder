@@ -74,6 +74,21 @@ export const NodeFailureSchema = z.object({
 });
 export type NodeFailure = z.infer<typeof NodeFailureSchema>;
 
+// Plan F.3 — single smoke-test result captured by deploy-orchestrator's
+// post-Argo-Healthy HTTP runner. One entry per DeployArtifact.smokeTests[].
+export const SmokeTestResultSchema = z.object({
+  url: z.string().min(1),
+  method: z.enum(["get", "post", "put", "patch", "delete", "head"]),
+  status: z.number().int().min(0).max(599),     // 0 = network/timeout failure
+  ok: z.boolean(),
+  latencyMs: z.number().int().nonnegative(),
+  expectStatus: z.number().int().min(100).max(599),
+  expectBodyContains: z.string().optional(),
+  bodyExcerpt: z.string().optional(),            // first 200 chars of response body
+  error: z.string().optional()                   // present when ok=false
+});
+export type SmokeTestResult = z.infer<typeof SmokeTestResultSchema>;
+
 // Plan F.2 — populated by the workflow engine when a deploy-kind node's
 // post-producer hook runs `deployRunner` (i.e. the runtime adapter actually
 // applied the artifact's manifests via the K8s/Cloudflare clients). Shape
@@ -89,7 +104,10 @@ export const DeployResultSchema = z.object({
     name: z.string().min(1)
   })),
   phase: z.enum(["healthy", "failed"]),
-  startedAt: z.string()
+  startedAt: z.string(),
+  // Plan F.3 — present when smoke tests ran post-Argo-Healthy. Omitted when
+  // the deploy artifact had no smoke definitions OR smoke runner failed entirely.
+  smokeResults: z.array(SmokeTestResultSchema).optional()
 });
 export type DeployResult = z.infer<typeof DeployResultSchema>;
 
