@@ -113,4 +113,71 @@ describe("WorkflowApprovalPanel", () => {
       expect(screen.getByTestId("workflow-approve-error")).toHaveTextContent("boom");
     });
   });
+
+  // Plan G.2 — approval-time cost cap input.
+  describe("cost cap input (Plan G.2)", () => {
+    it("renders the cost cap input", () => {
+      render(<WorkflowApprovalPanel snapshot={makeSnapshot()} projectId="proj-1" />);
+      expect(screen.getByTestId("workflow-approval-cost-cap-input")).toBeInTheDocument();
+    });
+
+    it("seeds the input from snapshot.costCapUsd when set", () => {
+      const snap = makeSnapshot();
+      snap.costCapUsd = 7.5;
+      render(<WorkflowApprovalPanel snapshot={snap} projectId="proj-1" />);
+      const input = screen.getByTestId(
+        "workflow-approval-cost-cap-input"
+      ) as HTMLInputElement;
+      expect(input.value).toBe("7.5");
+    });
+
+    it("starts empty when no costCapUsd is set", () => {
+      render(<WorkflowApprovalPanel snapshot={makeSnapshot()} projectId="proj-1" />);
+      const input = screen.getByTestId(
+        "workflow-approval-cost-cap-input"
+      ) as HTMLInputElement;
+      expect(input.value).toBe("");
+    });
+
+    it("forwards the parsed cap to approveWorkflowPlan", async () => {
+      approveMock.mockResolvedValue(undefined);
+      render(<WorkflowApprovalPanel snapshot={makeSnapshot()} projectId="proj-1" />);
+      fireEvent.change(screen.getByTestId("workflow-approval-cost-cap-input"), {
+        target: { value: "2.50" }
+      });
+      fireEvent.click(screen.getByTestId("workflow-approve-btn"));
+      await waitFor(() => {
+        expect(approveMock).toHaveBeenCalledTimes(1);
+      });
+      const call = approveMock.mock.calls[0]![0];
+      expect(call.costCapUsd).toBe(2.5);
+    });
+
+    it("omits costCapUsd when the input is empty and snapshot has no cap", async () => {
+      approveMock.mockResolvedValue(undefined);
+      render(<WorkflowApprovalPanel snapshot={makeSnapshot()} projectId="proj-1" />);
+      fireEvent.click(screen.getByTestId("workflow-approve-btn"));
+      await waitFor(() => {
+        expect(approveMock).toHaveBeenCalledTimes(1);
+      });
+      const call = approveMock.mock.calls[0]![0];
+      expect(call.costCapUsd).toBeUndefined();
+    });
+
+    it("passes null to clear an existing cap when the user empties the input", async () => {
+      approveMock.mockResolvedValue(undefined);
+      const snap = makeSnapshot();
+      snap.costCapUsd = 5;
+      render(<WorkflowApprovalPanel snapshot={snap} projectId="proj-1" />);
+      fireEvent.change(screen.getByTestId("workflow-approval-cost-cap-input"), {
+        target: { value: "" }
+      });
+      fireEvent.click(screen.getByTestId("workflow-approve-btn"));
+      await waitFor(() => {
+        expect(approveMock).toHaveBeenCalledTimes(1);
+      });
+      const call = approveMock.mock.calls[0]![0];
+      expect(call.costCapUsd).toBeNull();
+    });
+  });
 });
