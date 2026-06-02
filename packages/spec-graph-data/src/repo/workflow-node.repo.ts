@@ -85,4 +85,23 @@ export class WorkflowNodeRepo {
       .set({ summary })
       .where(and(eq(workflowNodes.workflowRunId, runId), eq(workflowNodes.id, nodeId)));
   }
+
+  /**
+   * Plan F.2 — persists the result of the engine's post-producer deploy
+   * hook for a node. NOT IMPLEMENTED for the real DB yet: the
+   * workflow_nodes table doesn't have a deploy_result column. Plan F.3
+   * adds the migration. The workflow engine swallows this "not implemented"
+   * throw (see WorkflowEngine.runDeployHookIfApplicable) so deploy still
+   * runs and the node still completes — the result just isn't visible
+   * across process restarts. In-memory test repos store it directly.
+   */
+  async setDeployResult(
+    _runId: string,
+    _nodeId: string,
+    _deployResult: unknown
+  ): Promise<void> {
+    throw new Error(
+      "WorkflowNodeRepo.setDeployResult: not implemented — Plan F.3 adds the workflow_nodes.deploy_result column + migration"
+    );
+  }
 }

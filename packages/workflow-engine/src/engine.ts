@@ -5,8 +5,11 @@ import type {
   WorkflowNode,
   WorkflowRunSnapshot,
   DependencyProfile,
-  NodePolicy
+  NodePolicy,
+  DeployResult
 } from "./types.js";
+import type { IacArtifact } from "./artifact-contracts/iac.js";
+import type { DeployArtifact } from "./artifact-contracts/deploy.js";
 
 // ---------------------------------------------------------------------------
 // Minimal EventBroker interface — only what the engine needs for emitting
@@ -101,6 +104,11 @@ export interface IWorkflowNodeRepo {
     ritualId?: string | null;
     artifact?: unknown;
     failure?: unknown;
+    /** Plan F.2 — present when the engine's post-producer deploy hook
+     *  ran for this node. In-memory test repos store it directly; real
+     *  spec-graph-data repo returns undefined until Plan F.3 adds the
+     *  workflow_nodes.deploy_result column. */
+    deployResult?: unknown;
   }>>;
   findOne(runId: string, nodeId: string): Promise<{
     id: string;
@@ -116,6 +124,15 @@ export interface IWorkflowNodeRepo {
   setArtifact(runId: string, nodeId: string, artifact: unknown, schemaVersion: string): Promise<void>;
   updatePolicy(runId: string, nodeId: string, policy: unknown): Promise<void>;
   updateSummary(runId: string, nodeId: string, summary: string): Promise<void>;
+  /** Plan F.2 — persists the result of running the artifact-driven deploy
+   *  for a node (only used by deploy-kind nodes). The in-memory test repos
+   *  store this in a per-row field; the real spec-graph-data repo throws
+   *  "not implemented" because the workflow_nodes table doesn't yet have
+   *  a deploy_result column — Plan F.3 adds the migration. For Plan F.2 v1
+   *  the engine still calls this method; the real-DB throw is swallowed by
+   *  buildSchedulerDeps so the node still completes (deploy ran in K8s,
+   *  the result just isn't persisted across process restarts). */
+  setDeployResult(runId: string, nodeId: string, deployResult: unknown): Promise<void>;
 }
 
 export interface IWorkflowCheckpointRepo {
@@ -191,6 +208,35 @@ export interface PlanEdit {
   summary?: string;
 }
 
+/** Plan F.2 — input the engine assembles for the deployRunner. The engine
+ *  is the only producer of this shape; the runner is the consumer. Putting
+ *  this on the engine module keeps atlas-web (the factory wiring point)
+ *  from importing @atlas/deploy-orchestrator types directly. */
+export interface DeployRunnerInput {
+  workflowRunId: string;
+  projectId: string;
+  nodeId: string;
+  iacArtifact: IacArtifact;
+  deployArtifact: DeployArtifact;
+  /** Per Plan F.2 v1, branchId === workflowRunId so multi-tenant runs get
+   *  unique DB branches without an extra column. */
+  branchId: string;
+  /** Per Plan F.2 v1, subdomain = workflowRunId.slice(0, 8) — enough
+   *  entropy for visible-URL uniqueness, short enough for DNS hostnames. */
+  subdomain: string;
+  /** DNS apex (e.g. "atlas.dev"). The runner builds the public URL as
+   *  https://${subdomain}.${apex}. */
+  apex: string;
+}
+
+/** Plan F.2 — runtime adapter that actually applies a DeployArtifact +
+ *  IacArtifact in the project's K8s/Cloudflare cluster. The implementation
+ *  lives in @atlas/deploy-orchestrator (runDeployFromArtifacts wrapped by
+ *  DeployOrchestrator.deployFromArtifacts). The engine treats this as an
+ *  opaque async function so deploy-orchestrator stays an optional dep at
+ *  the package boundary. */
+export type DeployRunner = (input: DeployRunnerInput) => Promise<DeployResult>;
+
 export interface WorkflowEngineOptions {
   ritualEngine: IRitualEngine;
   runRepo: IWorkflowRunRepo;
@@ -202,6 +248,17 @@ export interface WorkflowEngineOptions {
    *  events. When absent (tests that don't need SSE), status updates still
    *  persist to the repo — only broker publishing is skipped. */
   broker?: IEventBrokerForEngine;
+  /** Plan F.2 — when set + a deploy-kind node completes its producer step +
+   *  deployApex is also configured, the engine calls this AFTER persisting
+   *  the deploy artifact but BEFORE marking the node done. On success, the
+   *  returned result is persisted via nodeRepo.setDeployResult. On throw,
+   *  the node is marked failed via the existing scheduler failure path.
+   *  Undefined = today's Plan F behavior (no runtime side effect). */
+  deployRunner?: DeployRunner;
+  /** Plan F.2 — DNS apex used to build the deploy's public URL. Required
+   *  for the deploy hook to fire; without it, the hook is a no-op even
+   *  when deployRunner is set. atlas-web's factory passes this from env. */
+  deployApex?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -532,6 +589,27 @@ export class WorkflowEngine {
       launchRitual: this.makeLaunchRitual(workflowRunId),
       awaitRitual: this.makeAwaitRitual(),
       persistNodeState: async (nodeId, update) => {
+        // Plan F.2 — for "done + artifact" updates we must persist the
+        // artifact BEFORE running the deploy hook, and the hook must
+        // succeed before status flips to "done". If the hook throws, the
+        // scheduler's catch block marks the node failed and status="done"
+        // is never persisted. Order:
+        //   1. Persist artifact (so downstream consumers can read it)
+        //   2. Run deploy hook if applicable (may throw → propagate)
+        //   3. Persist deployResult on success
+        //   4. Persist status + emit broker event
+        // For non-done / non-artifact updates the original order is used.
+        if (update.artifact !== undefined) {
+          await nodeRepo.setArtifact(workflowRunId, nodeId, update.artifact, "1");
+        }
+        if (update.status === "done" && update.artifact !== undefined) {
+          await this.runDeployHookIfApplicable(
+            workflowRunId,
+            projectId,
+            nodeId,
+            update.artifact
+          );
+        }
         if (update.status) {
           await nodeRepo.updateStatus(workflowRunId, nodeId, update.status, {
             ...(update.ritualId && { ritualId: update.ritualId }),
@@ -542,9 +620,6 @@ export class WorkflowEngine {
             ...(update.artifact !== undefined && { artifact: update.artifact }),
             ...(update.failure !== undefined && { failure: update.failure })
           });
-        }
-        if (update.artifact !== undefined) {
-          await nodeRepo.setArtifact(workflowRunId, nodeId, update.artifact, "1");
         }
       },
       persistWorkflowStatus: async (status) => {
@@ -793,6 +868,116 @@ export class WorkflowEngine {
   }
 
   /**
+   * Plan F.2 — post-producer deploy hook. Called from buildSchedulerDeps's
+   * persistNodeState callback AFTER the artifact is persisted but BEFORE the
+   * node is marked "done". When all conditions are met, calls deployRunner
+   * and persists the returned DeployResult via nodeRepo.setDeployResult.
+   *
+   * No-op when ANY of:
+   *   - deployRunner is unset (today's Plan F behavior preserved)
+   *   - deployApex is unset (no DNS apex → can't build public URL)
+   *   - the emitted artifact's kind !== "deploy"
+   *   - no upstream IacArtifact is found via priorArtifact.upstream
+   *
+   * If deployRunner throws, the throw propagates back up through
+   * persistNodeState → scheduler.launchAndAwait's catch block, which marks
+   * the node failed via the existing failure path. The deploy artifact is
+   * still persisted (step 1 above); only deployResult is missing.
+   *
+   * Plan F.3 trade-off: the real spec-graph-data WorkflowNodeRepo throws
+   * "not implemented" from setDeployResult because workflow_nodes.deploy_result
+   * doesn't exist yet. We swallow that specific persistence error so the
+   * node still completes — the deploy ran in K8s, the result just isn't
+   * visible across process restarts. The migration is a Plan F.3 task.
+   */
+  private async runDeployHookIfApplicable(
+    workflowRunId: string,
+    projectId: string,
+    nodeId: string,
+    artifact: unknown
+  ): Promise<void> {
+    const { deployRunner, deployApex, nodeRepo } = this.opts;
+    if (!deployRunner || !deployApex) return;
+
+    // Quick shape check: only fire when the artifact looks like a DeployArtifact.
+    // We don't re-validate via Zod here — the scheduler already validated it
+    // through ArtifactContractRegistry in awaitRitual; we just confirm the
+    // discriminator so non-deploy nodes that happen to emit artifacts (e.g.
+    // backend, iac) skip the hook.
+    if (
+      !artifact ||
+      typeof artifact !== "object" ||
+      (artifact as { kind?: unknown }).kind !== "deploy"
+    ) {
+      return;
+    }
+
+    // Look up the node's upstream IacArtifact. We re-read the rows so we
+    // get whatever was persisted (the iac node finishes BEFORE the deploy
+    // node by virtue of dependsOn ordering, so its artifact is on disk).
+    const allRows = await nodeRepo.findByRunId(workflowRunId);
+    const thisRow = allRows.find((r) => r.id === nodeId);
+    const consumes = Array.isArray(thisRow?.consumes)
+      ? (thisRow!.consumes as string[])
+      : [];
+    let iacArtifact: IacArtifact | undefined;
+    for (const upstreamId of consumes) {
+      const upstreamRow = allRows.find((r) => r.id === upstreamId);
+      const candidate = upstreamRow?.artifact;
+      if (
+        candidate &&
+        typeof candidate === "object" &&
+        (candidate as { kind?: unknown }).kind === "iac"
+      ) {
+        iacArtifact = candidate as IacArtifact;
+        break;
+      }
+    }
+    if (!iacArtifact) {
+      // No upstream IacArtifact — the deploy artifact can't be applied
+      // without the cluster manifests. This is a workflow-shape issue
+      // (deploy node didn't consume an iac node) so we silently no-op
+      // rather than throwing, mirroring how generateApiClient handles
+      // a missing-backend-upstream gracefully.
+      console.warn(
+        `[workflow-engine] deploy hook: no upstream IacArtifact found for node "${nodeId}" — skipping`
+      );
+      return;
+    }
+
+    const input: DeployRunnerInput = {
+      workflowRunId,
+      projectId,
+      nodeId,
+      iacArtifact,
+      deployArtifact: artifact as DeployArtifact,
+      branchId: workflowRunId,
+      subdomain: workflowRunId.slice(0, 8),
+      apex: deployApex
+    };
+
+    // deployRunner throw → propagates up to scheduler.launchAndAwait's
+    // catch block → node marked failed via existing path. We do NOT
+    // catch here.
+    const deployResult = await deployRunner(input);
+
+    // Persist deployResult. Swallow "not implemented" from the real repo
+    // (see Plan F.3 trade-off above) so the deploy still counts as done.
+    try {
+      await nodeRepo.setDeployResult(workflowRunId, nodeId, deployResult);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes("not implemented")) {
+        console.warn(
+          `[workflow-engine] deploy hook: setDeployResult is not implemented yet (Plan F.3) — deployResult won't persist for node "${nodeId}"`
+        );
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  /**
    * Reconstructs a WorkflowRunSnapshot from the run + node repos.
    */
   private async buildSnapshot(
@@ -817,6 +1002,9 @@ export class WorkflowEngine {
       ...(row.artifact !== undefined && row.artifact !== null && { artifact: row.artifact }),
       ...(row.failure !== undefined && row.failure !== null && {
         failure: row.failure as WorkflowNode["failure"]
+      }),
+      ...(row.deployResult !== undefined && row.deployResult !== null && {
+        deployResult: row.deployResult as WorkflowNode["deployResult"]
       })
     }));
 
