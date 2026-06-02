@@ -9,6 +9,10 @@ export interface StartWorkflowInput {
   prompt: string;
   suggestedKinds?: string[];
   concurrencyCap?: number;
+  /** Plan G Task 9 — optional USD cost cap for this workflow. Forwarded to
+   *  engine.start() which threads it through to the per-run usage tracker
+   *  + scheduler so cost-cap aborts engage when total spend exceeds it. */
+  costCapUsd?: number;
 }
 
 export async function startWorkflow(
@@ -27,7 +31,8 @@ export async function startWorkflow(
     ...(input.suggestedKinds && input.suggestedKinds.length > 0
       ? { artifactKindHint: input.suggestedKinds[0] }
       : {}),
-    ...(input.concurrencyCap !== undefined ? { concurrencyCap: input.concurrencyCap } : {})
+    ...(input.concurrencyCap !== undefined ? { concurrencyCap: input.concurrencyCap } : {}),
+    ...(input.costCapUsd !== undefined ? { costCapUsd: input.costCapUsd } : {})
   });
   return { workflowRunId };
 }
