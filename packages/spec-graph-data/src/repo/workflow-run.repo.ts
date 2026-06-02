@@ -90,4 +90,25 @@ export class WorkflowRunRepo {
       })
       .where(eq(workflowRuns.id, id));
   }
+
+  /**
+   * Plan G.3 — freeze the per-role cost breakdown onto the run row.
+   * Called by WorkflowEngine.buildSchedulerDeps.onSchedulerExit alongside
+   * updateTotalCostUsd. JSONB column accepts any JSON value; an empty
+   * array persists as `[]` (NOT null), which buildSnapshot exposes as
+   * `costBreakdown: []` so the UI can distinguish "no recorded usage"
+   * from "legacy row".
+   */
+  async updateCostBreakdown(
+    id: string,
+    breakdown: Array<{ roleId: string; totalUsd: number; callCount: number }>
+  ): Promise<void> {
+    await this.db
+      .update(workflowRuns)
+      .set({
+        costBreakdown: breakdown as WorkflowRunRow["costBreakdown"],
+        updatedAt: new Date()
+      })
+      .where(eq(workflowRuns.id, id));
+  }
 }
