@@ -20,3 +20,10 @@ export {
   type SmokeFetcher,
   type RunSmokeTestsInput
 } from "./smoke-runner.js";
+export {
+  buildAndPushImages,
+  defaultCommandRunner,
+  type CommandRunner,
+  type ImageBuilderResult,
+  type BuildAndPushImagesOptions
+} from "./image-builder.js";

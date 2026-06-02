@@ -6,6 +6,11 @@ import type { CloudflareClient } from "./cloudflare-client.js";
 import type { BranchingPort, MigratePort } from "./orchestrator.js";
 import { reconcileArgoUntilSettled } from "./reconcile.js";
 import { runSmokeTests, type SmokeFetcher } from "./smoke-runner.js";
+import {
+  buildAndPushImages,
+  type CommandRunner,
+  type ImageBuilderResult
+} from "./image-builder.js";
 import { DeployError } from "./errors.js";
 
 export interface DeployFromArtifactsOptions {
@@ -18,6 +23,14 @@ export interface DeployFromArtifactsOptions {
   reconcileTimeoutMs?: number;
   smokeFetcher?: SmokeFetcher;
   smokeTimeoutMs?: number;
+  /** Plan F.4 — injectable command runner for the image builder. Default
+   *  (when undefined) spawns docker via child_process. Set to a vi.fn-backed
+   *  fake in tests to assert command shape without invoking docker. */
+  imageRunner?: CommandRunner;
+  /** Plan F.4 — when true, the image builder runs `docker build` only and
+   *  skips `docker push`. Useful for local dev + tests where no real
+   *  registry exists. */
+  skipImagePush?: boolean;
 }
 
 export interface DeployFromArtifactsInput {
@@ -38,6 +51,10 @@ export interface DeployFromArtifactsResult {
   phase: "healthy" | "failed";
   startedAt: string;
   smokeResults?: SmokeTestResult[];
+  /** Plan F.4 — per-image build+push results. Present when the artifact
+   *  declared at least one imageBuild entry. Omitted when the artifact had
+   *  no images (no builder invocation). */
+  imageBuilds?: ImageBuilderResult[];
 }
 
 const DEFAULT_NAMESPACE = "atlas-projects";
@@ -67,6 +84,25 @@ export async function runDeployFromArtifacts(
   }
 
   const applied: Array<{ namespace: string; kind: string; name: string }> = [];
+
+  // Plan F.4 — build + push every image BEFORE any k8s call. Fail-fast on
+  // build error: nothing has been applied yet, so no rollback is needed.
+  // The builder itself is fail-soft per-image (each gets a result); we
+  // aggregate-throw on any !ok so the failure surface stays clean.
+  let imageResults: ImageBuilderResult[] | undefined;
+  if (input.deployArtifact.imageBuilds.length > 0) {
+    imageResults = await buildAndPushImages(input.deployArtifact.imageBuilds, {
+      ...(opts.imageRunner ? { runner: opts.imageRunner } : {}),
+      ...(opts.skipImagePush !== undefined ? { skipPush: opts.skipImagePush } : {})
+    });
+    const failed = imageResults.filter((r) => !r.ok);
+    if (failed.length > 0) {
+      const detail = failed
+        .map((r) => `${r.serviceName}:${r.imageTag} (${r.error ?? "unknown"})`)
+        .join(", ");
+      throw new DeployError(`${failed.length} image build(s) failed: ${detail}`);
+    }
+  }
 
   try {
     // Apply IaC k8s manifests in declared order.
@@ -143,7 +179,8 @@ export async function runDeployFromArtifacts(
       appliedManifests: applied,
       phase: "healthy",
       startedAt,
-      ...(smokeResults.length > 0 ? { smokeResults } : {})
+      ...(smokeResults.length > 0 ? { smokeResults } : {}),
+      ...(imageResults && imageResults.length > 0 ? { imageBuilds: imageResults } : {})
     };
   } catch (err) {
     // On any failure mid-apply (or rethrown rollback above), tear down whatever landed.
