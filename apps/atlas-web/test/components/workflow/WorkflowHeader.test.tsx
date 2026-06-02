@@ -192,6 +192,45 @@ describe("WorkflowHeader — Plan G cost + retry-all", () => {
     expect(btn).toHaveTextContent(/2/);
   });
 
+  it("does NOT render the cost breakdown disclosure when costBreakdown is undefined (Plan G.3)", () => {
+    const snap = makeSnapshot("running", { totalCostUsd: 1.0 });
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    expect(screen.queryByTestId("workflow-cost-breakdown")).toBeNull();
+  });
+
+  it("does NOT render the cost breakdown disclosure when costBreakdown is empty (Plan G.3)", () => {
+    const snap = makeSnapshot("running", {
+      totalCostUsd: 1.0,
+      costBreakdown: []
+    });
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    expect(screen.queryByTestId("workflow-cost-breakdown")).toBeNull();
+  });
+
+  it("renders the cost breakdown disclosure listing roles sorted by totalUsd desc (Plan G.3)", () => {
+    const snap = makeSnapshot("running", {
+      totalCostUsd: 2.7,
+      costBreakdown: [
+        { roleId: "developer", totalUsd: 2.13, callCount: 12 },
+        { roleId: "architect", totalUsd: 0.45, callCount: 3 },
+        { roleId: "tester", totalUsd: 0.12, callCount: 1 }
+      ]
+    });
+    render(<WorkflowHeader snapshot={snap} projectId="proj-1" />);
+    const disclosure = screen.getByTestId("workflow-cost-breakdown");
+    expect(disclosure).toBeInTheDocument();
+    // expect order developer → architect → tester (already passed sorted by engine)
+    const rows = disclosure.querySelectorAll("[data-testid='workflow-cost-breakdown-row']");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent(/developer/);
+    expect(rows[0]).toHaveTextContent(/\$2\.13/);
+    expect(rows[0]).toHaveTextContent(/12/);
+    expect(rows[1]).toHaveTextContent(/architect/);
+    expect(rows[1]).toHaveTextContent(/\$0\.45/);
+    expect(rows[2]).toHaveTextContent(/tester/);
+    expect(rows[2]).toHaveTextContent(/\$0\.12/);
+  });
+
   it("calls retryAllFailedNodes on click", async () => {
     hoistedRetryAllMock.mockResolvedValue({ retriedCount: 2, errors: [] });
     const snap = makeSnapshot("escalated");
