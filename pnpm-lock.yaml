@@ -696,6 +696,9 @@ importers:
         specifier: 3.23.8
         version: 3.23.8
     devDependencies:
+      '@atlas/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
       '@types/node':
         specifier: 22.9.0
         version: 22.9.0
