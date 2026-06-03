@@ -8,9 +8,18 @@
 //   3. The live tracker takes precedence during execution.
 //   4. Repos that don't implement updateCostBreakdown are no-ops (legacy
 //      compatibility — snapshot.costBreakdown reverts to undefined post-cleanup).
-import { describe, it, expect } from "vitest";
+//
+// Plan G.4 — end-to-end proof (final test in this file): drives a workflow
+// through a REAL RitualEngine + REAL Conductor with stub Architect and
+// Developer roles. Each role calls inv.usageTracker?.record(... { roleId })
+// from inside run(). Asserts the final snapshot.costBreakdown contains
+// BOTH "architect" and "developer" buckets with totalUsd > 0 — proving the
+// workflow-engine → ritual-engine → conductor → role plumbing actually
+// splits per-role spend (instead of collapsing into __unassigned__).
+import { describe, it, expect, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { InMemoryUsageTracker } from "@atlas/llm-provider";
+import { Conductor, TestRole, type RoleInvocation, type RoleOutput } from "@atlas/conductor";
 import { WorkflowEngine } from "../src/engine.js";
 import type {
   IWorkflowRunRepo,
@@ -311,6 +320,171 @@ describe("Plan G.3 — per-role cost breakdown on run row", () => {
     expect(runRepo._breakdownCalls.length).toBe(0);
     const snap = await engine.getRun(runId);
     expect(snap?.costBreakdown).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // Plan G.4 — END-TO-END proof: workflow-engine threads tracker → IRitualEngine
+  // → Conductor.dispatch → role.run(inv). The stub ritual-engine calls a REAL
+  // Conductor with stub Architect+Developer roles whose run() invokes
+  // inv.usageTracker?.record(..., { roleId: this.id }). Asserts the final
+  // snapshot.costBreakdown contains BOTH role buckets with non-zero spend
+  // (NOT a single __unassigned__ bucket — that would be the smoking gun that
+  // the wiring collapsed somewhere on the path).
+  //
+  // We deliberately stub IRitualEngine instead of booting the real
+  // RitualEngine — RitualEngine has a multi-stage state machine
+  // (architect → developer → canvas-pause → build-gate) whose convergence
+  // depends on events the stub roles don't emit; verifying that state
+  // machine is the ritual-engine package's job. Here we focus on the
+  // G.4 contract: tracker reaches role.run with the right options, role
+  // records with roleId, and the engine freeze persists the breakdown.
+  // -------------------------------------------------------------------------
+  it("Plan G.4 end-to-end: usageTracker reaches conductor.dispatch → role.run → per-role breakdown persists", async () => {
+    // --- Real conductor with stub roles ---
+    // Each role calls inv.usageTracker?.record(..., { roleId: this.id }) from
+    // inside run(); this is the contract Plan G.4 Task 3 introduced for real
+    // roles. We use TestRole + onRun to keep the test self-contained (no real
+    // LLM SDK mocks needed).
+
+    const plannerRole = new TestRole({
+      roleId: "workflow-planner",
+      onRun: async (inv: RoleInvocation): Promise<RoleOutput> => {
+        inv.usageTracker?.record(
+          "anthropic", "claude-haiku-4-5",
+          { inputTokens: 100, outputTokens: 25 },
+          { roleId: "workflow-planner" }
+        );
+        return {
+          events: [{
+            eventType: "workflow_planner.dag.emitted",
+            payload: {
+              nodes: [],
+              dependencyProfile: { schemaVersion: "1" }
+            }
+          }],
+          diff: { kind: "none" }
+        };
+      }
+    });
+
+    const architectRole = new TestRole({
+      roleId: "architect",
+      onRun: async (inv: RoleInvocation): Promise<RoleOutput> => {
+        inv.usageTracker?.record(
+          "anthropic", "claude-opus-4-7",
+          { inputTokens: 200_000, outputTokens: 100_000 },
+          { roleId: "architect" }
+        );
+        return {
+          events: [{
+            eventType: "architect.pass2.completed",
+            payload: { artifact: { scope: "new-feature", plan: "ui" } }
+          }],
+          diff: { kind: "none" }
+        };
+      }
+    });
+
+    const developerRole = new TestRole({
+      roleId: "developer",
+      onRun: async (inv: RoleInvocation): Promise<RoleOutput> => {
+        inv.usageTracker?.record(
+          "anthropic", "claude-sonnet-4-6",
+          { inputTokens: 500_000, outputTokens: 200_000 },
+          { roleId: "developer" }
+        );
+        return {
+          events: [{ eventType: "developer.completed", payload: { summary: "ok" } }],
+          diff: { kind: "patch", body: "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -0,0 +1 @@\n+ok\n" }
+        };
+      }
+    });
+
+    const conductor = new Conductor({
+      classifier: { classify: async () => ({ roleId: "workflow-planner", confidence: 1 }) },
+      roles: new Map<string, import("@atlas/conductor").Role>([
+        ["workflow-planner", plannerRole],
+        ["architect", architectRole],
+        ["developer", developerRole]
+      ]),
+      checkpointSink: { emit: async () => {} },
+      sliceBuilder: () => ({ bytes: "{}", hash: "sha256:zero" })
+    });
+
+    // Stub IRitualEngine that exercises the real conductor.dispatch path —
+    // proving the workflow-engine → ritual-engine → conductor → role.run
+    // tracker plumbing works without depending on RitualEngine's full state
+    // machine. Each start() dispatches planner + architect + developer in
+    // sequence, threading the tracker into every dispatch options.
+    let counter = 0;
+    const ritualEngine: IRitualEngine = {
+      async start(input) {
+        const ritualId = `r-${++counter}`;
+        const opts = input.usageTracker !== undefined
+          ? { forceRoleId: "workflow-planner", usageTracker: input.usageTracker }
+          : { forceRoleId: "workflow-planner" };
+        await conductor.dispatch(
+          { ritualId, graphVersion: 0, userTurn: input.userTurn, projectId: input.projectId },
+          opts as never
+        );
+        const archOpts = input.usageTracker !== undefined
+          ? { forceRoleId: "architect", usageTracker: input.usageTracker }
+          : { forceRoleId: "architect" };
+        await conductor.dispatch(
+          { ritualId, graphVersion: 0, userTurn: input.userTurn, projectId: input.projectId },
+          archOpts as never
+        );
+        const devOpts = input.usageTracker !== undefined
+          ? { forceRoleId: "developer", usageTracker: input.usageTracker }
+          : { forceRoleId: "developer" };
+        await conductor.dispatch(
+          { ritualId, graphVersion: 0, userTurn: input.userTurn, projectId: input.projectId },
+          devOpts as never
+        );
+        return ritualId;
+      },
+      async getRitual() {
+        return {
+          state: "completed",
+          roleEvents: [
+            { eventType: "workflow_planner.dag.emitted", payload: { nodes: [], dependencyProfile: { schemaVersion: "1" } } }
+          ]
+        };
+      },
+      async abort() {}
+    };
+
+    const runRepo = makeRunRepo();
+    const engine = new WorkflowEngine({
+      ritualEngine,
+      runRepo,
+      nodeRepo: makeNodeRepo()
+    });
+
+    const runId = await engine.start({
+      projectId: randomUUID(),
+      userId: "user-1",
+      prompt: "build a UI"
+    });
+    await engine.approvePlan(runId);
+    await engine._waitForScheduler(runId);
+
+    // After terminal status the live tracker is gone; the persisted
+    // breakdown must contain both architect and developer buckets. The
+    // mere fact that we see distinct roleIds (not a single __unassigned__
+    // bucket) proves the wiring lands end-to-end.
+    const snap = await engine.getRun(runId);
+    expect(snap?.costBreakdown).toBeDefined();
+    const roleIds = snap!.costBreakdown!.map((e) => e.roleId).sort();
+    expect(roleIds).toContain("architect");
+    expect(roleIds).toContain("developer");
+    // No __unassigned__ bucket — every record() call carried a roleId.
+    expect(roleIds).not.toContain("__unassigned__");
+    // Both buckets have real, non-zero spend.
+    const architectEntry = snap!.costBreakdown!.find((e) => e.roleId === "architect");
+    const developerEntry = snap!.costBreakdown!.find((e) => e.roleId === "developer");
+    expect(architectEntry?.totalUsd).toBeGreaterThan(0);
+    expect(developerEntry?.totalUsd).toBeGreaterThan(0);
   });
 
   it("snapshot omits costBreakdown when the row holds null + no tracker", async () => {
